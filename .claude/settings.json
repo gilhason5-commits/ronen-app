@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(supabase --version)",
+      "Bash(brew install:*)",
+      "Bash(pbpaste)",
+      "Bash(supabase login:*)",
+      "Bash(supabase projects:*)",
+      "Bash(supabase link:*)",
+      "Bash(supabase db:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npm uninstall:*)"
+    ]
+  }
+}

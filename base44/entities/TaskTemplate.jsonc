@@ -1,0 +1,107 @@
+{
+  "name": "TaskTemplate",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "\u05db\u05d5\u05ea\u05e8\u05ea \u05d4\u05de\u05e9\u05d9\u05de\u05d4"
+    },
+    "description": {
+      "type": "string",
+      "description": "\u05ea\u05d9\u05d0\u05d5\u05e8 \u05d4\u05de\u05e9\u05d9\u05de\u05d4"
+    },
+    "category_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05e7\u05d8\u05d2\u05d5\u05e8\u05d9\u05d4"
+    },
+    "category_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05e7\u05d8\u05d2\u05d5\u05e8\u05d9\u05d4"
+    },
+    "task_type": {
+      "type": "string",
+      "enum": [
+        "RECURRING",
+        "PER_EVENT",
+        "PETI_VOR_RECURRING"
+      ],
+      "description": "\u05e1\u05d5\u05d2 \u05d4\u05de\u05e9\u05d9\u05de\u05d4 (\u05de\u05d5\u05e4\u05e7 \u05de\u05d4\u05e7\u05d8\u05d2\u05d5\u05e8\u05d9\u05d4)"
+    },
+    "department": {
+      "type": "string",
+      "enum": [
+        "\u05e9\u05d9\u05e8\u05d5\u05ea",
+        "\u05d1\u05e8",
+        "\u05de\u05d8\u05d1\u05d7",
+        "\u05db\u05e1\u05e4\u05d9\u05dd",
+        "\u05d4\u05e0\u05d4\u05dc\u05d4",
+        "\u05e4\u05d8\u05d9 \u05d5\u05d5\u05e8",
+        "\u05d0\u05d7\u05e8"
+      ],
+      "description": "\u05de\u05d7\u05dc\u05e7\u05d4 (\u05de\u05d5\u05e4\u05e7 \u05de\u05d4\u05e7\u05d8\u05d2\u05d5\u05e8\u05d9\u05d4)"
+    },
+    "default_role": {
+      "type": "string",
+      "description": "\u05ea\u05e4\u05e7\u05d9\u05d3 \u05d1\u05e8\u05d9\u05e8\u05ea \u05de\u05d7\u05d3\u05dc"
+    },
+    "manager_editable": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u05d4\u05d0\u05dd \u05de\u05e0\u05d4\u05dc \u05d9\u05db\u05d5\u05dc \u05dc\u05e2\u05e8\u05d5\u05da"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "description": "\u05d4\u05d0\u05dd \u05d4\u05ea\u05d1\u05e0\u05d9\u05ea \u05e4\u05e2\u05d9\u05dc\u05d4"
+    },
+    "reminder_before_start_minutes": {
+      "type": "number",
+      "default": 10,
+      "description": "\u05ea\u05d6\u05db\u05d5\u05e8\u05ea \u05dc\u05e4\u05e0\u05d9 \u05d4\u05ea\u05d7\u05dc\u05d4 (\u05d3\u05e7\u05d5\u05ea)"
+    },
+    "reminder_before_end_minutes": {
+      "type": "number",
+      "default": 10,
+      "description": "\u05ea\u05d6\u05db\u05d5\u05e8\u05ea \u05dc\u05e4\u05e0\u05d9 \u05e1\u05d9\u05d5\u05dd (\u05d3\u05e7\u05d5\u05ea)"
+    },
+    "escalate_to_manager_if_not_done": {
+      "type": "boolean",
+      "default": true,
+      "description": "\u05dc\u05d4\u05e2\u05dc\u05d5\u05ea \u05dc\u05de\u05e0\u05d4\u05dc \u05d0\u05dd \u05dc\u05d0 \u05d1\u05d5\u05e6\u05e2"
+    },
+    "escalation_role_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05ea\u05e4\u05e7\u05d9\u05d3 \u05de\u05e0\u05d4\u05dc \u05d0\u05e1\u05e7\u05dc\u05e6\u05d9\u05d4"
+    },
+    "escalation_role_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05ea\u05e4\u05e7\u05d9\u05d3 \u05de\u05e0\u05d4\u05dc \u05d0\u05e1\u05e7\u05dc\u05e6\u05d9\u05d4"
+    },
+    "schedule_rule": {
+      "type": "string",
+      "description": "\u05db\u05dc\u05dc \u05ea\u05d6\u05de\u05d5\u05df \u05dc\u05de\u05e9\u05d9\u05de\u05d5\u05ea \u05e9\u05d5\u05d8\u05e4\u05d5\u05ea (frequency: daily/weekly, days, time)"
+    },
+    "anchor": {
+      "type": "string",
+      "enum": [
+        "EVENT_START",
+        "EVENT_END"
+      ],
+      "default": "EVENT_START",
+      "description": "\u05e0\u05e7\u05d5\u05d3\u05ea \u05e2\u05d9\u05d2\u05d5\u05df \u05dc\u05de\u05e9\u05d9\u05de\u05d5\u05ea \u05e4\u05e8-\u05d0\u05d9\u05e8\u05d5\u05e2"
+    },
+    "start_offset_minutes": {
+      "type": "number",
+      "description": "\u05d4\u05d9\u05e1\u05d8 \u05de\u05e0\u05e7\u05d5\u05d3\u05ea \u05d4\u05e2\u05d9\u05d2\u05d5\u05df \u05d1\u05d3\u05e7\u05d5\u05ea (\u05d9\u05db\u05d5\u05dc \u05dc\u05d4\u05d9\u05d5\u05ea \u05e9\u05dc\u05d9\u05dc\u05d9)"
+    },
+    "duration_minutes": {
+      "type": "number",
+      "description": "\u05de\u05e9\u05da \u05d4\u05de\u05e9\u05d9\u05de\u05d4 \u05d1\u05d3\u05e7\u05d5\u05ea"
+    }
+  },
+  "required": [
+    "title",
+    "category_id",
+    "task_type"
+  ]
+}

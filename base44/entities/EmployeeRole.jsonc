@@ -1,0 +1,47 @@
+{
+  "name": "EmployeeRole",
+  "type": "object",
+  "properties": {
+    "role_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05ea\u05e4\u05e7\u05d9\u05d3"
+    },
+    "department_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05d4\u05de\u05d7\u05dc\u05e7\u05d4"
+    },
+    "department_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05de\u05d7\u05dc\u05e7\u05d4"
+    },
+    "description": {
+      "type": "string",
+      "description": "\u05ea\u05d9\u05d0\u05d5\u05e8 \u05d4\u05ea\u05e4\u05e7\u05d9\u05d3"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "description": "\u05d4\u05d0\u05dd \u05d4\u05ea\u05e4\u05e7\u05d9\u05d3 \u05e4\u05e2\u05d9\u05dc"
+    },
+    "is_manager": {
+      "type": "boolean",
+      "default": false,
+      "description": "\u05d4\u05d0\u05dd \u05d6\u05d4 \u05ea\u05e4\u05e7\u05d9\u05d3 \u05de\u05e0\u05d4\u05dc"
+    },
+    "manages_department_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05d4\u05de\u05d7\u05dc\u05e7\u05d4 \u05e9\u05d4\u05ea\u05e4\u05e7\u05d9\u05d3 \u05de\u05e0\u05d4\u05dc (\u05d0\u05dd is_manager=true)"
+    },
+    "manages_department_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05d4\u05de\u05d7\u05dc\u05e7\u05d4 \u05e9\u05d4\u05ea\u05e4\u05e7\u05d9\u05d3 \u05de\u05e0\u05d4\u05dc"
+    },
+    "procedures": {
+      "type": "string",
+      "description": "\u05e0\u05d4\u05dc\u05d9\u05dd \u05d5\u05ea\u05d9\u05d0\u05d5\u05e8 \u05e2\u05d1\u05d5\u05d3\u05d4 \u05dc\u05ea\u05e4\u05e7\u05d9\u05d3"
+    }
+  },
+  "required": [
+    "role_name"
+  ]
+}
