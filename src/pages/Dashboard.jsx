@@ -196,16 +196,10 @@ export default function Dashboard() {
                     </p>
                   </div>
                 </div>
-                <a 
-                  href={base44.agents.getWhatsAppConnectURL('analytics_agent')} 
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700" disabled>
                     <MessageSquare className="w-4 h-4 mr-2" />
                     פתח שיחה ב-WhatsApp
                   </Button>
-                </a>
               </CardContent>
             </Card>
             <Card className="border-stone-200 bg-gradient-to-br from-emerald-50 to-green-50">
@@ -221,16 +215,10 @@ export default function Dashboard() {
                     </p>
                   </div>
                 </div>
-                <a 
-                  href={base44.agents.getWhatsAppConnectURL('purchase_agent')} 
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button className="w-full bg-emerald-600 hover:bg-emerald-700">
+                  <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled>
                     <MessageSquare className="w-4 h-4 mr-2" />
                     פתח שיחה ב-WhatsApp
                   </Button>
-                </a>
               </CardContent>
             </Card>
           </div>
