@@ -43,6 +43,27 @@ export default async function handler(req, res) {
       const phone = task.assigned_to_phone || await getEmployeePhone(task.assigned_to_id);
       if (!phone) continue;
 
+      // Atomic claim: prevents duplicate reminders from concurrent scheduler runs.
+      const claimTime = new Date().toISOString();
+      const { data: claimedRows, error: claimError } = await supabase
+        .from('TaskAssignment')
+        .update({ reminder_sent_at: claimTime })
+        .eq('id', task.id)
+        .is('reminder_sent_at', null)
+        .select('id');
+
+      if (claimError) {
+        if (!results.errors) results.errors = [];
+        results.errors.push({ task: task.task_title, error: `claim failed: ${claimError.message}` });
+        console.error(`Reminder claim failed for task ${task.id}:`, claimError.message);
+        continue;
+      }
+
+      if (!claimedRows || claimedRows.length === 0) {
+        // Already claimed/sent by another run.
+        continue;
+      }
+
       try {
         await sendWhatsApp(phone, TEMPLATES.TASK_REMINDER, {
           '1': task.assigned_to_name || '',
@@ -51,13 +72,15 @@ export default async function handler(req, res) {
           '4': formatTime(task.end_time),
         });
 
-        await supabase
-          .from('TaskAssignment')
-          .update({ reminder_sent_at: now.toISOString() })
-          .eq('id', task.id);
-
         results.reminders++;
       } catch (err) {
+        // Release claim on failure so a later scheduler run can retry.
+        await supabase
+          .from('TaskAssignment')
+          .update({ reminder_sent_at: null })
+          .eq('id', task.id)
+          .eq('reminder_sent_at', claimTime);
+
         if (!results.errors) results.errors = [];
         results.errors.push({ task: task.task_title, error: err.message });
         console.error(`Reminder failed for task ${task.id}:`, err.message);
