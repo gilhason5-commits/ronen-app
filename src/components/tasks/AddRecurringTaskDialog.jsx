@@ -66,15 +66,6 @@ export default function AddRecurringTaskDialog({ open, onClose, editingAssignmen
     initialData: [],
   });
 
-  // Fetch existing recurring assignments to check for duplicates
-  const { data: existingAssignments = [] } = useQuery({
-    queryKey: ['taskAssignments', 'recurring'],
-    queryFn: async () => {
-      const data = await base44.entities.TaskAssignment.filter({});
-      return data.filter(a => !a.event_id && a.recurrence_type && a.recurrence_type !== 'once');
-    },
-    initialData: [],
-  });
 
   const activeEmployees = allEmployees.filter(e => e.is_active);
   
@@ -199,20 +190,7 @@ export default function AddRecurringTaskDialog({ open, onClose, editingAssignmen
 
     // Daily tasks skip Friday/Saturday automatically in generation
 
-    // Check for duplicate: same template already assigned to a different employee
-    if (!editingAssignment) {
-      const templateId = selectedTemplate.id;
-      const existingForTemplate = existingAssignments.filter(a => a.task_template_id === templateId);
-      if (existingForTemplate.length > 0) {
-        const existingEmployeeIds = [...new Set(existingForTemplate.map(a => a.assigned_to_id))];
-        const conflictEmployees = selectedEmployees.filter(id => !existingEmployeeIds.includes(id));
-        const alreadyAssignedNames = existingEmployeeIds.map(id => getEmployeeById(id)?.full_name || id);
-        if (existingForTemplate.length > 0 && selectedEmployees.some(id => !existingEmployeeIds.includes(id))) {
-          toast.error(`המשימה "${selectedTemplate.title}" כבר מוקצית ל: ${alreadyAssignedNames.join(', ')}. לא ניתן להקצות את אותה משימה שוטפת ליותר מעובד/תפקיד אחד.`);
-          return;
-        }
-      }
-    }
+    // No duplicate check — multiple employees can share the same recurring task template
 
     // Escalation data (shared)
     const effectiveEscalationRole = (escalationRole && escalationRole !== 'none') ? escalationRole : '';
@@ -478,34 +456,23 @@ export default function AddRecurringTaskDialog({ open, onClose, editingAssignmen
           {!editingAssignment && (
           <div className="space-y-2 max-h-[300px] overflow-y-auto border rounded-lg p-3">
             {filteredTemplates.map(template => {
-              const alreadyAssigned = existingAssignments.some(a => a.task_template_id === template.id);
-              const assignedToName = alreadyAssigned
-                ? [...new Set(existingAssignments.filter(a => a.task_template_id === template.id).map(a => a.assigned_to_name))].join(', ')
-                : '';
               return (
               <div
                 key={template.id}
-                onClick={() => !alreadyAssigned && handleTemplateSelect(template)}
-                className={`border rounded-lg p-3 transition-colors ${
-                  alreadyAssigned
-                    ? 'bg-stone-100 border-stone-200 cursor-not-allowed opacity-60'
-                    : selectedTemplate?.id === template.id 
-                      ? 'bg-emerald-50 border-emerald-300 cursor-pointer' 
-                      : 'hover:bg-stone-50 cursor-pointer'
+                onClick={() => handleTemplateSelect(template)}
+                className={`border rounded-lg p-3 transition-colors cursor-pointer ${
+                  selectedTemplate?.id === template.id
+                    ? 'bg-emerald-50 border-emerald-300'
+                    : 'hover:bg-stone-50'
                 }`}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h4 className={`font-semibold ${alreadyAssigned ? 'text-stone-400' : 'text-stone-900'}`}>{template.title}</h4>
-                      {alreadyAssigned && (
-                        <Badge variant="secondary" className="text-xs bg-stone-200 text-stone-500">
-                          מוקצית ל{assignedToName}
-                        </Badge>
-                      )}
+                      <h4 className="font-semibold text-stone-900">{template.title}</h4>
                     </div>
                     {template.description && (
-                      <p className={`text-sm mt-1 ${alreadyAssigned ? 'text-stone-400' : 'text-stone-600'}`}>{template.description}</p>
+                      <p className="text-sm mt-1 text-stone-600">{template.description}</p>
                     )}
                     <div className="flex flex-wrap gap-2 mt-2">
                       <Badge variant="outline">{template.category_name}</Badge>
