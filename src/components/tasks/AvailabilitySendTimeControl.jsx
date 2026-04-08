@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Clock, Check, Loader2 } from "lucide-react";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 const HOURS = [];
 for (let h = 0; h <= 23; h++) {
@@ -60,16 +60,9 @@ export default function AvailabilitySendTimeControl() {
       });
       if (!res.ok) throw new Error('Failed to update');
       setCurrentHour(selectedHour);
-      toast({
-        title: "שעת השליחה עודכנה",
-        description: `שליחת זמינות: ${selectedHour}, בדיקת אי-מענה: ${addTwoHours(selectedHour)}`,
-      });
+      toast.success(`שעת השליחה עודכנה: ${selectedHour} (בדיקת אי-מענה: ${addTwoHours(selectedHour)})`);
     } catch (err) {
-      toast({
-        title: "שגיאה",
-        description: "לא הצלחנו לעדכן את שעת השליחה",
-        variant: "destructive",
-      });
+      toast.error('לא הצלחנו לעדכן את שעת השליחה');
     } finally {
       setSaving(false);
     }
