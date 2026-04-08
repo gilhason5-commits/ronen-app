@@ -10,7 +10,17 @@
       "Bash(supabase db:*)",
       "Bash(npm install:*)",
       "Bash(npm run:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(vercel --version)",
+      "Bash(vercel env:*)",
+      "Bash(vercel --prod --yes)",
+      "Bash(curl -s -X POST https://cudsnpnqyvzkcicxxisc.supabase.co/auth/v1/admin/users -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTU2ODAxMywiZXhwIjoyMDkxMTQ0MDEzfQ.jmhGSiefXkFsf90CSWfX1cSodrtObVpazW8b541pN-0' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTU2ODAxMywiZXhwIjoyMDkxMTQ0MDEzfQ.jmhGSiefXkFsf90CSWfX1cSodrtObVpazW8b541pN-0' -H 'Content-Type: application/json' -d '{\"email\":\"info@raytlv.co.il\",\"password\":\"ronen1245\",\"email_confirm\":true,\"user_metadata\":{\"role\":\"admin\"}}')",
+      "Bash(python3 -m json.tool)",
+      "Bash(npx supabase:*)",
+      "Bash(node migration-data/import.mjs)",
+      "Bash(python3 -c ':*)",
+      "Bash(node -e ':*)",
+      "Bash(npx vercel:*)"
     ]
   }
 }

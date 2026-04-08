@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { base44 } from "@/api/base44Client";
+import { useAuth } from "@/lib/AuthContext";
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -61,12 +61,6 @@ const navigationItems = [
     title: "תת מנות",
     url: createPageUrl("SpecialIngredients"),
     icon: Package,
-    section: "operations"
-  },
-  {
-    title: "מלאי",
-    url: createPageUrl("Inventory"),
-    icon: AlertCircle,
     section: "operations"
   },
   {
@@ -135,11 +129,8 @@ const navigationItems = [
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [userRole, setUserRole] = React.useState(null);
-
-  React.useEffect(() => {
-    base44.auth.me().then(u => setUserRole(u?.role)).catch(() => {});
-  }, []);
+  const { user, logout } = useAuth();
+  const userRole = user?.role || null;
 
   const adminOnlyPages = ["Reports", "PurchaseOrders", "Inventory"];
 
@@ -197,7 +188,7 @@ export default function Layout({ children, currentPageName }) {
                 </div>
               </div>
               <button
-                onClick={() => base44.auth.logout()}
+                onClick={() => logout()}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-stone-600 hover:bg-stone-100 rounded-lg transition-colors"
               >
                 <LogOut className="w-4 h-4" />

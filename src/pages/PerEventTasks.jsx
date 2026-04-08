@@ -135,7 +135,7 @@ export default function PerEventTasks() {
           task_description: template.description,
           event_id: selectedEventId,
           event_name: selectedEvent.event_name,
-          assigned_to_id: primaryEmployee?.id || '',
+          assigned_to_id: primaryEmployee?.id || null,
           assigned_to_name: primaryEmployee?.full_name || '',
           assigned_to_phone: primaryEmployee?.phone_e164 || '',
           additional_employees: additionalEmployees,
@@ -147,12 +147,12 @@ export default function PerEventTasks() {
           reminder_before_start_minutes: template.reminder_before_start_minutes || 10,
           reminder_before_end_minutes: template.reminder_before_end_minutes || 10,
           escalate_to_manager: template.escalate_to_manager_if_not_done || false,
-          escalation_role_id: template.escalation_role_id || '',
+          escalation_role_id: template.escalation_role_id || null,
           escalation_role_name: template.escalation_role_name || '',
-          escalation_employee_id: escalationEmployee?.id || '',
+          escalation_employee_id: escalationEmployee?.id || null,
           escalation_employee_name: escalationEmployee?.full_name || '',
           escalation_employee_phone: escalationEmployee?.phone_e164 || '',
-          manager_id: primaryEmployee?.manager_id || '',
+          manager_id: primaryEmployee?.manager_id || null,
           manager_name: primaryEmployee?.manager_name || '',
           manager_phone: '',
           manually_overridden: false
@@ -163,7 +163,9 @@ export default function PerEventTasks() {
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['taskAssignments', selectedEventId] });
       setAutoCreating(false);
-    }).catch(() => {
+    }).catch((err) => {
+      console.error('Failed to auto-create task assignments:', err);
+      alert('שגיאה ביצירת משימות: ' + (err?.message || JSON.stringify(err)));
       autoCreatedRef.current.delete(selectedEventId);
       setAutoCreating(false);
     });
@@ -235,6 +237,12 @@ export default function PerEventTasks() {
           </div>
         </CardContent>
       </Card>
+
+      {selectedEventId && (
+        <div className="text-xs text-stone-400 bg-stone-100 p-2 rounded">
+          תבניות: {templates.length} | משימות קיימות: {assignments.length} | עובדים: {allEmployees.length}
+        </div>
+      )}
 
       {!selectedEventId ? (
         <Card>

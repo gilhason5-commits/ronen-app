@@ -167,13 +167,6 @@ export default function Dashboard() {
           color="purple"
           currency={true}
         />
-        <KPICard
-          title="פריטים במלאי נמוך"
-          value={lowStockItems.length}
-          icon={AlertCircle}
-          color={lowStockItems.length > 0 ? "red" : "green"}
-          alert={lowStockItems.length > 0}
-        />
       </div>
 
 
@@ -182,46 +175,6 @@ export default function Dashboard() {
         <div className="lg:col-span-2 space-y-6">
           <EventCalendar events={events} />
           
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card className="border-stone-200 bg-gradient-to-br from-blue-50 to-indigo-50">
-              <CardContent className="p-6">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                    <BarChart3 className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-stone-900">סוכן אנליטיקה</h3>
-                    <p className="text-sm text-stone-600 mt-1">
-                      שאל שאלות על ביצועים ורווחיות
-                    </p>
-                  </div>
-                </div>
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700" disabled>
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    פתח שיחה ב-WhatsApp
-                  </Button>
-              </CardContent>
-            </Card>
-            <Card className="border-stone-200 bg-gradient-to-br from-emerald-50 to-green-50">
-              <CardContent className="p-6">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center">
-                    <Package className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-stone-900">סוכן רכש חכם</h3>
-                    <p className="text-sm text-stone-600 mt-1">
-                      הכנת הזמנות והודעות לספקים
-                    </p>
-                  </div>
-                </div>
-                  <Button className="w-full bg-emerald-600 hover:bg-emerald-700" disabled>
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    פתח שיחה ב-WhatsApp
-                  </Button>
-              </CardContent>
-            </Card>
-          </div>
         </div>
 
         <div>
