@@ -1,11 +1,12 @@
 {
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "crons": [
-    {
-      "path": "/api/send-availability",
-      "schedule": "0 9 * * *"
-    }
+    { "path": "/api/tasks-scheduler",          "schedule": "*/5 * * * *" },
+    { "path": "/api/arrive-today",             "schedule": "*/5 * * * *" },
+    { "path": "/api/availability-no-response", "schedule": "*/5 * * * *" },
+    { "path": "/api/ceo-escalation",           "schedule": "*/15 * * * *" }
   ]
 }
