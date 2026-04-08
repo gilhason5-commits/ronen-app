@@ -373,8 +373,9 @@ export default function AddRecurringTaskDialog({ open, onClose, editingAssignmen
         toast.success(`נוספו ${assignments.length} משימות`);
         handleClose();
       })
-      .catch(() => {
-        toast.error('שגיאה ביצירת משימות');
+      .catch((err) => {
+        console.error('Create error:', err);
+        toast.error('שגיאה: ' + (err?.message || JSON.stringify(err)));
       });
   };
 
