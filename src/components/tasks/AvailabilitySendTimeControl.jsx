@@ -53,9 +53,12 @@ export default function AvailabilitySendTimeControl() {
     if (!selectedHour || selectedHour === currentHour) return;
     setSaving(true);
     try {
-      await base44.functions.invoke("updateAvailabilitySchedule", {
-        hour: selectedHour,
+      const res = await fetch('/api/update-availability-schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hour: selectedHour }),
       });
+      if (!res.ok) throw new Error('Failed to update');
       setCurrentHour(selectedHour);
       toast({
         title: "שעת השליחה עודכנה",

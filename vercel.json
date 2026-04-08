@@ -1,5 +1,11 @@
 {
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/send-availability",
+      "schedule": "0 9 * * *"
+    }
   ]
 }
