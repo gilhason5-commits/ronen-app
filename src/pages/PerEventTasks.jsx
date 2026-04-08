@@ -34,6 +34,7 @@ export default function PerEventTasks() {
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
       return data.filter(e => {
         if (e.status === 'producer_draft') return false;
+        if (!e.approved_for_kitchen) return false;
         if (!e.event_date) return true;
         const eventDate = new Date(e.event_date);
         eventDate.setHours(23, 59, 59, 999);

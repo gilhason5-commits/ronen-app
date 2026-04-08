@@ -24,17 +24,19 @@ export default async function handler(req, res) {
     const [targetHour, targetMin] = sendHour.split(':').map(Number);
 
     const now = new Date();
-    const nowHour = now.getHours();
-    const nowMin = now.getMinutes();
+    // Convert to Israel timezone for comparison
+    const israelTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
+    const nowHour = israelTime.getHours();
+    const nowMin = israelTime.getMinutes();
 
-    // Only run within the 5-minute window of the configured hour
+    // Only run within the configured hour (60-minute window since trigger runs hourly)
     const totalNowMin = nowHour * 60 + nowMin;
     const totalTargetMin = targetHour * 60 + targetMin;
-    if (Math.abs(totalNowMin - totalTargetMin) > 5) {
-      return res.status(200).json({ message: 'Not send time yet', sendHour });
+    if (Math.abs(totalNowMin - totalTargetMin) > 60) {
+      return res.status(200).json({ message: 'Not send time yet', sendHour, nowIsrael: `${nowHour}:${nowMin}` });
     }
 
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = israelTime.toISOString().split('T')[0];
 
     // Get today's events
     const { data: events } = await supabase

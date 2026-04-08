@@ -16,22 +16,27 @@ export default async function handler(req, res) {
     const now = new Date();
     const results = { reminders: 0, escalations: 0, overdue: 0 };
 
-    // ── 1. Task reminders (start time approaching) ──────────────────
+    // ── 1. Task reminders (start time approaching or just passed) ────
     const in60min = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+    const ago30min = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
 
-    const { data: upcoming } = await supabase
+    const { data: upcoming, error: upcomingError } = await supabase
       .from('TaskAssignment')
       .select('*')
       .eq('status', 'PENDING')
       .lte('start_time', in60min)
-      .gte('start_time', now.toISOString())
+      .gte('start_time', ago30min)
       .is('reminder_sent_at', null);
+
+    if (upcomingError) return res.status(500).json({ error: 'query failed', detail: upcomingError.message });
+    results.debug = { count: upcoming?.length || 0, now: now.toISOString(), ago30min, in60min };
 
     for (const task of upcoming || []) {
       const template = await getTemplate(task.task_template_id);
       const minutesUntilStart = Math.round((new Date(task.start_time) - now) / 60000);
       const reminderWindow = template?.reminder_before_start_minutes || 10;
 
+      // Send if within window (before or up to 30 min after start)
       if (minutesUntilStart > reminderWindow) continue;
       if (!task.assigned_to_phone && !task.assigned_to_id) continue;
 
@@ -53,6 +58,8 @@ export default async function handler(req, res) {
 
         results.reminders++;
       } catch (err) {
+        if (!results.errors) results.errors = [];
+        results.errors.push({ task: task.task_title, error: err.message });
         console.error(`Reminder failed for task ${task.id}:`, err.message);
       }
     }
@@ -130,5 +137,5 @@ async function getEmployeePhone(employeeId) {
 
 function formatTime(isoString) {
   if (!isoString) return '';
-  return new Date(isoString).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  return new Date(isoString).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
 }
