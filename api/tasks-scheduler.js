@@ -41,7 +41,7 @@ export default async function handler(req, res) {
     for (const task of tasks) {
       tasksChecked++;
 
-      if (!task.assigned_to_id || task.assigned_to_id.trim() === '') continue;
+      if (!task.assigned_to_id || String(task.assigned_to_id).trim() === '') continue;
 
       const employee = employeeById[task.assigned_to_id];
       if (!employee || !employee.phone_e164) {
@@ -168,7 +168,7 @@ async function fetchEmployees() {
 async function fetchEvents() {
   const { data, error } = await supabase
     .from('Event')
-    .select('id, event_name, name');
+    .select('id, event_name');
 
   if (error) throw error;
   return data || [];
@@ -244,7 +244,7 @@ function buildTemplateData(task, eventById) {
   let eventName = task.event_name || '-';
   if (task.event_id && !task.event_name) {
     const event = eventById[task.event_id];
-    if (event) eventName = event.event_name || event.name || '-';
+    if (event) eventName = event.event_name || '-';
   }
 
   const timeOpts = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jerusalem' };
