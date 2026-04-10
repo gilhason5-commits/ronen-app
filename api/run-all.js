@@ -11,6 +11,7 @@ export default async function handler(req, res) {
     '/api/availability-no-response',
     '/api/ceo-escalation',
     '/api/tasks-scheduler',
+    '/api/recurring-tasks-generator',
   ];
 
   const results = {};

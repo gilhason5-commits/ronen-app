@@ -8,157 +8,259 @@ const supabase = createClient(
 
 /**
  * GET/POST /api/tasks-scheduler  (Vercel Cron: every 5 minutes)
- * 1. Sends reminders for tasks starting soon (reminder_before_start_minutes)
- * 2. Marks overdue tasks and escalates
+ * Port of base44/functions/tasksScheduler without Base44 SDK.
+ * Handles task reminders and overdue escalations.
  */
 export default async function handler(req, res) {
   try {
-    const now = new Date();
-    const results = { reminders: 0, escalations: 0, overdue: 0 };
+    const currentTime = new Date();
+    let tasksChecked = 0;
+    let messagesSent = 0;
 
-    // ── 1. Task reminders (start time approaching or just passed) ────
-    const in60min = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
-    const ago30min = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
+    console.log(`Scheduler started at ${currentTime.toISOString()}`);
 
-    const { data: upcoming, error: upcomingError } = await supabase
-      .from('TaskAssignment')
-      .select('*')
-      .eq('status', 'PENDING')
-      .lte('start_time', in60min)
-      .gte('start_time', ago30min)
-      .is('reminder_sent_at', null);
+    const [pendingTasks, overdueTasks, allEmployees, allEvents] = await Promise.all([
+      fetchTasksByStatus('PENDING', 500),
+      fetchTasksByStatus('OVERDUE', 200),
+      fetchEmployees(),
+      fetchEvents(),
+    ]);
 
-    if (upcomingError) return res.status(500).json({ error: 'query failed', detail: upcomingError.message });
-    results.debug = { count: upcoming?.length || 0, now: now.toISOString(), ago30min, in60min };
+    const tasks = [
+      ...pendingTasks,
+      ...overdueTasks.filter((t) => !t.escalation_sent_at),
+    ].filter((t) => t.status !== 'NOT_ARRIVING');
 
-    for (const task of upcoming || []) {
-      const template = await getTemplate(task.task_template_id);
-      const minutesUntilStart = Math.round((new Date(task.start_time) - now) / 60000);
-      const reminderWindow = template?.reminder_before_start_minutes || 10;
+    const employeeById = Object.fromEntries(allEmployees.map((e) => [e.id, e]));
+    const eventById = Object.fromEntries(allEvents.map((e) => [e.id, e]));
 
-      // Send if within window (before or up to 30 min after start)
-      if (minutesUntilStart > reminderWindow) continue;
-      if (!task.assigned_to_phone && !task.assigned_to_id) continue;
+    console.log(`Found ${tasks.length} active tasks | ${allEmployees.length} employees | ${allEvents.length} events`);
 
-      const phone = task.assigned_to_phone || await getEmployeePhone(task.assigned_to_id);
-      if (!phone) continue;
+    const pendingUpdates = [];
 
-      // Atomic claim: prevents duplicate reminders from concurrent scheduler runs.
-      const claimTime = new Date().toISOString();
-      const { data: claimedRows, error: claimError } = await supabase
-        .from('TaskAssignment')
-        .update({ reminder_sent_at: claimTime })
-        .eq('id', task.id)
-        .is('reminder_sent_at', null)
-        .select('id');
+    for (const task of tasks) {
+      tasksChecked++;
 
-      if (claimError) {
-        if (!results.errors) results.errors = [];
-        results.errors.push({ task: task.task_title, error: `claim failed: ${claimError.message}` });
-        console.error(`Reminder claim failed for task ${task.id}:`, claimError.message);
+      if (!task.assigned_to_id || task.assigned_to_id.trim() === '') continue;
+
+      const employee = employeeById[task.assigned_to_id];
+      if (!employee || !employee.phone_e164) {
+        console.log(`Task ${task.id}: Employee ${task.assigned_to_id} has no phone`);
         continue;
       }
 
-      if (!claimedRows || claimedRows.length === 0) {
-        // Already claimed/sent by another run.
-        continue;
+      const phoneE164 = normalizePhone(employee.phone_e164);
+      const startTime = task.start_time ? new Date(task.start_time) : null;
+      const endTime = task.end_time ? new Date(task.end_time) : null;
+      const reminderMinutes = task.reminder_before_start_minutes || 10;
+
+      // A) Start reminder
+      if (startTime && !task.last_notification_start_sent_at) {
+        const reminderTime = new Date(startTime.getTime() - reminderMinutes * 60 * 1000);
+
+        if (currentTime >= reminderTime && (!endTime || currentTime < endTime)) {
+          const templateData = buildTemplateData(task, eventById);
+
+          const sent = await sendTaskReminder(phoneE164, templateData);
+          if (sent) {
+            messagesSent++;
+            console.log(`Start reminder sent for task ${task.id} to ${phoneE164}`);
+          }
+
+          // For event tasks, notify additional employees on the same assignment.
+          if (task.event_id && Array.isArray(task.additional_employees) && task.additional_employees.length > 0) {
+            for (const addEmp of task.additional_employees) {
+              if (!addEmp?.employee_phone) continue;
+
+              const addPhone = normalizePhone(addEmp.employee_phone);
+              const addTemplateData = { ...templateData, employee_name: addEmp.employee_name || '-' };
+              const addSent = await sendTaskReminder(addPhone, addTemplateData);
+              if (addSent) {
+                messagesSent++;
+                console.log(`Start reminder sent for task ${task.id} to additional employee ${addPhone}`);
+              }
+            }
+          }
+
+          pendingUpdates.push(
+            updateTask(task.id, { last_notification_start_sent_at: currentTime.toISOString() })
+          );
+        }
       }
 
-      try {
-        await sendWhatsApp(phone, TEMPLATES.TASK_REMINDER, {
-          '1': task.assigned_to_name || '',
-          '2': task.task_title || '',
-          '3': formatTime(task.start_time),
-          '4': formatTime(task.end_time),
-        });
+      // B) OVERDUE + escalation (event tasks only; recurring tasks are excluded).
+      if (
+        task.event_id &&
+        endTime &&
+        currentTime >= endTime &&
+        task.status !== 'DONE' &&
+        task.status !== 'NOT_DONE' &&
+        task.status !== 'NOT_ARRIVING' &&
+        !task.escalation_sent_at
+      ) {
+        console.log(`Task ${task.id} (event #${task.event_id || 'recurring'}) marked OVERDUE`);
 
-        results.reminders++;
-      } catch (err) {
-        // Release claim on failure so a later scheduler run can retry.
-        await supabase
-          .from('TaskAssignment')
-          .update({ reminder_sent_at: null })
-          .eq('id', task.id)
-          .eq('reminder_sent_at', claimTime);
+        if (task.escalation_employee_phone) {
+          const escPhone = normalizePhone(task.escalation_employee_phone);
+          const escTemplateData = buildEscalationTemplateData(task, employee, eventById);
+          const escSent = await sendTaskEscalation(escPhone, escTemplateData);
+          if (escSent) {
+            messagesSent++;
+            console.log(
+              `OVERDUE escalation sent to ${task.escalation_employee_name || '-'} (${task.escalation_employee_phone}) for task ${task.id}`
+            );
+          }
+        } else {
+          console.log(`Task ${task.id}: No escalation employee configured, skipping escalation`);
+        }
 
-        if (!results.errors) results.errors = [];
-        results.errors.push({ task: task.task_title, error: err.message });
-        console.error(`Reminder failed for task ${task.id}:`, err.message);
+        pendingUpdates.push(
+          updateTask(task.id, {
+            status: 'OVERDUE',
+            escalation_sent_at: currentTime.toISOString(),
+          })
+        );
       }
     }
 
-    // ── 2. Mark overdue + escalate ───────────────────────────────────
-    const { data: pastDue } = await supabase
-      .from('TaskAssignment')
-      .select('*')
-      .in('status', ['PENDING', 'NOT_DONE'])
-      .lt('end_time', now.toISOString())
-      .is('escalation_sent_at', null);
-
-    for (const task of pastDue || []) {
-      // Mark overdue
-      await supabase
-        .from('TaskAssignment')
-        .update({ status: 'OVERDUE' })
-        .eq('id', task.id);
-
-      results.overdue++;
-
-      // Escalate if configured
-      if (!task.escalate_to_manager) continue;
-
-      const escalationPhone = task.escalation_employee_phone ||
-        (task.escalation_employee_id ? await getEmployeePhone(task.escalation_employee_id) : null) ||
-        (task.manager_id ? await getEmployeePhone(task.manager_id) : null);
-
-      if (!escalationPhone) continue;
-
-      try {
-        await sendWhatsApp(escalationPhone, TEMPLATES.TASK_ESCALATION, {
-          '1': task.escalation_employee_name || task.manager_name || '',
-          '2': task.task_title || '',
-          '3': task.assigned_to_name || '',
-          '4': formatTime(task.end_time),
-        });
-
-        await supabase
-          .from('TaskAssignment')
-          .update({ escalation_sent_at: now.toISOString() })
-          .eq('id', task.id);
-
-        results.escalations++;
-      } catch (err) {
-        console.error(`Escalation failed for task ${task.id}:`, err.message);
+    if (pendingUpdates.length > 0) {
+      const settled = await Promise.allSettled(pendingUpdates);
+      const failures = settled.filter((s) => s.status === 'rejected');
+      if (failures.length > 0) {
+        console.error(`Failed ${failures.length} scheduler update(s)`);
       }
+      console.log(`Flushed ${pendingUpdates.length} DB update(s)`);
     }
 
-    return res.status(200).json({ success: true, ...results });
+    console.log(`Scheduler completed: checked ${tasksChecked} tasks, sent ${messagesSent} messages`);
+
+    return res.status(200).json({
+      tasks_checked: tasksChecked,
+      messages_sent: messagesSent,
+      completed_at: currentTime.toISOString(),
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
 }
 
-async function getTemplate(templateId) {
-  if (!templateId) return null;
-  const { data } = await supabase
-    .from('TaskTemplate')
-    .select('reminder_before_start_minutes, reminder_before_end_minutes')
-    .eq('id', templateId)
-    .single();
-  return data;
+async function fetchTasksByStatus(status, limit) {
+  const { data, error } = await supabase
+    .from('TaskAssignment')
+    .select('*')
+    .eq('status', status)
+    .order('start_time', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data || [];
 }
 
-async function getEmployeePhone(employeeId) {
-  if (!employeeId) return null;
-  const { data } = await supabase
+async function fetchEmployees() {
+  const { data, error } = await supabase
     .from('TaskEmployee')
-    .select('phone_e164')
-    .eq('id', employeeId)
-    .single();
-  return data?.phone_e164 || null;
+    .select('id, full_name, phone_e164');
+
+  if (error) throw error;
+  return data || [];
 }
 
-function formatTime(isoString) {
-  if (!isoString) return '';
-  return new Date(isoString).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
+async function fetchEvents() {
+  const { data, error } = await supabase
+    .from('Event')
+    .select('id, event_name, name');
+
+  if (error) throw error;
+  return data || [];
+}
+
+async function updateTask(taskId, patch) {
+  const { error } = await supabase
+    .from('TaskAssignment')
+    .update(patch)
+    .eq('id', taskId);
+
+  if (error) throw error;
+}
+
+async function sendTaskReminder(phone, templateData) {
+  try {
+    await sendWhatsApp(phone, TEMPLATES.TASK_REMINDER, {
+      '1': templateData.task_title,
+      '2': templateData.event_name,
+      '3': templateData.start_time,
+      '4': templateData.end_time,
+      '5': templateData.task_id,
+      '6': templateData.employee_name,
+    });
+    return true;
+  } catch (error) {
+    console.error(`Failed reminder send to ${phone}: ${error.message}`);
+    return false;
+  }
+}
+
+async function sendTaskEscalation(phone, templateData) {
+  try {
+    await sendWhatsApp(phone, TEMPLATES.TASK_ESCALATION, {
+      '1': templateData.employee_name,
+      '2': templateData.task_title,
+      '3': templateData.event_name,
+      '4': templateData.time_range,
+    });
+    return true;
+  } catch (error) {
+    console.error(`Failed escalation send to ${phone}: ${error.message}`);
+    return false;
+  }
+}
+
+function normalizePhone(phone) {
+  if (!phone) return null;
+  let p = String(phone).replace(/[^\d+]/g, '');
+  if (p.startsWith('0')) p = `+972${p.substring(1)}`;
+  if (!p.startsWith('+')) p = `+${p}`;
+  return p;
+}
+
+function buildEscalationTemplateData(task, employee, eventById) {
+  const eventName = task.event_id ? task.event_name || eventById?.[task.event_id]?.event_name || '-' : 'משימה שוטפת';
+  const timeOpts = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jerusalem' };
+  const startStr = task.start_time
+    ? new Date(task.start_time).toLocaleTimeString('he-IL', timeOpts)
+    : '--:--';
+  const endStr = task.end_time
+    ? new Date(task.end_time).toLocaleTimeString('he-IL', timeOpts)
+    : '--:--';
+  return {
+    employee_name: employee?.full_name || task.assigned_to_name || '-',
+    task_title: task.task_title || 'משימה',
+    event_name: eventName,
+    time_range: `${startStr}-${endStr}`,
+  };
+}
+
+function buildTemplateData(task, eventById) {
+  let eventName = task.event_name || '-';
+  if (task.event_id && !task.event_name) {
+    const event = eventById[task.event_id];
+    if (event) eventName = event.event_name || event.name || '-';
+  }
+
+  const timeOpts = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jerusalem' };
+  const startStr = task.start_time
+    ? new Date(task.start_time).toLocaleTimeString('he-IL', timeOpts)
+    : '--:--';
+  const endStr = task.end_time
+    ? new Date(task.end_time).toLocaleTimeString('he-IL', timeOpts)
+    : '--:--';
+
+  return {
+    task_title: task.task_title || 'משימה',
+    event_name: eventName,
+    start_time: startStr,
+    end_time: endStr,
+    task_id: task.id || '-',
+    employee_name: task.assigned_to_name || '-',
+  };
 }
