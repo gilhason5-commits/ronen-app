@@ -211,12 +211,12 @@ async function insertAssignments(batch) {
 
 function buildAssignment(reference, startDateTime, endDateTime) {
   return {
-    task_template_id: reference.task_template_id,
+    task_template_id: emptyToNull(reference.task_template_id),
     task_title: reference.task_title,
     task_description: reference.task_description,
     event_id: null,
     event_name: null,
-    assigned_to_id: reference.assigned_to_id,
+    assigned_to_id: emptyToNull(reference.assigned_to_id),
     assigned_to_name: reference.assigned_to_name,
     assigned_to_phone: reference.assigned_to_phone,
     additional_employees: reference.additional_employees || [],
@@ -228,12 +228,12 @@ function buildAssignment(reference, startDateTime, endDateTime) {
     reminder_before_start_minutes: reference.reminder_before_start_minutes,
     reminder_before_end_minutes: reference.reminder_before_end_minutes,
     escalate_to_manager: reference.escalate_to_manager,
-    manager_id: reference.manager_id,
+    manager_id: emptyToNull(reference.manager_id),
     manager_name: reference.manager_name,
     manager_phone: reference.manager_phone || '',
-    escalation_role_id: reference.escalation_role_id || '',
+    escalation_role_id: emptyToNull(reference.escalation_role_id),
     escalation_role_name: reference.escalation_role_name || '',
-    escalation_employee_id: reference.escalation_employee_id || '',
+    escalation_employee_id: emptyToNull(reference.escalation_employee_id),
     escalation_employee_name: reference.escalation_employee_name || '',
     escalation_employee_phone: reference.escalation_employee_phone || '',
     recurrence_type: reference.recurrence_type,
@@ -242,4 +242,10 @@ function buildAssignment(reference, startDateTime, endDateTime) {
     recurrence_time: reference.recurrence_time,
     manually_overridden: false,
   };
+}
+
+function emptyToNull(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  return value;
 }

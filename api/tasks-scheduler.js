@@ -36,8 +36,6 @@ export default async function handler(req, res) {
 
     console.log(`Found ${tasks.length} active tasks | ${allEmployees.length} employees | ${allEvents.length} events`);
 
-    const pendingUpdates = [];
-
     for (const task of tasks) {
       tasksChecked++;
 
@@ -61,8 +59,10 @@ export default async function handler(req, res) {
         if (currentTime >= reminderTime && (!endTime || currentTime < endTime)) {
           const templateData = buildTemplateData(task, eventById);
 
+          let reminderSent = false;
           const sent = await sendTaskReminder(phoneE164, templateData);
           if (sent) {
+            reminderSent = true;
             messagesSent++;
             console.log(`Start reminder sent for task ${task.id} to ${phoneE164}`);
           }
@@ -76,15 +76,16 @@ export default async function handler(req, res) {
               const addTemplateData = { ...templateData, employee_name: addEmp.employee_name || '-' };
               const addSent = await sendTaskReminder(addPhone, addTemplateData);
               if (addSent) {
+                reminderSent = true;
                 messagesSent++;
                 console.log(`Start reminder sent for task ${task.id} to additional employee ${addPhone}`);
               }
             }
           }
 
-          pendingUpdates.push(
-            updateTask(task.id, { last_notification_start_sent_at: currentTime.toISOString() })
-          );
+          if (reminderSent) {
+            await updateTask(task.id, { last_notification_start_sent_at: currentTime.toISOString() });
+          }
         }
       }
 
@@ -100,11 +101,13 @@ export default async function handler(req, res) {
       ) {
         console.log(`Task ${task.id} (event #${task.event_id || 'recurring'}) marked OVERDUE`);
 
+        let escalationSent = false;
         if (task.escalation_employee_phone) {
           const escPhone = normalizePhone(task.escalation_employee_phone);
           const escTemplateData = buildEscalationTemplateData(task, employee, eventById);
           const escSent = await sendTaskEscalation(escPhone, escTemplateData);
           if (escSent) {
+            escalationSent = true;
             messagesSent++;
             console.log(
               `OVERDUE escalation sent to ${task.escalation_employee_name || '-'} (${task.escalation_employee_phone}) for task ${task.id}`
@@ -114,22 +117,12 @@ export default async function handler(req, res) {
           console.log(`Task ${task.id}: No escalation employee configured, skipping escalation`);
         }
 
-        pendingUpdates.push(
-          updateTask(task.id, {
-            status: 'OVERDUE',
-            escalation_sent_at: currentTime.toISOString(),
-          })
-        );
+        const overduePatch = { status: 'OVERDUE' };
+        if (escalationSent) {
+          overduePatch.escalation_sent_at = currentTime.toISOString();
+        }
+        await updateTask(task.id, overduePatch);
       }
-    }
-
-    if (pendingUpdates.length > 0) {
-      const settled = await Promise.allSettled(pendingUpdates);
-      const failures = settled.filter((s) => s.status === 'rejected');
-      if (failures.length > 0) {
-        console.error(`Failed ${failures.length} scheduler update(s)`);
-      }
-      console.log(`Flushed ${pendingUpdates.length} DB update(s)`);
     }
 
     console.log(`Scheduler completed: checked ${tasksChecked} tasks, sent ${messagesSent} messages`);
