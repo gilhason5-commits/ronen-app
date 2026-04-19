@@ -112,8 +112,18 @@ export default function EventDialog({ event, dishes, open, onClose }) {
     setFormData({ ...formData, selected_dishes: newSelectedDishes });
   };
 
+  const [validationError, setValidationError] = useState('');
+
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
+    const errors = [];
+    if (!formData.event_name?.trim()) errors.push('שם אירוע');
+    if (!formData.event_date) errors.push('תאריך');
+    if (errors.length > 0) {
+      setValidationError('שדות חובה חסרים: ' + errors.join(', '));
+      return;
+    }
+    setValidationError('');
     saveMutation.mutate(formData);
   };
 
@@ -260,11 +270,14 @@ export default function EventDialog({ event, dishes, open, onClose }) {
             />
           </div>
 
+          {validationError && (
+            <p className="text-sm text-red-600 text-center">{validationError}</p>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
               {event ? 'Update Event' : 'Create Event'}
             </Button>
           </DialogFooter>

@@ -73,6 +73,10 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
       toast.success('משימה עודכנה');
       onClose();
     },
+    onError: (error) => {
+      console.error('Update error:', error);
+      toast.error('עדכון המשימה נכשל');
+    },
   });
 
   const createMutation = useMutation({
@@ -82,65 +86,89 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
       toast.success('משימה נשמרה');
       onClose();
     },
+    onError: (error) => {
+      console.error('Create error:', error);
+      toast.error('שמירת המשימה נכשלה');
+    },
   });
 
   const handleSave = () => {
-    const employee = allEmployees.find(e => e.id === overrideRole);
-    const durationMinutes = template?.duration_minutes || 60;
+    try {
+      const employee = allEmployees.find(e => e.id === overrideRole);
+      const durationMinutes = template?.duration_minutes || 60;
 
-    // Build start time from override
-    const [hours, minutes] = overrideStartTime.split(':').map(Number);
-    const startTime = new Date(`${event.event_date}T00:00:00`);
-    startTime.setHours(hours, minutes, 0, 0);
-    const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
+      const [hours, minutes] = (overrideStartTime || '00:00').split(':').map(Number);
+      const startTime = new Date(`${event.event_date}T00:00:00`);
+      startTime.setHours(hours, minutes, 0, 0);
+      const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
 
-    // Get escalation from template
-    const escalationRoleId = template?.escalation_role_id;
-    const escalationEmployee = escalationRoleId 
-      ? allEmployees.find(e => e.role_id === escalationRoleId && e.is_active)
-      : null;
+      const escalationRoleId = template?.escalation_role_id;
+      const escalationEmployee = escalationRoleId
+        ? allEmployees.find(e => e.role_id === escalationRoleId && e.is_active)
+        : null;
 
-    const isOverridden = (
-      (overrideRole && defaultEmployee && overrideRole !== defaultEmployee.id) ||
-      (defaultStartTime && overrideStartTime !== format(defaultStartTime, "HH:mm"))
-    );
+      const isOverridden = (
+        (overrideRole && defaultEmployee && overrideRole !== defaultEmployee.id) ||
+        (defaultStartTime && overrideStartTime !== format(defaultStartTime, "HH:mm"))
+      );
 
-    const taskData = {
-      task_template_id: template.id,
-      task_title: template.title,
-      task_description: template.description,
-      event_id: eventId,
-      event_name: event.event_name,
-      assigned_to_id: overrideRole || '',
-      assigned_to_name: employee?.full_name || '',
-      assigned_to_phone: employee?.phone_e164 || '',
-      computed_start_time: (defaultStartTime || startTime).toISOString(),
-      computed_end_time: new Date((defaultStartTime || startTime).getTime() + durationMinutes * 60000).toISOString(),
-      start_time: startTime.toISOString(),
-      end_time: endTime.toISOString(),
-      status: (assignment && assignment.assigned_to_id === overrideRole) ? assignment.status : 'PENDING',
-      last_notification_start_sent_at: (assignment && assignment.assigned_to_id !== overrideRole) ? null : (assignment?.last_notification_start_sent_at || null),
-      last_notification_end_sent_at: (assignment && assignment.assigned_to_id !== overrideRole) ? null : (assignment?.last_notification_end_sent_at || null),
-      escalation_sent_at: (assignment && assignment.assigned_to_id !== overrideRole) ? null : (assignment?.escalation_sent_at || null),
-      reminder_before_start_minutes: template?.reminder_before_start_minutes ?? 10,
-      reminder_before_end_minutes: template?.reminder_before_end_minutes || 0,
-      escalate_to_manager: template?.escalate_to_manager_if_not_done ?? true,
-      additional_employees: additionalEmployees,
-      escalation_role_id: escalationRoleId || '',
-      escalation_role_name: template?.escalation_role_name || '',
-      escalation_employee_id: escalationEmployee?.id || '',
-      escalation_employee_name: escalationEmployee?.full_name || '',
-      escalation_employee_phone: escalationEmployee?.phone_e164 || '',
-      manager_id: employee?.manager_id || '',
-      manager_name: employee?.manager_name || '',
-      manager_phone: '',
-      manually_overridden: isOverridden || false,
-    };
-
-    if (assignment) {
-      updateMutation.mutate({ id: assignment.id, data: taskData });
-    } else {
-      createMutation.mutate(taskData);
+      if (assignment) {
+        const updateData = {
+          assigned_to_id: overrideRole || null,
+          assigned_to_name: employee?.full_name || '',
+          assigned_to_phone: employee?.phone_e164 || '',
+          start_time: startTime.toISOString(),
+          end_time: endTime.toISOString(),
+          status: (assignment.assigned_to_id === overrideRole) ? assignment.status : 'PENDING',
+          manually_overridden: isOverridden || false,
+          escalation_role_id: escalationRoleId || null,
+          escalation_role_name: template?.escalation_role_name || '',
+          escalation_employee_id: escalationEmployee?.id || null,
+          escalation_employee_name: escalationEmployee?.full_name || '',
+          escalation_employee_phone: escalationEmployee?.phone_e164 || '',
+          manager_id: employee?.manager_id || null,
+          manager_name: employee?.manager_name || '',
+        };
+        if (assignment.assigned_to_id !== overrideRole) {
+          updateData.last_notification_start_sent_at = null;
+          updateData.last_notification_end_sent_at = null;
+          updateData.escalation_sent_at = null;
+        }
+        updateMutation.mutate({ id: assignment.id, data: updateData });
+      } else {
+        const createData = {
+          task_template_id: template?.id || null,
+          task_title: template?.title || '',
+          task_description: template?.description || '',
+          event_id: eventId,
+          event_name: event?.event_name || '',
+          assigned_to_id: overrideRole || null,
+          assigned_to_name: employee?.full_name || '',
+          assigned_to_phone: employee?.phone_e164 || '',
+          computed_start_time: (defaultStartTime || startTime).toISOString(),
+          computed_end_time: new Date((defaultStartTime || startTime).getTime() + durationMinutes * 60000).toISOString(),
+          start_time: startTime.toISOString(),
+          end_time: endTime.toISOString(),
+          status: 'PENDING',
+          reminder_before_start_minutes: template?.reminder_before_start_minutes ?? 10,
+          reminder_before_end_minutes: template?.reminder_before_end_minutes || 0,
+          escalate_to_manager: template?.escalate_to_manager_if_not_done ?? true,
+          additional_employees: additionalEmployees,
+          escalation_role_id: escalationRoleId || null,
+          escalation_role_name: template?.escalation_role_name || '',
+          escalation_employee_id: escalationEmployee?.id || null,
+          escalation_employee_name: escalationEmployee?.full_name || '',
+          escalation_employee_phone: escalationEmployee?.phone_e164 || '',
+          manager_id: employee?.manager_id || null,
+          manager_name: employee?.manager_name || '',
+          manager_phone: '',
+          manually_overridden: isOverridden || false,
+        };
+        createMutation.mutate(createData);
+      }
+    } catch (err) {
+      console.error('handleSave error:', err);
+      toast.error('שגיאה בשמירת המשימה: ' + err.message);
     }
   };
 

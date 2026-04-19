@@ -58,7 +58,7 @@ export default function TaskCategoryDialog({ category, categoryType, open, onClo
   });
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
     saveMutation.mutate(formData);
   };
 
@@ -112,7 +112,7 @@ export default function TaskCategoryDialog({ category, categoryType, open, onClo
             <Button type="button" variant="outline" onClick={onClose}>
               ביטול
             </Button>
-            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
               {category ? 'עדכון' : 'יצירה'}
             </Button>
           </DialogFooter>

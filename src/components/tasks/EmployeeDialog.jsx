@@ -90,13 +90,20 @@ export default function EmployeeDialog({ employee, open, onClose }) {
     return e164Regex.test(phone);
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const [validationError, setValidationError] = useState('');
 
-    if (!validatePhone(formData.phone_e164)) {
-      toast.error('מספר טלפון לא תקין. נדרש פורמט E.164 (למשל: +972501234567)');
+  const handleSubmit = (e) => {
+    if (e?.preventDefault) e.preventDefault();
+    const errors = [];
+    if (!formData.full_name?.trim()) errors.push('שם מלא');
+    const cleanPhone = (formData.phone_e164 || '').replace(/[^\d+]/g, '');
+    if (!cleanPhone) errors.push('טלפון');
+    else if (!validatePhone(cleanPhone)) errors.push('טלפון לא תקין (נדרש +972...)');
+    if (errors.length > 0) {
+      setValidationError(errors.join(' | '));
       return;
     }
+    setValidationError('');
 
     // Prevent assigning the same role to two different employees
     if (formData.role_id) {
@@ -112,6 +119,7 @@ export default function EmployeeDialog({ employee, open, onClose }) {
 
     let dataToSave = {
       ...formData,
+      phone_e164: cleanPhone,
       is_active: true,
       whatsapp_enabled: true
     };
@@ -148,6 +156,11 @@ export default function EmployeeDialog({ employee, open, onClose }) {
       dataToSave.manager_id = '';
       dataToSave.manager_name = '';
     }
+
+    // Clean UUID fields
+    ['role_id', 'department_id', 'manager_id'].forEach(k => {
+      if (!dataToSave[k]) dataToSave[k] = null;
+    });
 
     saveMutation.mutate(dataToSave);
   };
@@ -236,11 +249,14 @@ export default function EmployeeDialog({ employee, open, onClose }) {
             </div>
           )}
 
+          {validationError && (
+            <p className="text-sm text-red-600 text-center">{validationError}</p>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               ביטול
             </Button>
-            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
               {employee ? 'עדכון' : 'יצירה'}
             </Button>
           </DialogFooter>

@@ -295,9 +295,16 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
     }
   };
 
+  const [validationError, setValidationError] = useState('');
+
   const handleSubmit = (e) => {
-    e.preventDefault();
-    
+    if (e?.preventDefault) e.preventDefault();
+    if (!formData.name?.trim()) {
+      setValidationError('שדה חובה חסר: שם המנה');
+      return;
+    }
+    setValidationError('');
+
     // Filter out ingredients that no longer exist in the system
     const validIngredients = formData.ingredients.filter(item => {
       if (!item.ingredient_id) return false;
@@ -313,7 +320,9 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
         qty: typeof ing.qty === 'string' ? parseFloat(ing.qty) || 0 : (ing.qty || 0)
       }))
     };
-    
+    // Clean UUID fields
+    if (!dataToSave.sub_category_id) dataToSave.sub_category_id = null;
+
     saveMutation.mutate(dataToSave);
   };
 
@@ -749,13 +758,18 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
                 מחיקה
               </Button>
             )}
-            <div className="flex gap-2 justify-end w-full sm:w-auto">
-              <Button type="button" variant="outline" onClick={onClose}>
-                ביטול
-              </Button>
-              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
-                {dish ? 'עדכון' : 'יצירת'} מנה
-              </Button>
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
+              {validationError && (
+                <p className="text-sm text-red-600">{validationError}</p>
+              )}
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={onClose}>
+                  ביטול
+                </Button>
+                <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
+                  {dish ? 'עדכון' : 'יצירת'} מנה
+                </Button>
+              </div>
             </div>
           </DialogFooter>
         </form>

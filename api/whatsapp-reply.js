@@ -61,6 +61,18 @@ export default async function handler(req, res) {
     return xmlOk(res);
   }
 
+  const isFreeTextMgrReject = !buttonPayload && (
+    message.includes("אין מחליף") || message.includes("לא מאושר") || message.includes("אין החלפה")
+  );
+  const isFreeTextMgrApprove = !buttonPayload && (
+    message.includes("מחליף מאושר") || message.includes("יש מחליף") || message.includes("החלפה מאושרת")
+  ) && !isFreeTextMgrReject;
+
+  if (isFreeTextMgrReject || isFreeTextMgrApprove) {
+    await handleManagerFreeTextResponse(fromPhone, isFreeTextMgrApprove);
+    return xmlOk(res);
+  }
+
   const lowerPayload = buttonPayload.toLowerCase();
   const lowerMessage = message.toLowerCase();
 
@@ -96,23 +108,56 @@ export default async function handler(req, res) {
       return xmlOk(res);
     }
 
-    if (!taskIdFromPayload) {
-      console.log("⚠️ Task response without structured task id, skipping");
+    let task;
+
+    if (taskIdFromPayload) {
+      const { data: taskById, error: taskError } = await supabase
+        .from("TaskAssignment")
+        .select("*")
+        .eq("id", taskIdFromPayload)
+        .single();
+      task = taskById;
+      if (taskError || !task) {
+        console.log(`⚠️ Task not found for ID: ${taskIdFromPayload}`);
+        return xmlOk(res);
+      }
+    } else {
+      // Free-text reply without task ID: find the most recent PENDING or OVERDUE task for this employee today
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const tomorrowStart = new Date(todayStart);
+      tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+
+      const { data: candidates } = await supabase
+        .from("TaskAssignment")
+        .select("*")
+        .eq("assigned_to_id", employee.id)
+        .in("status", ["PENDING", "pending", "OVERDUE", "overdue"])
+        .gte("start_time", todayStart.toISOString())
+        .lt("start_time", tomorrowStart.toISOString())
+        .order("start_time", { ascending: true })
+        .limit(5);
+
+      // Pick the task closest to now (started or about to start)
+      const now = Date.now();
+      task = (candidates || []).sort((a, b) => {
+        return Math.abs(new Date(a.start_time) - now) - Math.abs(new Date(b.start_time) - now);
+      })[0];
+
+      if (!task) {
+        console.log(`⚠️ No pending/overdue tasks found today for ${employee.full_name}`);
+        return xmlOk(res);
+      }
+      console.log(`🔍 Matched free-text reply to task ${task.id} (${task.task_title})`);
+    }
+
+    if (!task) {
+      console.log(`⚠️ Task not found`);
       return xmlOk(res);
     }
 
-    const { data: task, error: taskError } = await supabase
-      .from("TaskAssignment")
-      .select("*")
-      .eq("id", taskIdFromPayload)
-      .single();
-
-    if (taskError || !task) {
-      console.log(`⚠️ Task not found for ID: ${taskIdFromPayload}`);
-      return xmlOk(res);
-    }
-
-    if (task.status !== "PENDING") {
+    const actionableStatuses = ["PENDING", "pending", "OVERDUE", "overdue"];
+    if (!actionableStatuses.includes(task.status)) {
       console.log(`⚠️ Task ${task.id} already "${task.status}", ignoring duplicate report`);
       return xmlOk(res);
     }
@@ -122,7 +167,7 @@ export default async function handler(req, res) {
         .from("TaskAssignment")
         .update({ status: "DONE", completed_at: new Date().toISOString() })
         .eq("id", task.id)
-        .eq("status", "PENDING")
+        .in("status", actionableStatuses)
         .select("id");
 
       if (!updatedRows || updatedRows.length === 0) {
@@ -137,7 +182,7 @@ export default async function handler(req, res) {
         .from("TaskAssignment")
         .update({ status: "NOT_DONE", escalation_sent_at: nowIso })
         .eq("id", task.id)
-        .eq("status", "PENDING")
+        .in("status", actionableStatuses)
         .select("id");
 
       if (!updatedRows || updatedRows.length === 0) {
@@ -278,8 +323,6 @@ async function sendManagerAvailabilityEscalation(record) {
     return;
   }
 
-  const eventDateFormatted = formatHebrewDate(record.event_date);
-
   const results = await Promise.allSettled(
     escalationTargets.map(async (target) => {
       const phone = normalizePhone(target.phone_e164 || "");
@@ -288,8 +331,7 @@ async function sendManagerAvailabilityEscalation(record) {
       await sendWhatsApp(phone, OFFICE_MGR_ESC_CONTENT_SID, {
         "1": target.full_name || "",
         "2": record.employee_name || "",
-        "3": eventDateFormatted,
-        "4": record.event_name || "אירוע",
+        "3": record.id,
       });
 
       console.log(`📤 Availability escalation sent to ${target.full_name} (${target.role_name})`);
@@ -385,6 +427,50 @@ async function sendRecurringUnavailableEscalation(record) {
       .from("EmployeeDailyAvailability")
       .update({ manager_notified_at: new Date().toISOString() })
       .eq("id", record.id);
+  }
+}
+
+async function handleManagerFreeTextResponse(fromPhone, isApproved) {
+  console.log(`📌 Manager free-text replacement: ${isApproved ? "APPROVED" : "REJECTED"}, phone: ${fromPhone}`);
+
+  try {
+    const manager = await findEmployeeByPhone(fromPhone);
+    if (!manager) {
+      console.log(`⚠️ Manager not found for phone: ${fromPhone}`);
+      return;
+    }
+
+    const { data: pendingRecords } = await supabase
+      .from("EmployeeDailyAvailability")
+      .select("*")
+      .eq("manager_replacement_status", "PENDING")
+      .order("manager_notified_at", { ascending: false })
+      .limit(5);
+
+    if (!pendingRecords?.length) {
+      console.log(`⚠️ No pending replacement records found`);
+      return;
+    }
+
+    const record = pendingRecords[0];
+    console.log(`🔍 Matched free-text to availability record ${record.id} (${record.employee_name})`);
+
+    if (isApproved) {
+      await supabase
+        .from("EmployeeDailyAvailability")
+        .update({ manager_replacement_status: "APPROVED" })
+        .eq("id", record.id);
+      console.log(`✅ Manager approved replacement for ${record.employee_name}`);
+    } else {
+      await supabase
+        .from("EmployeeDailyAvailability")
+        .update({ manager_replacement_status: "REJECTED" })
+        .eq("id", record.id);
+      console.log(`❌ Manager rejected replacement for ${record.employee_name}`);
+      await sendCEOEscalation(record);
+    }
+  } catch (error) {
+    console.error("❌ Manager free-text response error:", error.message);
   }
 }
 

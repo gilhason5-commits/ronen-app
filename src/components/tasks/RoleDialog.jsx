@@ -76,8 +76,8 @@ export default function RoleDialog({ role, departments, open, onClose }) {
   });
 
   const handleSubmit = (e) => {
-    e.preventDefault();
-    
+    if (e?.preventDefault) e.preventDefault();
+
     if (formData.is_manager && !formData.manages_department_id) {
       toast.error("נא לבחור מחלקה לניהול");
       return;
@@ -85,9 +85,12 @@ export default function RoleDialog({ role, departments, open, onClose }) {
 
     const submitData = { ...formData };
     if (!submitData.is_manager) {
-      submitData.manages_department_id = '';
+      submitData.manages_department_id = null;
       submitData.manages_department_name = '';
     }
+    ['department_id', 'manages_department_id'].forEach(k => {
+      if (!submitData[k]) submitData[k] = null;
+    });
 
     saveMutation.mutate(submitData);
   };
@@ -196,7 +199,7 @@ export default function RoleDialog({ role, departments, open, onClose }) {
             <Button type="button" variant="outline" onClick={onClose}>
               ביטול
             </Button>
-            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
               {role ? 'עדכון' : 'יצירה'}
             </Button>
           </DialogFooter>

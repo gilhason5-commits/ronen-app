@@ -197,9 +197,18 @@ export default function SupplierDialog({ supplier, open, onClose }) {
     }
   };
 
+  const [validationError, setValidationError] = useState('');
+
   const handleSubmit = (e) => {
-    e.preventDefault();
-    saveMutation.mutate(formData);
+    if (e?.preventDefault) e.preventDefault();
+    if (!formData.name?.trim()) {
+      setValidationError('שדה חובה חסר: שם ספק');
+      return;
+    }
+    setValidationError('');
+    const clean = { ...formData };
+    if (!clean.supplier_category_id) clean.supplier_category_id = null;
+    saveMutation.mutate(clean);
   };
 
   return (
@@ -447,13 +456,18 @@ export default function SupplierDialog({ supplier, open, onClose }) {
                 מחיקה
               </Button>
             )}
-            <div className="flex gap-2 justify-end w-full sm:w-auto">
-              <Button type="button" variant="outline" onClick={onClose}>
-                ביטול
-              </Button>
-              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
-                {supplier ? 'עדכון' : 'יצירת'} ספק
-              </Button>
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
+              {validationError && (
+                <p className="text-sm text-red-600">{validationError}</p>
+              )}
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={onClose}>
+                  ביטול
+                </Button>
+                <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
+                  {supplier ? 'עדכון' : 'יצירת'} ספק
+                </Button>
+              </div>
             </div>
           </DialogFooter>
         </form>

@@ -111,7 +111,6 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
       const saveData = {
         ...data,
         total_cost: totalCost,
-        total_quantity: totalQuantity,
         price_per_system_unit: pricePerSystemUnit
       };
 
@@ -143,12 +142,18 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
     }
   });
 
+  const [validationError, setValidationError] = useState('');
+
   const handleSubmit = (e) => {
-    e.preventDefault();
-    if (formData.components.length === 0) {
-      toast.error('יש להוסיף לפחות רכיב אחד');
+    if (e?.preventDefault) e.preventDefault();
+    const errors = [];
+    if (!formData.name?.trim()) errors.push('שם הרכיב המיוחד');
+    if (formData.components.length === 0) errors.push('יש להוסיף לפחות רכיב אחד');
+    if (errors.length > 0) {
+      setValidationError(errors.join(' | '));
       return;
     }
+    setValidationError('');
     saveMutation.mutate(formData);
   };
 
@@ -453,13 +458,23 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
                 </Button>
               )}
             </div>
-            <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={onClose}>
-                ביטול
-              </Button>
-              <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
-                {ingredient ? 'עדכן' : 'צור'} רכיב מיוחד
-              </Button>
+            <div className="flex flex-col gap-2 items-end">
+              {validationError && (
+                <p className="text-sm text-red-600">{validationError}</p>
+              )}
+              <div className="flex gap-3">
+                <Button type="button" variant="outline" onClick={onClose}>
+                  ביטול
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => handleSubmit()}
+                  disabled={saveMutation.isPending}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {saveMutation.isPending ? 'שומר...' : (ingredient ? 'עדכן' : 'צור') + ' רכיב מיוחד'}
+                </Button>
+              </div>
             </div>
           </div>
         </form>

@@ -91,14 +91,25 @@ export default function TaskTemplateDialog({ template, taskType, categories, emp
       toast.success(template ? 'תבנית עודכנה' : 'תבנית נוצרה');
       onClose();
     },
+    onError: (err) => {
+      toast.error('שגיאה בשמירה: ' + (err?.message || 'נסה שוב'));
+    },
   });
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
+    if (!formData.title?.trim()) {
+      toast.error('יש להזין כותרת');
+      return;
+    }
     saveMutation.mutate(formData);
   };
 
   const handleCategoryChange = (categoryId) => {
+    if (categoryId === 'none') {
+      setFormData({ ...formData, category_id: '', category_name: '', department: '' });
+      return;
+    }
     const category = categories.find(c => c.id === categoryId);
     setFormData({
       ...formData,
@@ -118,7 +129,7 @@ export default function TaskTemplateDialog({ template, taskType, categories, emp
           <DialogTitle>{template ? 'עריכת תבנית' : 'תבנית חדשה'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div>
             <Label>כותרת *</Label>
             <Input
@@ -138,16 +149,16 @@ export default function TaskTemplateDialog({ template, taskType, categories, emp
           </div>
 
           <div>
-            <Label>קטגוריה *</Label>
+            <Label>קטגוריה</Label>
             <Select
               value={formData.category_id}
               onValueChange={handleCategoryChange}
-              required
             >
               <SelectTrigger>
                 <SelectValue placeholder="בחר קטגוריה" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">ללא קטגוריה</SelectItem>
                 {categories.map(cat => (
                   <SelectItem key={cat.id} value={cat.id}>
                     {cat.name} ({cat.department})
@@ -269,8 +280,24 @@ export default function TaskTemplateDialog({ template, taskType, categories, emp
             <Button type="button" variant="outline" onClick={onClose}>
               ביטול
             </Button>
-            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
-              {template ? 'עדכון' : 'יצירה'}
+            <Button
+              type="button"
+              className="bg-emerald-600 hover:bg-emerald-700"
+              disabled={saveMutation.isPending}
+              onClick={() => {
+                if (!formData.title?.trim()) {
+                  toast.error('יש להזין כותרת');
+                  return;
+                }
+                const { default_role_name, ...rest } = formData;
+                const clean = { ...rest };
+                ['category_id', 'escalation_role_id', 'default_role'].forEach(k => {
+                  if (clean[k] === '' || clean[k] === 'none') clean[k] = null;
+                });
+                saveMutation.mutate(clean);
+              }}
+            >
+              {saveMutation.isPending ? 'שומר...' : (template ? 'עדכון' : 'יצירה')}
             </Button>
           </DialogFooter>
         </form>

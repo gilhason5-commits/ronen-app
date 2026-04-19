@@ -115,9 +115,12 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
         on_hand_qty: data.on_hand_qty === '' ? 0 : parseFloat(data.on_hand_qty) || 0,
         unit: data.system_unit,
         price_per_unit: pricePerSystem,
-        category: data.ingredient_category_id,
         last_price_update: new Date().toISOString().split('T')[0]
       };
+      // Clean UUID fields - empty strings are invalid for PostgreSQL uuid columns
+      ['current_supplier_id', 'ingredient_category_id'].forEach(k => {
+        if (!dataToSave[k]) dataToSave[k] = null;
+      });
       
       let result;
       if (ingredient?.id) {
@@ -177,8 +180,20 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
     });
   };
 
+  const [validationError, setValidationError] = useState('');
+
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
+    const errors = [];
+    if (!formData.name?.trim()) errors.push('שם');
+    if (!formData.system_unit) errors.push('יחידת מדידה');
+    if (!formData.purchase_unit || parseFloat(formData.purchase_unit) <= 0) errors.push('כמות יחידת רכישה');
+    if (!formData.base_price && formData.base_price !== 0) errors.push('מחיר רכישה כולל');
+    if (errors.length > 0) {
+      setValidationError('שדות חובה חסרים: ' + errors.join(', '));
+      return;
+    }
+    setValidationError('');
     saveMutation.mutate(formData);
   };
 
@@ -375,11 +390,14 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
             </div>
           )}
 
+          {validationError && (
+            <p className="text-sm text-red-600 text-center">{validationError}</p>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               ביטול
             </Button>
-            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
               {ingredient ? 'עדכון' : 'יצירת'} רכיב
             </Button>
           </DialogFooter>

@@ -110,7 +110,7 @@ export default function EventPlanningGrid({ eventId, event, categories, template
       reminder_before_start_minutes: template.reminder_before_start_minutes,
       reminder_before_end_minutes: template.reminder_before_end_minutes,
       escalate_to_manager: template.escalate_to_manager_if_not_done,
-      manager_id: employee.manager_id || '',
+      manager_id: employee.manager_id || null,
       manager_name: employee.manager_name || '',
       manager_phone: '',
       manually_overridden: false

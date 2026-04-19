@@ -122,7 +122,7 @@ export default function CustomerInvoiceDialog({ invoice, events, open, onClose }
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
     saveMutation.mutate(formData);
   };
 
@@ -309,7 +309,7 @@ export default function CustomerInvoiceDialog({ invoice, events, open, onClose }
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
               {invoice ? 'Update' : 'Create'} Invoice
             </Button>
           </DialogFooter>

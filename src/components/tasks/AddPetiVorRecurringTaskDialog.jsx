@@ -68,16 +68,17 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
   });
 
   // Filter employees to Peti Vor department only
-  const pvRoleIds = useMemo(() => new Set(allRoles.filter(r => r.department_id === departmentId).map(r => r.id)), [allRoles, departmentId]);
-  const activeEmployees = allEmployees.filter(e => e.is_active && pvRoleIds.has(e.role_id));
+  const activeEmployees = allEmployees.filter(e => e.is_active && e.department_name === 'פטי וור');
   
+  const allActiveEmployees = allEmployees.filter(e => e.is_active);
+
   const rolesWithOneEmployee = allRoles.filter(role => {
     if (!role.is_active) return false;
-    const empsInRole = activeEmployees.filter(e => e.role_id === role.id);
+    const empsInRole = allActiveEmployees.filter(e => e.role_id === role.id);
     return empsInRole.length === 1;
   });
 
-  const getEmployeeForRole = (roleId) => activeEmployees.find(e => e.role_id === roleId) || null;
+  const getEmployeeForRole = (roleId) => allActiveEmployees.find(e => e.role_id === roleId) || null;
   const getEmployeeById = (empId) => activeEmployees.find(e => e.id === empId) || null;
 
   useEffect(() => {
@@ -175,19 +176,19 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
     if (editingAssignment) {
       const employee = getEmployeeById(selectedEmployee);
       const updateData = {
-        assigned_to_id: employee?.id || '',
+        assigned_to_id: employee?.id || null,
         assigned_to_name: employee?.full_name || '',
         assigned_to_phone: employee?.phone_e164 || '',
-        manager_id: employee?.manager_id || '',
+        manager_id: employee?.manager_id || null,
         manager_name: employee?.manager_name || '',
         manually_overridden: true,
         recurrence_type: recurrenceType,
         recurrence_time: startTime,
         recurrence_days: recurrenceType === 'weekly' ? selectedWeekdays : [],
         recurrence_day_of_month: recurrenceType === 'monthly' ? parseInt(selectedDayOfMonth) : null,
-        escalation_role_id: effectiveEscalationRole || '',
+        escalation_role_id: effectiveEscalationRole || null,
         escalation_role_name: escalationRoleObj?.role_name || '',
-        escalation_employee_id: escalationEmployee?.id || '',
+        escalation_employee_id: escalationEmployee?.id || null,
         escalation_employee_name: escalationEmployee?.full_name || '',
         escalation_employee_phone: escalationEmployee?.phone_e164 || '',
         escalate_to_manager: !!effectiveEscalationRole,
@@ -226,16 +227,16 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
         reminder_before_start_minutes: selectedTemplate.reminder_before_start_minutes,
         reminder_before_end_minutes: selectedTemplate.reminder_before_end_minutes,
         escalate_to_manager: !!effectiveEscalationRole || selectedTemplate.escalate_to_manager_if_not_done,
-        manager_id: employee.manager_id || '',
+        manager_id: employee.manager_id || null,
         manager_name: employee.manager_name || '',
         manually_overridden: false,
         recurrence_type: recurrenceType,
         recurrence_time: startTime,
         recurrence_days: recurrenceType === 'weekly' ? selectedWeekdays : [],
         recurrence_day_of_month: recurrenceType === 'monthly' ? parseInt(selectedDayOfMonth) : null,
-        escalation_role_id: effectiveEscalationRole || '',
+        escalation_role_id: effectiveEscalationRole || null,
         escalation_role_name: escalationRoleObj?.role_name || '',
-        escalation_employee_id: escalationEmployee?.id || '',
+        escalation_employee_id: escalationEmployee?.id || null,
         escalation_employee_name: escalationEmployee?.full_name || '',
         escalation_employee_phone: escalationEmployee?.phone_e164 || '',
         additional_employees: selectedEmployees.filter(id => id !== employee.id).map(id => {

@@ -8,6 +8,17 @@ const supabase = createClient(
 const DAYS_AHEAD = 30;
 const BULK_CREATE_BATCH_SIZE = 50;
 
+function israelTimeToISO(year, month, day, hours, minutes) {
+  const ref = new Date(Date.UTC(year, month, day, 12, 0));
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Jerusalem',
+    hour: 'numeric', hour12: false
+  }).formatToParts(ref);
+  const refHour = parseInt(parts.find(p => p.type === 'hour').value);
+  const offsetHours = refHour - 12;
+  return new Date(Date.UTC(year, month, day, hours - offsetHours, minutes)).toISOString();
+}
+
 /**
  * GET/POST /api/recurring-tasks-generator
  * Ensures recurring TaskAssignment instances always exist for the next 30 days.
@@ -89,13 +100,12 @@ export default async function handler(req, res) {
       if (recurrenceType === 'daily') {
         const current = new Date(startFrom);
         while (current <= cutoffDate) {
-          // Keep existing behavior: skip Friday/Saturday.
           if (current.getDay() !== 5 && current.getDay() !== 6) {
             const dateStr = current.toISOString().split('T')[0];
             if (!existingDates.has(dateStr)) {
-              const start = new Date(current.getFullYear(), current.getMonth(), current.getDate(), hours, minutes);
-              const end = new Date(start.getTime() + durationMinutes * 60000);
-              allNewAssignments.push(buildAssignment(latest, start, end));
+              const startISO = israelTimeToISO(current.getFullYear(), current.getMonth(), current.getDate(), hours, minutes);
+              const endISO = new Date(new Date(startISO).getTime() + durationMinutes * 60000).toISOString();
+              allNewAssignments.push(buildAssignment(latest, startISO, endISO));
             }
           }
           current.setDate(current.getDate() + 1);
@@ -108,9 +118,9 @@ export default async function handler(req, res) {
           if (recurrenceDays.includes(current.getDay())) {
             const dateStr = current.toISOString().split('T')[0];
             if (!existingDates.has(dateStr)) {
-              const start = new Date(current.getFullYear(), current.getMonth(), current.getDate(), hours, minutes);
-              const end = new Date(start.getTime() + durationMinutes * 60000);
-              allNewAssignments.push(buildAssignment(latest, start, end));
+              const startISO = israelTimeToISO(current.getFullYear(), current.getMonth(), current.getDate(), hours, minutes);
+              const endISO = new Date(new Date(startISO).getTime() + durationMinutes * 60000).toISOString();
+              allNewAssignments.push(buildAssignment(latest, startISO, endISO));
             }
           }
           current.setDate(current.getDate() + 1);
@@ -123,9 +133,9 @@ export default async function handler(req, res) {
           if (current.getDate() === targetDay) {
             const dateStr = current.toISOString().split('T')[0];
             if (!existingDates.has(dateStr)) {
-              const start = new Date(current.getFullYear(), current.getMonth(), current.getDate(), hours, minutes);
-              const end = new Date(start.getTime() + durationMinutes * 60000);
-              allNewAssignments.push(buildAssignment(latest, start, end));
+              const startISO = israelTimeToISO(current.getFullYear(), current.getMonth(), current.getDate(), hours, minutes);
+              const endISO = new Date(new Date(startISO).getTime() + durationMinutes * 60000).toISOString();
+              allNewAssignments.push(buildAssignment(latest, startISO, endISO));
             }
           }
           current.setDate(current.getDate() + 1);
@@ -209,7 +219,7 @@ async function insertAssignments(batch) {
   return { error };
 }
 
-function buildAssignment(reference, startDateTime, endDateTime) {
+function buildAssignment(reference, startISO, endISO) {
   return {
     task_template_id: emptyToNull(reference.task_template_id),
     task_title: reference.task_title,
@@ -220,10 +230,10 @@ function buildAssignment(reference, startDateTime, endDateTime) {
     assigned_to_name: reference.assigned_to_name,
     assigned_to_phone: reference.assigned_to_phone,
     additional_employees: reference.additional_employees || [],
-    computed_start_time: startDateTime.toISOString(),
-    computed_end_time: endDateTime.toISOString(),
-    start_time: startDateTime.toISOString(),
-    end_time: endDateTime.toISOString(),
+    computed_start_time: startISO,
+    computed_end_time: endISO,
+    start_time: startISO,
+    end_time: endISO,
     status: 'PENDING',
     reminder_before_start_minutes: reference.reminder_before_start_minutes,
     reminder_before_end_minutes: reference.reminder_before_end_minutes,
