@@ -66,7 +66,7 @@ export default function CategoryDialog({ category, eventType = 'serving', open, 
           <DialogTitle>{category ? 'עריכת קטגוריה' : 'קטגוריה חדשה'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div>
             <Label>שם קטגוריה *</Label>
             <Input
@@ -105,7 +105,7 @@ export default function CategoryDialog({ category, eventType = 'serving', open, 
               {category ? 'עדכון' : 'יצירת'} קטגוריה
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -28,15 +28,10 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
     initialData: [],
   });
 
-  // Only roles in the Peti Vor department
-  const pvRoleIds = useMemo(() => {
-    return new Set(roles.filter(r => r.department_id === departmentId).map(r => r.id));
-  }, [roles, departmentId]);
-
-  // Only employees with Peti Vor roles
+  // Only employees in Peti Vor department
   const pvEmployeeIds = useMemo(() => {
-    return new Set(employees.filter(e => pvRoleIds.has(e.role_id)).map(e => e.id));
-  }, [employees, pvRoleIds]);
+    return new Set(employees.filter(e => e.department_name === 'פטי וור').map(e => e.id));
+  }, [employees]);
 
   const { data: assignments = [] } = useQuery({
     queryKey: ['taskAssignments', 'PETI_VOR_RECURRING'],
@@ -44,7 +39,6 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
       const data = await base44.entities.TaskAssignment.list('-start_time', 500);
       return data.filter(a => !a.event_id && pvEmployeeIds.has(a.assigned_to_id));
     },
-    enabled: pvEmployeeIds.size > 0,
     initialData: [],
   });
 

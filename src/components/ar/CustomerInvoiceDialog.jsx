@@ -133,7 +133,7 @@ export default function CustomerInvoiceDialog({ invoice, events, open, onClose }
           <DialogTitle>{invoice ? 'Edit Customer Invoice' : 'New Customer Invoice'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Invoice Number</Label>
@@ -313,7 +313,7 @@ export default function CustomerInvoiceDialog({ invoice, events, open, onClose }
               {invoice ? 'Update' : 'Create'} Invoice
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

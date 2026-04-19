@@ -65,7 +65,7 @@ export default function EventStaffingDialog({ eventId, event, employees, existin
           <DialogTitle>הוספת עובד לאירוע</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div>
             <Label>עובד *</Label>
             <Select
@@ -103,7 +103,7 @@ export default function EventStaffingDialog({ eventId, event, employees, existin
               הוסף
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

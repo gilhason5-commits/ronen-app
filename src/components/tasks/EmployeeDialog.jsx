@@ -196,7 +196,7 @@ export default function EmployeeDialog({ employee, open, onClose }) {
           <DialogTitle>{employee ? 'עריכת עובד' : 'עובד חדש'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div>
             <Label>שם מלא *</Label>
             <Input
@@ -260,7 +260,7 @@ export default function EmployeeDialog({ employee, open, onClose }) {
               {employee ? 'עדכון' : 'יצירה'}
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

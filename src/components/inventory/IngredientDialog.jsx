@@ -204,7 +204,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
           <DialogTitle>{ingredient ? 'עריכת רכיב' : 'רכיב חדש'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div>
             <Label>שם *</Label>
             <Input
@@ -401,7 +401,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
               {ingredient ? 'עדכון' : 'יצירת'} רכיב
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

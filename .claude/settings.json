@@ -20,7 +20,27 @@
       "Bash(node migration-data/import.mjs)",
       "Bash(python3 -c ':*)",
       "Bash(node -e ':*)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(curl -s -X POST https://ronen-app-one.vercel.app/api/tasks-scheduler)",
+      "Bash(curl -s 'https://cudsnpnqyvzkcicxxisc.supabase.co/rest/v1/TaskAssignment?select=id,task_title,status,start_time,end_time,reminder_sent_at,assigned_to_id,assigned_to_name,assigned_to_phone&order=created_date.desc&limit=5' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NjgwMTMsImV4cCI6MjA5MTE0NDAxM30.nVV3cxMOR5GSlSxFkWrdHUCJ5IjHV1y78vZHhsjYnz0')",
+      "Bash(curl -s -X POST https://ronen-app-one.vercel.app/api/tasks-scheduler -H 'Content-Type: application/json' -d '{\"debug\":true}')",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('status'\\) or d.get\\('message'\\) or d.get\\('error_message'\\) or str\\(d\\)[:200]\\)\")",
+      "Bash(curl -s 'https://cudsnpnqyvzkcicxxisc.supabase.co/rest/v1/Event?select=event_name,event_date,event_time&order=event_date.desc&limit=3' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NjgwMTMsImV4cCI6MjA5MTE0NDAxM30.nVV3cxMOR5GSlSxFkWrdHUCJ5IjHV1y78vZHhsjYnz0')",
+      "Bash(curl -s 'https://cudsnpnqyvzkcicxxisc.supabase.co/rest/v1/TaskAssignment?select=id,task_title,status,start_time,end_time,last_notification_start_sent_at,assigned_to_id,event_id&status=eq.PENDING&event_id=is.null&limit=5' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NjgwMTMsImV4cCI6MjA5MTE0NDAxM30.nVV3cxMOR5GSlSxFkWrdHUCJ5IjHV1y78vZHhsjYnz0')",
+      "Bash(curl -s 'https://cudsnpnqyvzkcicxxisc.supabase.co/rest/v1/TaskAssignment?select=id,task_title,start_time,status,recurrence_type,event_id&event_id=is.null&recurrence_type=neq.once&start_time=gte.2026-04-12T00:00:00&start_time=lte.2026-04-13T23:59:59&limit=20' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NjgwMTMsImV4cCI6MjA5MTE0NDAxM30.nVV3cxMOR5GSlSxFkWrdHUCJ5IjHV1y78vZHhsjYnz0')",
+      "Bash(curl -s 'https://cudsnpnqyvzkcicxxisc.supabase.co/rest/v1/TaskEmployee?select=id,full_name,phone_e164&or=\\(full_name.ilike.*רונן*,full_name.ilike.*מור*\\)' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTU2ODAxMywiZXhwIjoyMDkxMTQ0MDEzfQ.jmhGSiefXkFsf90CSWfX1cSodrtObVpazW8b541pN-0' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTU2ODAxMywiZXhwIjoyMDkxMTQ0MDEzfQ.jmhGSiefXkFsf90CSWfX1cSodrtObVpazW8b541pN-0')",
+      "Bash(curl -s 'https://cudsnpnqyvzkcicxxisc.supabase.co/rest/v1/TaskAssignment?select=id,task_title,start_time,end_time,status,assigned_to_name,last_notification_start_sent_at,escalation_sent_at,escalation_employee_name&event_id=is.null&start_time=gte.2026-04-12T00:00:00&start_time=lte.2026-04-13T23:59:59&end_time=lt.__TRACKED_VAR__' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTU2ODAxMywiZXhwIjoyMDkxMTQ0MDEzfQ.jmhGSiefXkFsf90CSWfX1cSodrtObVpazW8b541pN-0' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTU2ODAxMywiZXhwIjoyMDkxMTQ0MDEzfQ.jmhGSiefXkFsf90CSWfX1cSodrtObVpazW8b541pN-0')",
+      "Bash(python3)",
+      "Bash(cat)",
+      "Bash(bash /tmp/test-dialogs.sh)",
+      "Read(//tmp/**)",
+      "Read(//private/tmp/**)",
+      "Bash(node test-buttons.mjs)",
+      "Bash(export VITE_SUPABASE_URL=$\\(grep VITE_SUPABASE_URL .env.local)",
+      "Bash(node test-all.mjs)",
+      "Bash(node test-special.mjs)",
+      "Bash(node -e ' *)",
+      "Bash(npx vite *)"
     ]
   }
 }

@@ -23,7 +23,7 @@ export default function MonthlyRollup({ events }) {
       };
     }
 
-    weeklyData[weekKey].revenue += event.food_revenue || 0;
+    weeklyData[weekKey].revenue += event.event_price || 0;
     weeklyData[weekKey].foodCost += event.food_cost_sum || 0;
     weeklyData[weekKey].events += 1;
   });

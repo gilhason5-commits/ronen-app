@@ -129,7 +129,7 @@ export default function TaskTemplateDialog({ template, taskType, categories, emp
           <DialogTitle>{template ? 'עריכת תבנית' : 'תבנית חדשה'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <div className="space-y-4">
           <div>
             <Label>כותרת *</Label>
             <Input
@@ -300,7 +300,7 @@ export default function TaskTemplateDialog({ template, taskType, categories, emp
               {saveMutation.isPending ? 'שומר...' : (template ? 'עדכון' : 'יצירה')}
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

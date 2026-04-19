@@ -73,7 +73,7 @@ export default function TaskCategoryDialog({ category, categoryType, open, onClo
           <DialogTitle>{category ? 'עריכת קטגוריה' : 'קטגוריה חדשה'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div>
             <Label>שם הקטגוריה *</Label>
             <Input
@@ -120,7 +120,7 @@ export default function TaskCategoryDialog({ category, categoryType, open, onClo
               {category ? 'עדכון' : 'יצירה'}
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

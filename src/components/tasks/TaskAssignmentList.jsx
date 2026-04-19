@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,11 +16,25 @@ export default function TaskAssignmentList({ taskType }) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState(null);
 
+  const { data: allEmployees = [] } = useQuery({
+    queryKey: ['taskEmployees'],
+    queryFn: () => base44.entities.TaskEmployee.list(),
+    initialData: [],
+  });
+
+  const pvEmployeeIds = useMemo(() => {
+    return new Set(allEmployees.filter(e => e.department_name === 'פטי וור').map(e => e.id));
+  }, [allEmployees]);
+
   const { data: assignments = [] } = useQuery({
-    queryKey: ['taskAssignments', taskType],
+    queryKey: ['taskAssignments', taskType, [...pvEmployeeIds]],
     queryFn: async () => {
       const data = await base44.entities.TaskAssignment.list('-start_time', 500);
-      const filtered = data.filter(a => taskType === 'RECURRING' ? !a.event_id : !!a.event_id);
+      let filtered = data.filter(a => taskType === 'RECURRING' ? !a.event_id : !!a.event_id);
+      // Exclude Peti Vor employees from regular recurring tasks view
+      if (taskType === 'RECURRING') {
+        filtered = filtered.filter(a => !pvEmployeeIds.has(a.assigned_to_id));
+      }
       
       // Auto-delete expired one-time tasks (24h after start_time)
       const now = new Date();
@@ -40,12 +54,6 @@ export default function TaskAssignmentList({ taskType }) {
       const expiredIds = new Set(expiredOnce.map(a => a.id));
       return filtered.filter(a => !expiredIds.has(a.id));
     },
-    initialData: [],
-  });
-
-  const { data: allEmployees = [] } = useQuery({
-    queryKey: ['taskEmployees'],
-    queryFn: () => base44.entities.TaskEmployee.list(),
     initialData: [],
   });
 

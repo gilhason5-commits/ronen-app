@@ -343,7 +343,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
           <DialogTitle>{dish ? 'עריכת מנה' : 'מנה חדשה'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <Label>שם המנה *</Label>
@@ -772,7 +772,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
               </div>
             </div>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
 
       <IngredientDetailsDialog

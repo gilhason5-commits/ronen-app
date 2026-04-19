@@ -218,7 +218,7 @@ export default function SupplierDialog({ supplier, open, onClose }) {
           <DialogTitle>{supplier ? 'עריכת ספק' : 'ספק חדש'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <Label>שם ספק *</Label>
@@ -470,7 +470,7 @@ export default function SupplierDialog({ supplier, open, onClose }) {
               </div>
             </div>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

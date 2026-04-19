@@ -124,7 +124,7 @@ export default function RoleDialog({ role, departments, open, onClose }) {
           <DialogTitle>{role ? 'עריכת תפקיד' : 'תפקיד חדש'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div>
             <Label>שם התפקיד *</Label>
             <Input
@@ -216,7 +216,7 @@ export default function RoleDialog({ role, departments, open, onClose }) {
               {role ? 'עדכון' : 'יצירה'}
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

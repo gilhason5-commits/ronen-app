@@ -28,13 +28,9 @@ export default function PetiVorTaskAssignmentList({ departmentId }) {
     initialData: [],
   });
 
-  const pvRoleIds = useMemo(() => {
-    return new Set(allRoles.filter(r => r.department_id === departmentId).map(r => r.id));
-  }, [allRoles, departmentId]);
-
   const pvEmployeeIds = useMemo(() => {
-    return new Set(allEmployees.filter(e => pvRoleIds.has(e.role_id)).map(e => e.id));
-  }, [allEmployees, pvRoleIds]);
+    return new Set(allEmployees.filter(e => e.department_name === 'פטי וור').map(e => e.id));
+  }, [allEmployees]);
 
   const { data: assignments = [] } = useQuery({
     queryKey: ['taskAssignments', 'PETI_VOR_RECURRING_LIST'],
@@ -57,7 +53,6 @@ export default function PetiVorTaskAssignmentList({ departmentId }) {
       const expiredIds = new Set(expiredOnce.map(a => a.id));
       return filtered.filter(a => !expiredIds.has(a.id));
     },
-    enabled: pvEmployeeIds.size > 0,
     initialData: [],
   });
 

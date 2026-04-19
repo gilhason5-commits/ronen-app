@@ -16,18 +16,22 @@ export default function RecurringTaskColumns() {
   const [selectedTask, setSelectedTask] = useState(null);
   const orderLoaded = useRef(false);
 
-  const { data: assignments = [] } = useQuery({
-    queryKey: ['taskAssignments', 'RECURRING'],
-    queryFn: async () => {
-      const data = await base44.entities.TaskAssignment.list('-start_time', 500);
-      return data.filter(a => !a.event_id);
-    },
-    initialData: [],
-  });
-
   const { data: employees = [] } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
+    initialData: [],
+  });
+
+  const pvEmployeeIds = useMemo(() => {
+    return new Set(employees.filter(e => e.department_name === 'פטי וור').map(e => e.id));
+  }, [employees]);
+
+  const { data: assignments = [] } = useQuery({
+    queryKey: ['taskAssignments', 'RECURRING', [...pvEmployeeIds]],
+    queryFn: async () => {
+      const data = await base44.entities.TaskAssignment.list('-start_time', 500);
+      return data.filter(a => !a.event_id && !pvEmployeeIds.has(a.assigned_to_id));
+    },
     initialData: [],
   });
 

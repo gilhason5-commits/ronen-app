@@ -67,7 +67,7 @@ export default function DepartmentDialog({ department, open, onClose }) {
           <DialogTitle>{department ? 'עריכת מחלקה' : 'מחלקה חדשה'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div>
             <Label>שם המחלקה *</Label>
             <Input
@@ -111,7 +111,7 @@ export default function DepartmentDialog({ department, open, onClose }) {
               {department ? 'עדכון' : 'יצירה'}
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

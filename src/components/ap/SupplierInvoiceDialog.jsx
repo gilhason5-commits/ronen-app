@@ -120,7 +120,7 @@ export default function SupplierInvoiceDialog({ invoice, suppliers, open, onClos
           <DialogTitle>{invoice ? 'Edit Supplier Invoice' : 'New Supplier Invoice'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Invoice Number</Label>
@@ -280,7 +280,7 @@ export default function SupplierInvoiceDialog({ invoice, suppliers, open, onClos
               {invoice ? 'Update' : 'Create'} Invoice
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

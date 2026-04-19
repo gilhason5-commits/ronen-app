@@ -223,7 +223,7 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-6">
           <div className="space-y-4">
             <div>
               <Label>שם הרכיב המיוחד *</Label>
@@ -477,7 +477,7 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
               </div>
             </div>
           </div>
-        </form>
+        </div>
 
       </DialogContent>
     </Dialog>

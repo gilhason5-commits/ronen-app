@@ -281,7 +281,7 @@ export default function EventDialog({ event, dishes, open, onClose }) {
               {event ? 'Update Event' : 'Create Event'}
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

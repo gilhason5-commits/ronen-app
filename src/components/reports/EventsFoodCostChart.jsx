@@ -12,14 +12,14 @@ export default function EventsFoodCostChart({ events }) {
         if (!e.event_date) return false;
         const date = parseISO(e.event_date);
         // Include completed and in_progress events from the last month that have revenue
-        return isAfter(date, oneMonthAgo) && (e.food_revenue > 0);
+        return isAfter(date, oneMonthAgo) && (e.event_price > 0);
       })
       .map(e => ({
         name: e.event_name,
         date: format(parseISO(e.event_date), 'dd/MM'),
         originalDate: e.event_date,
         foodCostPct: e.food_cost_pct || 0,
-        revenue: e.food_revenue || 0,
+        revenue: e.event_price || 0,
         cost: e.food_cost_sum || 0
       }))
       .sort((a, b) => new Date(a.originalDate) - new Date(b.originalDate));

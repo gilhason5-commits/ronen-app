@@ -28,12 +28,12 @@ export default function Reports() {
   const inProgressEvents = events.filter(e => e.status === 'in_progress');
   const completedEvents = events.filter(e => e.status === 'completed');
   
-  const inProgressRevenue = inProgressEvents.reduce((sum, e) => sum + (e.food_revenue || 0), 0);
+  const inProgressRevenue = inProgressEvents.reduce((sum, e) => sum + (e.event_price || 0), 0);
   const inProgressFoodCost = inProgressEvents.reduce((sum, e) => sum + (e.food_cost_sum || 0), 0);
   const inProgressProfit = inProgressRevenue - inProgressFoodCost;
   const inProgressFoodCostPct = inProgressRevenue > 0 ? ((inProgressFoodCost / inProgressRevenue) * 100) : 0;
-  
-  const completedRevenue = completedEvents.reduce((sum, e) => sum + (e.food_revenue || 0), 0);
+
+  const completedRevenue = completedEvents.reduce((sum, e) => sum + (e.event_price || 0), 0);
   const completedFoodCost = completedEvents.reduce((sum, e) => sum + (e.food_cost_sum || 0), 0);
   const completedProfit = completedRevenue - completedFoodCost;
   const completedFoodCostPct = completedRevenue > 0 ? ((completedFoodCost / completedRevenue) * 100) : 0;
@@ -48,9 +48,9 @@ export default function Reports() {
       'שם אירוע': event.event_name,
       'תאריך': format(new Date(event.event_date), 'yyyy-MM-dd'),
       'אורחים': event.guest_count,
-      'הכנסות': event.food_revenue?.toFixed(2),
+      'הכנסות': event.event_price?.toFixed(2),
       'עלות מזון': event.food_cost_sum?.toFixed(2),
-      'רווח': (event.food_revenue - event.food_cost_sum)?.toFixed(2),
+      'רווח': ((event.event_price || 0) - (event.food_cost_sum || 0)).toFixed(2),
       'שולי רווח %': event.food_cost_pct?.toFixed(2)
     }));
 

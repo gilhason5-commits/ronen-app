@@ -83,7 +83,7 @@ export default function IngredientCategoryDialog({ category, open, onClose }) {
           <DialogTitle>{category ? 'עריכת קטגוריה' : 'קטגוריה חדשה'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div>
             <Label>שם הקטגוריה *</Label>
             <Input
@@ -131,7 +131,7 @@ export default function IngredientCategoryDialog({ category, open, onClose }) {
               </Button>
             </div>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

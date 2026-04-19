@@ -108,11 +108,11 @@ export default function EventsList({ events, isLoading, onEdit, onDelete }) {
 
             <div className="flex items-center justify-between pt-4 border-t border-stone-100">
               <div className="flex items-center gap-6 text-sm">
-                {event.food_revenue > 0 && (
+                {event.event_price > 0 && (
                   <div>
                     <p className="text-xs text-stone-500">הכנסה מאוכל</p>
                     <p className="font-semibold text-stone-900">
-                      {fmtCurrency(event.food_revenue)}
+                      {fmtCurrency(event.event_price)}
                     </p>
                   </div>
                 )}
@@ -124,11 +124,19 @@ export default function EventsList({ events, isLoading, onEdit, onDelete }) {
                     </p>
                   </div>
                 )}
+                {event.event_price > 0 && event.food_cost_sum > 0 && (
+                  <div>
+                    <p className="text-xs text-stone-500">רווח</p>
+                    <p className={`font-semibold ${(event.event_price - event.food_cost_sum) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {fmtCurrency(event.event_price - event.food_cost_sum)}
+                    </p>
+                  </div>
+                )}
                 {event.food_cost_pct != null && (
                   <div>
                     <p className="text-xs text-stone-500">אחוז עלות אוכל</p>
                     <p className={`font-semibold ${
-                      event.food_cost_pct <= 30 ? 'text-emerald-600' : 
+                      event.food_cost_pct <= 30 ? 'text-emerald-600' :
                       event.food_cost_pct <= 35 ? 'text-orange-600' : 'text-red-600'
                     }`}>
                       {event.food_cost_pct.toFixed(1)}%

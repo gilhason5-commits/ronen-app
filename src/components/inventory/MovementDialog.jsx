@@ -73,7 +73,7 @@ export default function MovementDialog({ ingredient, open, onClose }) {
           <DialogTitle>התאמת מלאי - {ingredient?.name}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
           <div className="bg-stone-50 p-4 rounded-lg">
             <p className="text-sm text-stone-600">מלאי נוכחי</p>
             <p className="text-2xl font-bold text-stone-900">
@@ -134,7 +134,7 @@ export default function MovementDialog({ ingredient, open, onClose }) {
               ביצוע התאמה
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );
