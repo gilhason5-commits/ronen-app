@@ -55,6 +55,10 @@ export default function TaskCategoryDialog({ category, categoryType, open, onClo
       toast.success(category ? 'קטגוריה עודכנה' : 'קטגוריה נוצרה');
       onClose();
     },
+    onError: (error) => {
+      console.error('TaskCategory save error:', error);
+      toast.error('שמירת קטגוריה נכשלה: ' + (error?.message || 'שגיאה'));
+    },
   });
 
   const handleSubmit = (e) => {

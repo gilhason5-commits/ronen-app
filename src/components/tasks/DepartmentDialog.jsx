@@ -49,6 +49,10 @@ export default function DepartmentDialog({ department, open, onClose }) {
       toast.success(department ? 'מחלקה עודכנה' : 'מחלקה נוצרה');
       onClose();
     },
+    onError: (error) => {
+      console.error('Department save error:', error);
+      toast.error('שמירת מחלקה נכשלה: ' + (error?.message || 'שגיאה'));
+    },
   });
 
   const handleSubmit = (e) => {

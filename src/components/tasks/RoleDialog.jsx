@@ -73,26 +73,39 @@ export default function RoleDialog({ role, departments, open, onClose }) {
       toast.success(role ? 'תפקיד עודכן' : 'תפקיד נוצר');
       onClose();
     },
+    onError: (error) => {
+      console.error('Role save error:', error);
+      toast.error('שמירת תפקיד נכשלה: ' + (error?.message || 'שגיאה לא ידועה'));
+    },
   });
 
   const handleSubmit = (e) => {
     if (e?.preventDefault) e.preventDefault();
 
-    if (formData.is_manager && !formData.manages_department_id) {
-      toast.error("נא לבחור מחלקה לניהול");
+    if (!formData.role_name?.trim()) {
+      toast.error('נא למלא שם תפקיד');
       return;
     }
 
-    const submitData = { ...formData };
-    if (!submitData.is_manager) {
-      submitData.manages_department_id = null;
-      submitData.manages_department_name = '';
+    if (formData.is_manager && !formData.manages_department_id) {
+      toast.error('נא לבחור מחלקה לניהול');
+      return;
     }
-    ['department_id', 'manages_department_id'].forEach(k => {
-      if (!submitData[k]) submitData[k] = null;
-    });
 
-    saveMutation.mutate(submitData);
+    try {
+      const submitData = { ...formData };
+      if (!submitData.is_manager) {
+        submitData.manages_department_id = null;
+        submitData.manages_department_name = '';
+      }
+      ['department_id', 'manages_department_id'].forEach(k => {
+        if (!submitData[k]) submitData[k] = null;
+      });
+      saveMutation.mutate(submitData);
+    } catch (err) {
+      console.error('handleSubmit error:', err);
+      toast.error('שגיאה: ' + err.message);
+    }
   };
 
   const handleDepartmentChange = (deptId) => {
