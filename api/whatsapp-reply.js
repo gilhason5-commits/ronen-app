@@ -304,6 +304,7 @@ async function processAvailabilityRecord(record, isAvailable) {
 
   if (record.source_type === "recurring") {
     await cancelRecurringTasksForEmployee(record);
+    await cancelEventTasksForEmployeeOnDate(record);
     await sendRecurringUnavailableEscalation(record);
   } else {
     await cancelEventTasksForEmployee(record);
@@ -385,6 +386,39 @@ async function cancelRecurringTasksForEmployee(record) {
   );
 
   console.log(`🚫 Cancelled ${tasks.length} recurring tasks for ${record.employee_name || record.employee_id}`);
+}
+
+async function cancelEventTasksForEmployeeOnDate(record) {
+  if (!record.employee_id || !record.event_date) return;
+
+  const dayStartIso = new Date(`${record.event_date}T00:00:00`).toISOString();
+  const dayEndIso = new Date(`${record.event_date}T23:59:59`).toISOString();
+
+  const { data: tasks } = await supabase
+    .from("TaskAssignment")
+    .select("id")
+    .eq("assigned_to_id", record.employee_id)
+    .eq("status", "PENDING")
+    .not("event_id", "is", null)
+    .gte("start_time", dayStartIso)
+    .lte("start_time", dayEndIso);
+
+  if (!tasks?.length) {
+    console.log(`ℹ️ No event tasks to cancel for ${record.employee_name || record.employee_id} on ${record.event_date}`);
+    return;
+  }
+
+  await Promise.all(
+    tasks.map((task) =>
+      supabase.from("TaskAssignment").update({
+        status: "NOT_ARRIVING",
+        last_notification_start_sent_at: null,
+        last_notification_end_sent_at: null,
+      }).eq("id", task.id),
+    ),
+  );
+
+  console.log(`🚫 Cancelled ${tasks.length} event task(s) for ${record.employee_name || record.employee_id} on ${record.event_date}`);
 }
 
 async function sendRecurringUnavailableEscalation(record) {
