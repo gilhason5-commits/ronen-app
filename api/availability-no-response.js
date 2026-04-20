@@ -34,36 +34,27 @@ export default async function handler(req, res) {
         .eq('id', record.id);
 
       // Find office manager to escalate to
-      const { data: managerRole } = await supabase
-        .from('EmployeeRole')
-        .select('id')
-        .eq('is_manager', true)
-        .limit(1)
-        .single();
+      const { data: managers } = await supabase
+        .from('TaskEmployee')
+        .select('full_name, phone_e164, role_name')
+        .eq('is_active', true)
+        .eq('role_name', 'מנהלת משרד');
 
-      if (managerRole) {
-        const { data: manager } = await supabase
-          .from('TaskEmployee')
-          .select('full_name, phone_e164')
-          .eq('role_id', managerRole.id)
-          .eq('is_active', true)
-          .single();
+      const manager = managers?.[0];
+      if (manager?.phone_e164) {
+        try {
+          await sendWhatsApp(manager.phone_e164, TEMPLATES.NO_ANSWER_ESC, {
+            '1': record.employee_name,
+            '2': record.Event?.event_name || 'אירוע',
+            '3': record.Event?.event_time || '',
+          });
 
-        if (manager?.phone_e164) {
-          try {
-            await sendWhatsApp(manager.phone_e164, TEMPLATES.NO_ANSWER_ESC, {
-              '1': record.employee_name,
-              '2': record.Event?.event_name || 'אירוע',
-              '3': record.Event?.event_time || '',
-            });
-
-            await supabase
-              .from('EmployeeDailyAvailability')
-              .update({ manager_notified_at: new Date().toISOString() })
-              .eq('id', record.id);
-          } catch (err) {
-            console.error(`Failed to escalate for ${record.employee_name}:`, err.message);
-          }
+          await supabase
+            .from('EmployeeDailyAvailability')
+            .update({ manager_notified_at: new Date().toISOString() })
+            .eq('id', record.id);
+        } catch (err) {
+          console.error(`Failed to escalate for ${record.employee_name}:`, err.message);
         }
       }
 
