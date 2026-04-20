@@ -39,9 +39,19 @@ export default async function handler(req, res) {
     const employeeById = Object.fromEntries(allEmployees.map((e) => [e.id, e]));
     const eventById = Object.fromEntries(allEvents.map((e) => [e.id, e]));
 
-    console.log(`Found ${tasks.length} active tasks | ${allEmployees.length} employees | ${allEvents.length} events`);
+    // Skip orphan event tasks whose event was deleted
+    const validEventIds = new Set(allEvents.map((e) => e.id));
+    const validTasks = tasks.filter((t) => {
+      if (t.event_id && !validEventIds.has(t.event_id)) {
+        console.log(`Skipping orphan task ${t.id} (event ${t.event_id} deleted)`);
+        return false;
+      }
+      return true;
+    });
 
-    for (const task of tasks) {
+    console.log(`Found ${validTasks.length} active tasks (${tasks.length - validTasks.length} orphans skipped) | ${allEmployees.length} employees | ${allEvents.length} events`);
+
+    for (const task of validTasks) {
       tasksChecked++;
 
       if (!task.assigned_to_id || String(task.assigned_to_id).trim() === '') continue;
