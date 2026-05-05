@@ -421,28 +421,6 @@ export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent
     </html>
   `;
 
-  // Write content into the iframe via contentDocument instead of srcDoc.
-  // srcDoc with very large HTML strings is unstable in Safari and has been
-  // observed to crash WebContent / trigger PAC_EXCEPTION during print/PDF.
-  useEffect(() => {
-    if (!open) return;
-    const iframe = iframeRef.current;
-    if (!iframe || !htmlContent) return;
-    const writeDoc = () => {
-      try {
-        const doc = iframe.contentDocument;
-        if (!doc) return;
-        doc.open();
-        doc.write(fullHtml);
-        doc.close();
-      } catch (err) {
-        console.error('Failed to write print preview document:', err);
-      }
-    };
-    const id = requestAnimationFrame(writeDoc);
-    return () => cancelAnimationFrame(id);
-  }, [open, fullHtml, htmlContent]);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] w-[900px] h-[90vh] flex flex-col p-0" dir="rtl">
@@ -461,6 +439,7 @@ export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent
         <div className="flex-1 overflow-auto bg-gray-400">
           <iframe
             ref={iframeRef}
+            srcDoc={fullHtml}
             style={{ width: '100%', height: iframeHeight + 'px', border: 'none' }}
             title="תצוגה מקדימה"
           />
