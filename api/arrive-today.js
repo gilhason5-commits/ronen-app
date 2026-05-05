@@ -29,10 +29,10 @@ export default async function handler(req, res) {
     const nowHour = israelTime.getHours();
     const nowMin = israelTime.getMinutes();
 
-    // Only run within the configured hour (60-minute window since trigger runs hourly)
+    // Only run at or after the configured time, with a 60-minute grace window after
     const totalNowMin = nowHour * 60 + nowMin;
     const totalTargetMin = targetHour * 60 + targetMin;
-    if (Math.abs(totalNowMin - totalTargetMin) > 60) {
+    if (totalNowMin < totalTargetMin || totalNowMin > totalTargetMin + 60) {
       return res.status(200).json({ message: 'Not send time yet', sendHour, nowIsrael: `${nowHour}:${nowMin}` });
     }
 

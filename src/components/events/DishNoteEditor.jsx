@@ -32,24 +32,27 @@ export default function DishNoteEditor({ eventDish, onNoteSaved }) {
 
   const handleSave = async () => {
     setSaving(true);
-    if (noteRecord) {
-      // Update existing note
-      await base44.entities.EventDishNote.update(noteRecord.id, { note: draftNote });
-    } else {
-      // Create new note
-      await base44.entities.EventDishNote.create({
-        event_dish_id: eventDishId,
-        event_id: eventDish?.event_id || "",
-        dish_id: eventDish?.dish_id || "",
-        note: draftNote,
-      });
+    try {
+      if (noteRecord) {
+        await base44.entities.EventDishNote.update(noteRecord.id, { note: draftNote });
+      } else {
+        await base44.entities.EventDishNote.create({
+          event_dish_id: eventDishId,
+          event_id: eventDish?.event_id || "",
+          note: draftNote,
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["dish_note", eventDishId] });
+      queryClient.invalidateQueries({ queryKey: ["all_dish_notes"] });
+      if (onNoteSaved) onNoteSaved(eventDishId, draftNote);
+      toast.success("הערה נשמרה");
+      setEditing(false);
+    } catch (err) {
+      console.error("Failed to save dish note:", err);
+      toast.error("שגיאה בשמירת ההערה");
+    } finally {
+      setSaving(false);
     }
-    queryClient.invalidateQueries({ queryKey: ["dish_note", eventDishId] });
-    queryClient.invalidateQueries({ queryKey: ["all_dish_notes"] });
-    if (onNoteSaved) onNoteSaved(eventDishId, draftNote);
-    toast.success("הערה נשמרה");
-    setSaving(false);
-    setEditing(false);
   };
 
   const handleCancel = () => {

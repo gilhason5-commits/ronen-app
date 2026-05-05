@@ -71,7 +71,7 @@ export default async function handler(req, res) {
       if (startTime && !task.last_notification_start_sent_at) {
         const reminderTime = new Date(startTime.getTime() - reminderMinutes * 60 * 1000);
 
-        if (currentTime >= reminderTime && (!endTime || currentTime < endTime)) {
+        if (currentTime >= reminderTime) {
           const templateData = buildTemplateData(task, eventById);
 
           let reminderSent = false;
