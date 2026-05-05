@@ -37,7 +37,7 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
   };
 
   const getEffectivePlannedQty = (eventDish, event) => {
-    if (eventDish.planned_qty && eventDish.planned_qty > 0) return eventDish.planned_qty;
+    // Always calculate from source (guest count × serving % × portion factor)
     const dish = dishes.find(d => d.id === eventDish.dish_id);
     if (!dish) return 0;
     const guestCount = event?.guest_count || 0;
@@ -47,9 +47,8 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
       const totalPortionsNeeded = guestCount * (servingPercentage / 100);
       return Math.ceil(totalPortionsNeeded / portionsPerPreparation);
     }
-    // For wedding events, skip the 1/6 first course division
-    const isWedding = event?.event_type === 'wedding';
-    const portionFactor = (!isWedding && isFirstCourseDish(dish)) ? 1 / 7 : (dish.portion_factor ?? 1);
+    // First-course rule applies to all event types (including weddings)
+    const portionFactor = isFirstCourseDish(dish) ? 1 / 6 : (dish.portion_factor ?? 1);
     const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
     return Math.ceil(rawQuantity);
   };
@@ -58,6 +57,12 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
     const evDishes = eventDishesMap[event.id] || [];
     const eventNeeds = {};
 
+    // Aggregate SI demand across all dishes in this event before computing
+    // batches — otherwise each dish would round up to its own full batch
+    // (e.g., 3 dishes sharing 1 cream batch would book 3 batches' worth of
+    // components). siDemand: siId -> { si, totalDemand }
+    const siDemand = {};
+
     evDishes.forEach(ed => {
       const dish = dishes.find(d => d.id === ed.dish_id);
       if (!dish) return;
@@ -65,40 +70,12 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
       if (!effectiveQty || effectiveQty <= 0) return;
 
       (dish.ingredients || []).forEach(ing => {
-        // Check if it's a special ingredient
         const si = (specialIngredients || []).find(s => s.id === ing.ingredient_id);
         if (si) {
-          // Expand special ingredient into its components
-          const siQtyNeeded = (ing.qty || 0) * effectiveQty;
-          const batchSize = si.total_quantity || 1;
-          const batches = Math.ceil(siQtyNeeded / batchSize);
-
-          (si.components || []).forEach(comp => {
-            const compIngredient = ingredients.find(i => i.id === comp.ingredient_id);
-            if (!compIngredient) return;
-            const rawCompQty = (comp.qty || 0) * batches;
-            const compWastePct = compIngredient.waste_pct || 0;
-            const compQty = compWastePct > 0 ? rawCompQty / (1 - compWastePct / 100) : rawCompQty;
-            const supInfo = supplierByIngredient[comp.ingredient_id];
-            const pricePerUnit = supInfo?.price_per_unit || compIngredient.price_per_system || 0;
-
-            const key = comp.ingredient_id;
-            if (!eventNeeds[key]) {
-              eventNeeds[key] = {
-                ingredient_id: comp.ingredient_id,
-                ingredient_name: compIngredient.name || comp.ingredient_name,
-                unit: compIngredient.system_unit || comp.unit,
-                qty: 0,
-                waste_pct: compIngredient.waste_pct || 0,
-                price_per_unit: pricePerUnit,
-                supplier_id: supInfo?.supplier_id || compIngredient.current_supplier_id || '',
-                supplier_name: supInfo?.supplier_name || compIngredient.current_supplier_name || '',
-                supplier_type: supInfo?.supplier_type || 'daily',
-                purchase_unit: compIngredient.purchase_unit || 1
-              };
-            }
-            eventNeeds[key].qty += compQty;
-          });
+          const qtyNeeded = (ing.qty || 0) * effectiveQty;
+          if (qtyNeeded <= 0) return;
+          if (!siDemand[si.id]) siDemand[si.id] = { si, totalDemand: 0 };
+          siDemand[si.id].totalDemand += qtyNeeded;
           return;
         }
 
@@ -127,6 +104,43 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
           };
         }
         eventNeeds[key].qty += qtyNeeded;
+      });
+    });
+
+    // Now expand each SI's components based on the aggregated demand.
+    Object.values(siDemand).forEach(({ si, totalDemand }) => {
+      // Batch yield = sum of all component quantities (matches what
+      // SpecialIngredientDialog displays as "כמות כוללת"). The DB does not
+      // currently persist a total_quantity column, so always derive it.
+      const allComps = si.components || [];
+      const batchSize = allComps.reduce((sum, c) => sum + (parseFloat(c.qty) || 0), 0) || 1;
+      const batches = Math.ceil(totalDemand / batchSize);
+
+      allComps.forEach(comp => {
+        const compIngredient = ingredients.find(i => i.id === comp.ingredient_id);
+        if (!compIngredient) return;
+        const rawCompQty = (comp.qty || 0) * batches;
+        const compWastePct = compIngredient.waste_pct || 0;
+        const compQty = compWastePct > 0 ? rawCompQty / (1 - compWastePct / 100) : rawCompQty;
+        const supInfo = supplierByIngredient[comp.ingredient_id];
+        const pricePerUnit = supInfo?.price_per_unit || compIngredient.price_per_system || 0;
+
+        const key = comp.ingredient_id;
+        if (!eventNeeds[key]) {
+          eventNeeds[key] = {
+            ingredient_id: comp.ingredient_id,
+            ingredient_name: compIngredient.name || comp.ingredient_name,
+            unit: compIngredient.system_unit || comp.unit,
+            qty: 0,
+            waste_pct: compIngredient.waste_pct || 0,
+            price_per_unit: pricePerUnit,
+            supplier_id: supInfo?.supplier_id || compIngredient.current_supplier_id || '',
+            supplier_name: supInfo?.supplier_name || compIngredient.current_supplier_name || '',
+            supplier_type: supInfo?.supplier_type || 'daily',
+            purchase_unit: compIngredient.purchase_unit || 1
+          };
+        }
+        eventNeeds[key].qty += compQty;
       });
     });
 

@@ -8,7 +8,8 @@ export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent
   const [iframeHeight, setIframeHeight] = useState(2000);
 
   const handlePrint = () => {
-    if (iframeRef.current) {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.focus();
       iframeRef.current.contentWindow.print();
     }
   };
@@ -51,9 +52,10 @@ export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent
     <html dir="rtl">
       <head>
         <title>${title || 'דוח מחלקה'}</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&display=swap">
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&display=swap');
-
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body {
             font-family: 'Heebo', Arial, sans-serif;
@@ -419,6 +421,28 @@ export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent
     </html>
   `;
 
+  // Write content into the iframe via contentDocument instead of srcDoc.
+  // srcDoc with very large HTML strings is unstable in Safari and has been
+  // observed to crash WebContent / trigger PAC_EXCEPTION during print/PDF.
+  useEffect(() => {
+    if (!open) return;
+    const iframe = iframeRef.current;
+    if (!iframe || !htmlContent) return;
+    const writeDoc = () => {
+      try {
+        const doc = iframe.contentDocument;
+        if (!doc) return;
+        doc.open();
+        doc.write(fullHtml);
+        doc.close();
+      } catch (err) {
+        console.error('Failed to write print preview document:', err);
+      }
+    };
+    const id = requestAnimationFrame(writeDoc);
+    return () => cancelAnimationFrame(id);
+  }, [open, fullHtml, htmlContent]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] w-[900px] h-[90vh] flex flex-col p-0" dir="rtl">
@@ -437,7 +461,6 @@ export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent
         <div className="flex-1 overflow-auto bg-gray-400">
           <iframe
             ref={iframeRef}
-            srcDoc={fullHtml}
             style={{ width: '100%', height: iframeHeight + 'px', border: 'none' }}
             title="תצוגה מקדימה"
           />

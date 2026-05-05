@@ -98,8 +98,7 @@ export default function DepartmentPrintDialog({
   };
 
   const getEffectivePlannedQty = (eventDish) => {
-    if (eventDish.planned_qty && eventDish.planned_qty > 0) return eventDish.planned_qty;
-    // If planned_qty is 0, calculate suggested quantity (same logic as EventStages)
+    // Always calculate from source (guest count × serving % × portion factor)
     const dish = dishes.find(d => d.id === eventDish.dish_id);
     if (!dish) return 0;
     const guestCount = event?.guest_count || 0;
@@ -109,7 +108,7 @@ export default function DepartmentPrintDialog({
       const totalPortionsNeeded = guestCount * (servingPercentage / 100);
       return Math.ceil(totalPortionsNeeded / portionsPerPreparation);
     }
-    const portionFactor = isFirstCourseDish(dish) ? 1/7 : (dish.portion_factor ?? 1);
+    const portionFactor = isFirstCourseDish(dish) ? 1/6 : (dish.portion_factor ?? 1);
     const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
     return Math.ceil(rawQuantity);
   };
@@ -186,11 +185,17 @@ export default function DepartmentPrintDialog({
         const qtyNeeded = (ing.qty || 0) * effectiveQty;
         if (qtyNeeded <= 0) return;
         if (!specialIngredientNeeds[si.id]) {
+          // Batch yield = sum of all component quantities (matches what the
+          // SpecialIngredientDialog displays as "כמות כוללת"). Falls back to 1
+          // only if the recipe is truly empty (defensive).
+          const allComps = si.components || [];
+          const batchYield = allComps.reduce((sum, c) => sum + (parseFloat(c.qty) || 0), 0) || 1;
           specialIngredientNeeds[si.id] = {
             name: si.name,
             system_unit: si.system_unit,
-            batchSize: si.total_quantity || 1,
+            batchSize: batchYield,
             components: filteredComponents,
+            allComponents: allComps,
             totalQtyNeeded: 0,
             dishes: []
           };
@@ -262,36 +267,28 @@ export default function DepartmentPrintDialog({
             filteredComps.forEach(comp => {
               const compIngredient = ingredients.find(i => i.id === comp.ingredient_id);
               if (!compIngredient) return;
-              const rawCompQty = (comp.qty || 0) * siData.batches;
               const compWastePct = compIngredient.waste_pct || 0;
-              const compQty = compWastePct > 0 ? rawCompQty / (1 - compWastePct / 100) : rawCompQty;
-              // Calculate per-unit: component qty per batch * batches / effectiveQty
-              const perUnit = compQty / effectiveQty;
+              // Per-dish consumption: proportional to this dish's SI usage.
+              // Full batches are tracked separately (in specialIngredientBatches /
+              // the totals section) so leftovers can be used by other dishes.
+              const compPerSIUnit = (comp.qty || 0) / (siData.batchSize || 1);
+              const rawPerUnit = (ing.qty || 0) * compPerSIUnit;
+              const perUnit = compWastePct > 0 ? rawPerUnit / (1 - compWastePct / 100) : rawPerUnit;
+              const dishCompTotal = perUnit * effectiveQty;
 
               dishIngredients.push({
                 ingredient_id: comp.ingredient_id,
                 ingredient_name: `${compIngredient.name} (${si.name})`,
                 unit: compIngredient.system_unit || comp.unit,
                 qty_per_unit: perUnit,
-                total_qty: compQty,
+                total_qty: dishCompTotal,
                 waste_pct: compWastePct,
                 support_dept: deptKey,
                 support_dept_name: DEPARTMENTS[deptKey],
                 from_special_ingredient: true
               });
-
-              const key = `${comp.ingredient_id}_si_${si.id}`;
-              if (!ingredientTotals[key]) {
-                ingredientTotals[key] = {
-                  ingredient_id: comp.ingredient_id,
-                  ingredient_name: `${compIngredient.name} (${si.name})`,
-                  unit: compIngredient.system_unit || comp.unit,
-                  total_qty: 0,
-                  support_dept: deptKey,
-                  support_dept_name: DEPARTMENTS[deptKey]
-                };
-              }
-              ingredientTotals[key].total_qty += compQty;
+              // Note: ingredientTotals for SI components is computed once after
+              // the dish loop, based on full batches needed (see Step 3 below).
             });
           } else {
             // For main departments, show special ingredient as-is
@@ -350,14 +347,14 @@ export default function DepartmentPrintDialog({
       if (dish.preparation_mass_grams && dish.portion_size_grams) {
         const portionsPerPrep = dish.preparation_mass_grams / dish.portion_size_grams;
         const totalPortions = guestCount * (servingPct / 100);
-        calcBreakdown = `${guestCount} סועדים × ${servingPct}% = ${formatNumber(totalPortions)} מנות ÷ ${formatNumber(portionsPerPrep)} מנות למסה = ${effectiveQty}`;
+        calcBreakdown = `${guestCount} מבוגרים × ${servingPct}% = ${formatNumber(totalPortions)} מנות ÷ ${formatNumber(portionsPerPrep)} מנות למסה = ${effectiveQty}`;
       } else {
         const portionFactor = isFirstCourseDish(dish) ? 1/6 : (dish.portion_factor ?? 1);
         const raw = guestCount * (servingPct / 100) * portionFactor;
         if (portionFactor !== 1) {
-          calcBreakdown = `${guestCount} סועדים × ${servingPct}% × ${formatNumber(portionFactor)} = ${formatNumber(raw)} ⇒ ${effectiveQty}`;
+          calcBreakdown = `${guestCount} מבוגרים × ${servingPct}% × ${formatNumber(portionFactor)} = ${formatNumber(raw)} ⇒ ${effectiveQty}`;
         } else {
-          calcBreakdown = `${guestCount} סועדים × ${servingPct}% = ${formatNumber(raw)} ⇒ ${effectiveQty}`;
+          calcBreakdown = `${guestCount} מבוגרים × ${servingPct}% = ${formatNumber(raw)} ⇒ ${effectiveQty}`;
         }
       }
 
@@ -376,6 +373,34 @@ export default function DepartmentPrintDialog({
         sub_category_order: getSubCategoryOrder(dish)
       });
     });
+
+    // Step 3: For support departments, compute SI component totals from full
+    // batches (so the dept knows what to PREP/BUY for the actual batches we
+    // need to make — leftover batch capacity is available for other dishes).
+    if (isSupportDept) {
+      Object.entries(specialIngredientBatches).forEach(([siId, siData]) => {
+        const filteredComps = (siData.components || []).filter(comp => {
+          const compIngredient = ingredients.find(i => i.id === comp.ingredient_id);
+          return getIngredientSupportDept(compIngredient) === deptKey;
+        });
+        filteredComps.forEach(comp => {
+          const compIngredient = ingredients.find(i => i.id === comp.ingredient_id);
+          if (!compIngredient) return;
+          const rawCompQty = (comp.qty || 0) * siData.batches;
+          const compWastePct = compIngredient.waste_pct || 0;
+          const compQty = compWastePct > 0 ? rawCompQty / (1 - compWastePct / 100) : rawCompQty;
+          const key = `${comp.ingredient_id}_si_${siId}`;
+          ingredientTotals[key] = {
+            ingredient_id: comp.ingredient_id,
+            ingredient_name: `${compIngredient.name} (${siData.name})`,
+            unit: compIngredient.system_unit || comp.unit,
+            total_qty: compQty,
+            support_dept: deptKey,
+            support_dept_name: DEPARTMENTS[deptKey]
+          };
+        });
+      });
+    }
 
     return {
       dishes: deptDishes,
@@ -702,7 +727,7 @@ export default function DepartmentPrintDialog({
 
         <div className="space-y-4">
           <div className="text-sm text-stone-600 mb-4">
-            <strong>{event.event_name}</strong> | {event.event_date ? format(new Date(event.event_date), 'dd/MM/yyyy') : '-'} | {event.guest_count} סועדים
+            <strong>{event.event_name}</strong> | {event.event_date ? format(new Date(event.event_date), 'dd/MM/yyyy') : '-'} | {event.total_guests ?? event.guest_count ?? 0} אורחים | {event.guest_count} מבוגרים להתחייבות
           </div>
 
           <div className="space-y-2">

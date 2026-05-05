@@ -104,7 +104,7 @@ export default function DishPrintButton({ dish, ingredients = [], specialIngredi
         return `
           <div style="margin-bottom: 15px; page-break-inside: avoid;">
             <div style="background-color: #2e7d32; color: white; padding: 8px 12px; font-weight: bold; font-size: 14px; border-radius: 4px;">
-              ${si.name} - מסה אחת (${formatNumber(si.total_quantity || 0)} ${formatUnit(si.system_unit)})
+              ${si.name} - מסה אחת (${formatNumber(si.total_quantity || (si.components || []).reduce((s, c) => s + (parseFloat(c.qty) || 0), 0))} ${formatUnit(si.system_unit)})
             </div>
             <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 0;">
               <thead>

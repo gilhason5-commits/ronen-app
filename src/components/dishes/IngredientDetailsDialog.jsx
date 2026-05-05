@@ -42,7 +42,7 @@ export default function IngredientDetailsDialog({ ingredient, specialIngredient,
                 </div>
                 <div>
                   <Label className="text-xs text-stone-500">כמות כוללת</Label>
-                  <p className="font-medium">{specialIngredient.total_quantity || 0} {specialIngredient.system_unit}</p>
+                  <p className="font-medium">{specialIngredient.total_quantity || (specialIngredient.components || []).reduce((s, c) => s + (parseFloat(c.qty) || 0), 0)} {specialIngredient.system_unit}</p>
                 </div>
                 <div>
                   <Label className="text-xs text-stone-500">עלות כוללת</Label>

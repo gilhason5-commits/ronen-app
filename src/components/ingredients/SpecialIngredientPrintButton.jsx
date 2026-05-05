@@ -76,7 +76,7 @@ export default function SpecialIngredientPrintButton({ specialIngredient }) {
           <div style="text-align: center; margin-bottom: 20px; border-bottom: 3px solid #2e7d32; padding-bottom: 15px;">
             <h1 style="margin: 0 0 8px 0; font-size: 26px; color: #2e7d32;">${si.name}</h1>
             <div style="font-size: 14px; color: #555;">
-              <span style="margin-left: 20px;">כמות למסה: ${formatNumber(si.total_quantity || 0)} ${formatUnit(si.system_unit)}</span>
+              <span style="margin-left: 20px;">כמות למסה: ${formatNumber(si.total_quantity || (si.components || []).reduce((s, c) => s + (parseFloat(c.qty) || 0), 0))} ${formatUnit(si.system_unit)}</span>
               <span style="margin-left: 20px;">עלות כוללת: ₪${formatNumber(si.total_cost || 0)}</span>
               <span>מחיר ל${formatUnit(si.system_unit)}: ₪${formatNumber(si.price_per_system_unit || 0)}</span>
             </div>
@@ -115,7 +115,7 @@ export default function SpecialIngredientPrintButton({ specialIngredient }) {
               </div>
               <div style="text-align: center;">
                 <div style="color: #555; font-size: 11px;">כמות כוללת</div>
-                <div style="font-weight: bold; font-size: 18px;">${formatNumber(si.total_quantity || 0)} ${formatUnit(si.system_unit)}</div>
+                <div style="font-weight: bold; font-size: 18px;">${formatNumber(si.total_quantity || (si.components || []).reduce((s, c) => s + (parseFloat(c.qty) || 0), 0))} ${formatUnit(si.system_unit)}</div>
               </div>
               <div style="text-align: center;">
                 <div style="color: #555; font-size: 11px;">מחיר ל${formatUnit(si.system_unit)}</div>
