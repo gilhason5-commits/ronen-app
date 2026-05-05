@@ -98,7 +98,7 @@ export default function KitchenEventDetail({ event }) {
           .map(ed => {
             const dish = dishes.find(d => d.id === ed.dish_id);
             if (!dish) return null;
-            const qty = ed.planned_qty || calculateSuggestedQuantity(dish);
+            const qty = calculateSuggestedQuantity(dish);
             return { ...dish, planned_qty: qty };
           })
           .filter(Boolean);

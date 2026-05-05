@@ -17,9 +17,17 @@ export default function ProducerPage() {
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["producer_events"],
-    queryFn: () => base44.entities.Event.filter({ status: "producer_draft" }, "-event_date"),
+    queryFn: () => base44.entities.Event.filter({ status: "producer_draft" }),
     initialData: []
   });
+
+  const { data: approvedEvents = [], isLoading: loadingApproved } = useQuery({
+    queryKey: ["producer_approved_events"],
+    queryFn: () => base44.entities.Event.filter({ producer_approved: true }),
+    initialData: []
+  });
+
+  const approvedOnly = approvedEvents.filter(e => e.status !== "producer_draft");
 
   const { data: allEventDishes = [] } = useQuery({
     queryKey: ["all_event_dishes"],
@@ -31,11 +39,13 @@ export default function ProducerPage() {
     mutationFn: async (event) => {
       return await base44.entities.Event.update(event.id, {
         producer_approved: true,
-        status: "in_progress"
+        status: "in_progress",
+        price_per_plate: 0
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["producer_events"] });
+      queryClient.invalidateQueries({ queryKey: ["producer_approved_events"] });
       queryClient.invalidateQueries({ queryKey: ["events"] });
       toast.success("האירוע אושר והועבר להנהלה בהצלחה!");
     },
@@ -89,6 +99,7 @@ export default function ProducerPage() {
     setShowForm(false);
     setSelectedEvent(null);
     queryClient.invalidateQueries({ queryKey: ["producer_events"] });
+    queryClient.invalidateQueries({ queryKey: ["producer_approved_events"] });
     queryClient.invalidateQueries({ queryKey: ["all_event_dishes"] });
   };
 
@@ -143,6 +154,24 @@ export default function ProducerPage() {
           ))}
         </div>
       )}
+      {approvedOnly.length > 0 && (
+        <div className="space-y-4 mt-10">
+          <h2 className="text-xl font-bold text-stone-700 border-b border-stone-200 pb-2">אירועים מאושרים</h2>
+          {approvedOnly.map(event => (
+            <ProducerEventCard
+              key={event.id}
+              event={event}
+              dishCount={allEventDishes.filter(ed => ed.event_id === event.id).length}
+              onEdit={handleEdit}
+              onApprove={handleApprove}
+              onPrint={setPrintEvent}
+              onDelete={handleDelete}
+              onSavePdf={setPdfEvent}
+            />
+          ))}
+        </div>
+      )}
+
       <ProducerEventPrint
         event={printEvent}
         open={!!printEvent}

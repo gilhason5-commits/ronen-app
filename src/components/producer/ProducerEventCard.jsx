@@ -36,14 +36,15 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
               {event.event_time && <span>{event.event_time}</span>}
               <span className="flex items-center gap-1">
                 <Users className="w-4 h-4" />
-                {event.guest_count || 0} סועדים
+                {(event.total_guests ?? event.guest_count) || 0} אורחים
               </span>
+              <span className="text-xs">מבוגרים להתחייבות: {event.guest_count || 0}</span>
               <Badge variant="outline">{eventTypeLabels[event.event_type] || event.event_type}</Badge>
               <span className="text-xs text-stone-500">{dishCount} מנות נבחרו</span>
-              {event.children_count > 0 && <span className="text-xs">ילדים: {event.children_count}</span>}
-              {event.vegan_count > 0 && <span className="text-xs">טבעונים: {event.vegan_count}</span>}
-              {event.glatt_count > 0 && <span className="text-xs">גלאט: {event.glatt_count}</span>}
-              {event.kashrut_note && <span className="text-xs text-amber-700">הערה גלאט: {event.kashrut_note}</span>}
+              {event.reserves && <span className="text-xs">רזרבות: {event.reserves}</span>}
+              {event.children_count ? <span className="text-xs">ילדים: {event.children_count}</span> : null}
+              {event.vegan_count && <span className="text-xs">טבעונים: {event.vegan_count}</span>}
+              {event.glatt_count && <span className="text-xs">גלאט: {event.glatt_count}{event.kashrut_note ? ` (${event.kashrut_note})` : ''}</span>}
             </div>
             {event.notes && (
               <p className="text-sm text-stone-500 whitespace-pre-line">{event.notes}</p>
@@ -58,15 +59,15 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
               <Download className="w-4 h-4 ml-1" />
               שמור כ-PDF
             </Button>
+            <Button variant="outline" size="sm" onClick={() => onEdit(event)}>
+              <Pencil className="w-4 h-4 ml-1" />
+              עריכה
+            </Button>
             {!isApproved && (
               <>
                 <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => onDelete(event)}>
                   <Trash2 className="w-4 h-4 ml-1" />
                   מחיקה
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => onEdit(event)}>
-                  <Pencil className="w-4 h-4 ml-1" />
-                  עריכה
                 </Button>
                 <Button
                   size="sm"

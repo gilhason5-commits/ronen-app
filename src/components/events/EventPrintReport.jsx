@@ -137,7 +137,15 @@ export default function EventPrintReport({ event, eventDishes, dishes, categorie
             <table className="w-full">
               <tbody>
                 <tr className="border-b border-stone-200">
-                  <td className="py-3 font-semibold w-1/3">מספר סועדים:</td>
+                  <td className="py-3 font-semibold w-1/3">סה״כ אורחים:</td>
+                  <td className="py-3">{event.total_guests ?? event.guest_count ?? 0}</td>
+                </tr>
+                <tr className="border-b border-stone-200">
+                  <td className="py-3 font-semibold w-1/3">ילדים:</td>
+                  <td className="py-3">{event.children_count || 0}</td>
+                </tr>
+                <tr className="border-b border-stone-200">
+                  <td className="py-3 font-semibold w-1/3">סה״כ מבוגרים להתחייבות:</td>
                   <td className="py-3">{event.guest_count || 0}</td>
                 </tr>
               </tbody>

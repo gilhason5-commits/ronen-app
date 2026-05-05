@@ -7,6 +7,7 @@ import { Printer, Download, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
+import { calculateAdultPortions } from "@/lib/dinerCount";
 
 const eventTypeLabels = {
   serving: "אירוע הגשה",
@@ -62,7 +63,7 @@ export default function ProducerEventPrint({ event, open, onClose, savePdfMode =
       // Enrich with sub_category_id from Dish entity
       const enriched = catDishes.map(ed => {
         const dish = dishes.find(d => d.id === ed.dish_id);
-        return { ...ed, sub_category_id: dish?.sub_category_id };
+        return { ...ed, sub_category_id: dish?.sub_category_id, current_dish_name: dish?.name };
       });
       // Group by sub-category NAME (not ID) to merge duplicates like Raw Bar
       const subGroups = [];
@@ -102,7 +103,7 @@ export default function ProducerEventPrint({ event, open, onClose, savePdfMode =
           .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin: 16px 0; font-size: 14px; }
           .info-label { color: #78716c; }
           .info-value { font-weight: 600; }
-          .notes { background: #f5f5f4; padding: 12px; border-radius: 8px; margin: 12px 0; font-size: 14px; }
+          .notes { background: #f5f5f4; padding: 12px; border-radius: 8px; margin: 12px 0; font-size: 14px; white-space: pre-wrap; }
           table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14px; }
           th { background: #f5f5f4; text-align: right; padding: 8px 12px; border: 1px solid #d6d3d1; }
           td { padding: 8px 12px; border: 1px solid #e7e5e4; }
@@ -196,36 +197,40 @@ export default function ProducerEventPrint({ event, open, onClose, savePdfMode =
         </DialogHeader>
 
         <div ref={printRef}>
-          <h1>{event.event_name}</h1>
-          <div className="info-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px", margin: "16px 0", fontSize: "14px" }}>
-            <div>
-              <span style={{ color: "#78716c" }}>תאריך: </span>
-              <strong>{event.event_date ? format(new Date(event.event_date), "dd/MM/yyyy") : "-"}</strong>
-            </div>
-            <div>
-              <span style={{ color: "#78716c" }}>שעה: </span>
-              <strong>{event.event_time || "-"}</strong>
-            </div>
-            <div>
-              <span style={{ color: "#78716c" }}>סוג אירוע: </span>
-              <strong>{eventTypeLabels[event.event_type] || event.event_type}</strong>
-            </div>
-            <div>
-              <span style={{ color: "#78716c" }}>מספר סועדים: </span>
-              <strong>{event.guest_count || 0}</strong>
-            </div>
-            {event.price_per_plate > 0 && (
-              <div>
-                <span style={{ color: "#78716c" }}>מחיר לצלחת: </span>
-                <strong>₪{event.price_per_plate}</strong>
+          <div style={{ display: "flex", gap: "24px", direction: "rtl", alignItems: "flex-start" }}>
+            <div style={{ flex: 1 }}>
+              <h1 style={{ marginTop: 0 }}>{event.event_name}{event.occasion ? ` — ${event.occasion}` : ""}</h1>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 24px", margin: "8px 0", fontSize: "14px" }}>
+                <div>
+                  <span style={{ color: "#78716c" }}>תאריך: </span>
+                  <strong>{event.event_date ? format(new Date(event.event_date), "dd/MM/yyyy") : "-"}</strong>
+                </div>
+                <div>
+                  <span style={{ color: "#78716c" }}>שעה: </span>
+                  <strong>{event.event_time || "-"}</strong>
+                </div>
+                <div>
+                  <span style={{ color: "#78716c" }}>סוג אירוע: </span>
+                  <strong>{eventTypeLabels[event.event_type] || event.event_type}</strong>
+                </div>
+                <div>
+                  <span style={{ color: "#78716c" }}>סה״כ אורחים: </span>
+                  <strong>{event.total_guests ?? event.guest_count ?? 0}</strong>
+                </div>
+                <div>
+                  <span style={{ color: "#78716c" }}>סה״כ מבוגרים להתחייבות: </span>
+                  <strong>{event.guest_count || 0}</strong>
+                </div>
+                <div>
+                  <span style={{ color: "#78716c" }}>מנות מבוגר: </span>
+                  <strong>{calculateAdultPortions(event.guest_count, event.vegan_count, event.glatt_count) || 0}</strong>
+                </div>
               </div>
-            )}
-          </div>
+            </div>
 
-          <div style={{ display: "flex", gap: "24px", margin: "16px 0", direction: "rtl" }}>
-            {(event.children_count > 0 || event.vegan_count > 0 || event.glatt_count > 0) && (
-              <div style={{ marginRight: "auto", marginLeft: "0" }}>
-                <h3 style={{ fontSize: "14px", fontWeight: "bold", marginBottom: "6px", color: "#065f46" }}>מיוחדים</h3>
+            {(event.reserves || event.children_count || event.vegan_count || event.glatt_count) && (
+              <div style={{ flexShrink: 0 }}>
+                <h3 style={{ fontSize: "14px", fontWeight: "bold", marginTop: 0, marginBottom: "6px", color: "#065f46" }}>מיוחדים</h3>
                 <table style={{ borderCollapse: "collapse", fontSize: "13px" }}>
                   <thead>
                     <tr>
@@ -236,18 +241,23 @@ export default function ProducerEventPrint({ event, open, onClose, savePdfMode =
                   </thead>
                   <tbody>
                     <tr>
+                      <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4" }}>רזרבות</td>
+                      <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4", textAlign: "center" }}>{event.reserves || "-"}</td>
+                      <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4", color: "#a8a29e" }}>-</td>
+                    </tr>
+                    <tr>
                       <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4" }}>ילדים</td>
-                      <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4", textAlign: "center" }}>{event.children_count || 0}</td>
+                      <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4", textAlign: "center" }}>{event.children_count || "-"}</td>
                       <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4", color: "#a8a29e" }}>-</td>
                     </tr>
                     <tr>
                       <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4" }}>טבעונים</td>
-                      <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4", textAlign: "center" }}>{event.vegan_count || 0}</td>
+                      <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4", textAlign: "center" }}>{event.vegan_count || "-"}</td>
                       <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4", color: "#a8a29e" }}>-</td>
                     </tr>
                     <tr>
                       <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4" }}>גלאט</td>
-                      <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4", textAlign: "center" }}>{event.glatt_count || 0}</td>
+                      <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4", textAlign: "center" }}>{event.glatt_count || "-"}</td>
                       <td style={{ padding: "4px 10px", border: "1px solid #e7e5e4", color: event.kashrut_note ? "#92400e" : "#a8a29e" }}>{event.kashrut_note || "-"}</td>
                     </tr>
                   </tbody>
@@ -257,7 +267,7 @@ export default function ProducerEventPrint({ event, open, onClose, savePdfMode =
           </div>
 
           {event.notes && (
-            <div style={{ background: "#f5f5f4", padding: "12px", borderRadius: "8px", margin: "12px 0", fontSize: "14px" }}>
+            <div style={{ background: "#f5f5f4", padding: "12px", borderRadius: "8px", margin: "12px 0", fontSize: "14px", whiteSpace: "pre-wrap" }}>
               <strong>הערות: </strong>{event.notes}
             </div>
           )}
@@ -295,7 +305,7 @@ export default function ProducerEventPrint({ event, open, onClose, savePdfMode =
                             const noteText = noteRec?.note || "";
                             return (
                               <tr key={d.id}>
-                                <td style={{ padding: "8px 12px", border: "1px solid #e7e5e4" }}>{d.dish_name}</td>
+                                <td style={{ padding: "8px 12px", border: "1px solid #e7e5e4" }}>{d.current_dish_name || d.dish_name}</td>
                                 <td style={{ padding: "8px 12px", border: "1px solid #e7e5e4", fontSize: "13px", color: noteText ? "#92400e" : "#a8a29e" }}>{noteText || "-"}</td>
                               </tr>
                             );
@@ -318,11 +328,12 @@ export default function ProducerEventPrint({ event, open, onClose, savePdfMode =
                         </thead>
                         <tbody>
                         {uncategorized.map(d => {
+                        const dish = dishes.find(dd => dd.id === d.dish_id);
                         const noteRec = dishNotes.find(n => n.event_dish_id === d.id);
                         const noteText = noteRec?.note || "";
                         return (
                           <tr key={d.id}>
-                           <td style={{ padding: "8px 12px", border: "1px solid #e7e5e4" }}>{d.dish_name}</td>
+                           <td style={{ padding: "8px 12px", border: "1px solid #e7e5e4" }}>{dish?.name || d.dish_name}</td>
                            <td style={{ padding: "8px 12px", border: "1px solid #e7e5e4", fontSize: "13px", color: noteText ? "#92400e" : "#a8a29e" }}>{noteText || "-"}</td>
                           </tr>
                         );

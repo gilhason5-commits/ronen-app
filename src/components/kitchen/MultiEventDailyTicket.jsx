@@ -67,7 +67,7 @@ export default function MultiEventDailyTicket({ group }) {
           <div style="background: #fff8e1; padding: 10px 14px; border-bottom: 1px solid #ddd;">
             <div style="font-weight: bold; font-size: 14px;">${section.event.event_name}</div>
             <div style="font-size: 12px; color: #555;">
-              ${section.event.guest_count || '-'} סועדים | 
+              ${section.event.total_guests ?? section.event.guest_count ?? '-'} אורחים | ${section.event.guest_count || '-'} מבוגרים להתחייבות |
               תאריך אירוע: ${section.event.event_date ? format(new Date(section.event.event_date), 'dd/MM/yyyy') : '-'}
             </div>
           </div>
@@ -127,7 +127,7 @@ export default function MultiEventDailyTicket({ group }) {
                 <span className="font-semibold text-stone-900">{section.event.event_name}</span>
                 <Badge variant="outline" className="text-xs">
                   <Users className="w-3 h-3 ml-1" />
-                  {section.event.guest_count} סועדים
+                  {section.event.total_guests ?? section.event.guest_count ?? 0} אורחים | {section.event.guest_count || 0} מבוגרים
                 </Badge>
               </div>
               <p className="text-xs text-stone-500 mt-1">

@@ -23,6 +23,7 @@ import EventSummary from "../events/EventSummary";
 import EventPrintDialog from "../events/EventPrintDialog";
 import DepartmentPrintDialog from "../events/DepartmentPrintDialog";
 import { fmtCurrency } from "../utils/formatNumbers";
+import { calculateAdultCommitment, calculateAdultPortions } from "@/lib/dinerCount";
 
 export default function EventForm({ event, onClose }) {
   const queryClient = useQueryClient();
@@ -34,12 +35,23 @@ export default function EventForm({ event, onClose }) {
     event_time: '',
     event_type: 'serving',
     price_per_plate: '',
+    total_guests: 0,
     guest_count: 0,
+    children_count: '',
     status: 'in_progress',
     notes: '',
     food_cost_sum: 0,
     food_cost_pct: 0
   });
+
+  // Keep guest_count (סה״כ מבוגרים להתחייבות) in sync = total_guests − children_count
+  const updateGuestData = (changes) => {
+    setFormData((prev) => {
+      const next = { ...prev, ...changes };
+      next.guest_count = calculateAdultCommitment(next.total_guests, next.children_count);
+      return next;
+    });
+  };
 
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
@@ -97,11 +109,17 @@ export default function EventForm({ event, onClose }) {
 
   useEffect(() => {
     if (event?.id) {
-      setFormData((prev) => ({
-        ...prev,
-        ...event,
-        price_per_plate: event.price_per_plate != null ? String(event.price_per_plate) : ''
-      }));
+      setFormData((prev) => {
+        const merged = {
+          ...prev,
+          ...event,
+          price_per_plate: event.price_per_plate != null ? String(event.price_per_plate) : '',
+          total_guests: event.total_guests ?? event.guest_count ?? 0,
+          children_count: event.children_count ?? ''
+        };
+        merged.guest_count = calculateAdultCommitment(merged.total_guests, merged.children_count);
+        return merged;
+      });
     }
   }, [event?.id]);
 
@@ -135,9 +153,8 @@ export default function EventForm({ event, onClose }) {
       const totalPortionsNeeded = guestCount * (servingPercentage / 100);
       plannedQty = Math.ceil(totalPortionsNeeded / portionsPerPreparation);
     } else {
-      // For wedding events, skip the 1/6 first course division
-      const isWedding = formData.event_type === 'wedding';
-      const portionFactor = (!isWedding && isFirstCourseDish(dish)) ? 1 / 6 : (dish.portion_factor ?? 1);
+      // First-course rule applies to all event types (including weddings)
+      const portionFactor = isFirstCourseDish(dish) ? 1 / 6 : (dish.portion_factor ?? 1);
       const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
       plannedQty = Math.ceil(rawQuantity);
     }
@@ -234,9 +251,8 @@ export default function EventForm({ event, onClose }) {
           plannedCost = plannedQty * (dish.unit_cost || 0);
         } else {
           // Old calculation (for backward compatibility)
-          // For wedding events, skip the 1/6 first course division
-          const isWedding = formData.event_type === 'wedding';
-          const portionFactor = (!isWedding && isFirstCourse) ? 1 / 7 : (dish.portion_factor ?? 1);
+          // First-course rule applies to all event types (including weddings)
+          const portionFactor = isFirstCourse ? 1 / 6 : (dish.portion_factor ?? 1);
           // Formula: planned_qty = (guest_count × serving_percentage/100 × portion_factor)
           const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
           plannedQty = Math.ceil(rawQuantity);
@@ -336,13 +352,19 @@ export default function EventForm({ event, onClose }) {
             <CardContent className="p-5">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
+                  <div>
                     <Label>שם האירוע *</Label>
                     <Input
                       value={formData.event_name}
                       onChange={(e) => setFormData({ ...formData, event_name: e.target.value })}
                       required />
-
+                  </div>
+                  <div>
+                    <Label>אופי האירוע</Label>
+                    <Input
+                      value={formData.occasion || ''}
+                      onChange={(e) => setFormData({ ...formData, occasion: e.target.value })}
+                      placeholder="חתונה, בר מצווה, אירוע חברה..." />
                   </div>
 
                   <div>
@@ -415,69 +437,94 @@ export default function EventForm({ event, onClose }) {
                     </Select>
                   </div>
 
-                  <div>
-                    <Label>מספר סועדים *</Label>
-                    <Input
-                      type="text"
-                      inputMode="numeric"
-                      value={formData.guest_count || ''}
-                      onChange={(e) => setFormData({ ...formData, guest_count: parseInt(e.target.value) || 0 })}
-                      placeholder="0"
-                      required />
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"> מחיר מנה כולל מע״מ (₪) 
-                    </Label>
-                    <Input type="text"
-                    inputMode="decimal"
-                    value={formData.price_per_plate}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setFormData({ ...formData, price_per_plate: value });
-                    }}
-                    placeholder="0"
-                    required />
-
-                    <p className="text-sm text-stone-500 mt-1">
-                      הכנסה מאוכל: {fmtCurrency((parseFloat(formData.price_per_plate) || 0) * (formData.guest_count || 0))}
-                    </p>
-                  </div>
-
                   <div className="col-span-2 grid grid-cols-4 gap-4">
+                    <div>
+                      <Label>סה״כ אורחים *</Label>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        value={formData.total_guests || ''}
+                        onChange={(e) => updateGuestData({ total_guests: parseInt(e.target.value) || 0 })}
+                        placeholder="0"
+                        required />
+                    </div>
                     <div>
                       <Label>ילדים</Label>
                       <Input
                         type="text"
                         inputMode="numeric"
-                        value={formData.children_count || ''}
-                        onChange={(e) => setFormData({ ...formData, children_count: parseInt(e.target.value) || 0 })}
+                        value={formData.children_count ?? ''}
+                        onChange={(e) => updateGuestData({ children_count: parseInt(e.target.value) || 0 })}
                         placeholder="0" />
+                    </div>
+                    <div>
+                      <Label>סה״כ מבוגרים להתחייבות</Label>
+                      <Input
+                        type="text"
+                        value={formData.guest_count || ''}
+                        disabled
+                        readOnly />
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"> מחיר מנה כולל מע״מ (₪)
+                      </Label>
+                      <Input type="text"
+                        inputMode="decimal"
+                        value={formData.price_per_plate}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setFormData({ ...formData, price_per_plate: value });
+                        }}
+                        placeholder="0"
+                        required />
+                      <p className="text-sm text-stone-500 mt-1">
+                        הכנסה מאוכל: {fmtCurrency((parseFloat(formData.price_per_plate) || 0) * (formData.guest_count || 0))}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 grid grid-cols-4 gap-4">
+                    <div>
+                      <Label>רזרבות</Label>
+                      <Input
+                        type="text"
+                        value={formData.reserves || ''}
+                        onChange={(e) => setFormData({ ...formData, reserves: e.target.value })}
+                        placeholder="טווח (10-20)" />
                     </div>
                     <div>
                       <Label>טבעונים</Label>
                       <Input
                         type="text"
-                        inputMode="numeric"
                         value={formData.vegan_count || ''}
-                        onChange={(e) => setFormData({ ...formData, vegan_count: parseInt(e.target.value) || 0 })}
-                        placeholder="0" />
+                        onChange={(e) => setFormData({ ...formData, vegan_count: e.target.value })}
+                        placeholder="0 או טווח" />
                     </div>
                     <div>
                       <Label>גלאט</Label>
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        value={formData.glatt_count || ''}
-                        onChange={(e) => setFormData({ ...formData, glatt_count: parseInt(e.target.value) || 0 })}
-                        placeholder="0" />
+                      <div className="flex h-10 items-center rounded-md border border-input bg-background overflow-hidden focus-within:ring-2 focus-within:ring-ring">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          className="w-1/3 h-full px-2 text-sm bg-transparent outline-none border-l border-input text-center"
+                          value={formData.glatt_count || ''}
+                          onChange={(e) => setFormData({ ...formData, glatt_count: e.target.value })}
+                          placeholder="0" />
+                        <input
+                          type="text"
+                          className="flex-1 h-full px-2 text-sm bg-transparent outline-none"
+                          value={formData.kashrut_note || ''}
+                          onChange={(e) => setFormData({ ...formData, kashrut_note: e.target.value })}
+                          placeholder="סוג כשרות..." />
+                      </div>
                     </div>
                     <div>
-                      <Label>הערה גלאט</Label>
+                      <Label>מנות מבוגר</Label>
                       <Input
-                        value={formData.kashrut_note || ''}
-                        onChange={(e) => setFormData({ ...formData, kashrut_note: e.target.value })}
-                        placeholder="סוג כשרות..." />
+                        type="text"
+                        value={calculateAdultPortions(formData.guest_count, formData.vegan_count, formData.glatt_count) || ''}
+                        disabled
+                        readOnly />
                     </div>
                   </div>
 

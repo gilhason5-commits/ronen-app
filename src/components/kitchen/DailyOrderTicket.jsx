@@ -53,7 +53,7 @@ export default function DailyOrderTicket({ ticket, onUpdate }) {
         <h1>הזמנה מ${ticket.supplier.name}</h1>
         <div class="meta"><strong>עבור:</strong> ${ticket.event.event_name}</div>
         <div class="meta"><strong>תאריך אירוע:</strong> ${ticket.event.event_date ? format(new Date(ticket.event.event_date), 'dd/MM/yyyy') : '-'}</div>
-        <div class="meta"><strong>סועדים:</strong> ${ticket.event.guest_count || '-'}</div>
+        <div class="meta"><strong>אורחים:</strong> ${ticket.event.total_guests ?? ticket.event.guest_count ?? '-'} | <strong>מבוגרים להתחייבות:</strong> ${ticket.event.guest_count || '-'}</div>
         <div class="meta"><strong>תאריך אספקה:</strong> ${deliveryDate ? format(new Date(deliveryDate), 'dd/MM/yyyy') : '-'}</div>
         <div class="meta"><strong>תאריך הפקה:</strong> ${format(new Date(), 'dd/MM/yyyy HH:mm')}</div>
         <table>
@@ -84,7 +84,7 @@ export default function DailyOrderTicket({ ticket, onUpdate }) {
               {' | '}
               {ticket.event.event_date ? format(new Date(ticket.event.event_date), 'dd/MM/yyyy') : '-'}
               {' | '}
-              {ticket.event.guest_count} סועדים
+              {ticket.event.total_guests ?? ticket.event.guest_count ?? 0} אורחים | {ticket.event.guest_count || 0} מבוגרים
             </p>
           </div>
           <Badge className="bg-amber-100 text-amber-700">יומי</Badge>

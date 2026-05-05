@@ -105,18 +105,22 @@ export default function EventStages({
     return eventDishes.find(ed => ed.dish_id === dishId);
   };
 
-  const isFirstCourseDish = (dish) => {
-    const dishCategories = categories.filter(cat => dish.categories?.includes(cat.id));
-    return dishCategories.some(cat => {
-      const name = cat.name.toLowerCase();
-      return name.includes('first course') || name.includes('מנה ראשונה') || name.includes('מנות ראשונות');
-    });
+  const isFirstCourseCategoryName = (catName) => {
+    if (!catName) return false;
+    const lower = catName.toLowerCase();
+    return lower.includes('first course') || catName.includes('מנה ראשונה') || catName.includes('מנות ראשונות');
   };
 
-  const calculateSuggestedQuantity = (dish) => {
+  const isFirstCourseDish = (dish, currentCategory = null) => {
+    if (currentCategory) return isFirstCourseCategoryName(currentCategory.name);
+    const dishCategories = categories.filter(cat => dish.categories?.includes(cat.id));
+    return dishCategories.some(cat => isFirstCourseCategoryName(cat.name));
+  };
+
+  const calculateSuggestedQuantity = (dish, currentCategory = null) => {
     const guestCount = event?.guest_count || 0;
     const servingPercentage = dish.serving_percentage ?? 100;
-    
+
     // Check if dish has new preparation_mass_grams and portion_size_grams fields
     if (dish.preparation_mass_grams && dish.portion_size_grams) {
       // New calculation: portions per preparation
@@ -126,14 +130,13 @@ export default function EventStages({
       // Number of preparations needed
       return Math.ceil(totalPortionsNeeded / portionsPerPreparation);
     }
-    
+
     // Old calculation (for backward compatibility)
-    // For wedding events, skip the 1/6 first course division
-    const isWedding = event?.event_type === 'wedding';
-    const portionFactor = (!isWedding && isFirstCourseDish(dish)) ? 1/6 : (dish.portion_factor ?? 1);
+    // First-course rule applies to all event types (including weddings)
+    const portionFactor = isFirstCourseDish(dish, currentCategory) ? 1/6 : (dish.portion_factor ?? 1);
     // Formula: planned_qty = (guest_count × serving_percentage/100 × portion_factor)
     const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
-    
+
     return Math.ceil(rawQuantity);
   };
 
@@ -156,7 +159,7 @@ export default function EventStages({
         .map(ed => {
           const dish = dishes.find(d => d.id === ed.dish_id);
           if (!dish) return null;
-          const qty = calculateSuggestedQuantity(dish);
+          const qty = calculateSuggestedQuantity(dish, category);
           const cost = qty * (dish.unit_cost || 0);
           const subCat = subCategoriesData.find(sc => sc.id === dish.sub_category_id);
           return { ...dish, planned_qty: qty, cost, subCatOrder: subCat?.display_order ?? 999, subCatName: subCat?.name || '' };
@@ -241,7 +244,7 @@ export default function EventStages({
           <div class="fixed-header">
             <div class="fixed-header-inner">
               <div class="fixed-header-right">
-                <span>${event?.event_name || ''}</span> | <span>${eventDate}</span> | <span>${event?.event_time || '-'}</span> | <span>${event?.guest_count || 0} סועדים</span>
+                <span>${event?.event_name || ''}</span> | <span>${eventDate}</span> | <span>${event?.event_time || '-'}</span> | <span>${event?.total_guests ?? event?.guest_count ?? 0} אורחים</span> | <span>${event?.guest_count || 0} מבוגרים להתחייבות</span>
               </div>
               <span class="fixed-header-time">${printTimestamp}</span>
             </div>
@@ -355,7 +358,7 @@ export default function EventStages({
                 <div className="space-y-3">
                   {(() => {
                     const enriched = [...selectedDishes].map(dish => {
-                      const suggestedQty = calculateSuggestedQuantity(dish);
+                      const suggestedQty = calculateSuggestedQuantity(dish, category);
                       const cost = suggestedQty * (dish.unit_cost || 0);
                       const subCat = subCategoriesData.find(sc => sc.id === dish.sub_category_id);
                       return { dish, suggestedQty, cost, subCatOrder: subCat?.display_order ?? 999, subCatName: subCat?.name || '' };
@@ -416,7 +419,7 @@ export default function EventStages({
                                   </div>
                                   <div className="flex flex-col justify-between">
                                     <div className="text-xs text-stone-600 space-y-0.5">
-                                      {isFirstCourseDish(dish) ? (
+                                      {isFirstCourseDish(dish, category) ? (
                                         <>
                                           <p>מחיר למנה: {fmtCurrency(dish.price_per_guest || 0)}</p>
                                           <p>אחוז הגשה: {dish.serving_percentage || 100}%</p>

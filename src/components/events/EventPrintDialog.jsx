@@ -30,7 +30,8 @@ export default function EventPrintDialog({
     const eventDate = event.event_date ? format(new Date(event.event_date), 'dd/MM/yyyy') : '-';
     const now = new Date();
     const printTimestamp = `${now.toLocaleDateString('he-IL')} ${now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
-    const headerText = `דוח אירוע | ${event.event_name} | ${eventDate} | ${event.guest_count || 0} סועדים`;
+    const totalGuests = event.total_guests ?? event.guest_count ?? 0;
+    const headerText = `דוח אירוע | ${event.event_name} | ${eventDate} | ${totalGuests} אורחים | ${event.guest_count || 0} מבוגרים להתחייבות`;
     const docTitle = `דוח אירוע - ${event.event_name}`;
 
     printWindow.document.write(`
@@ -235,7 +236,15 @@ export default function EventPrintDialog({
                   <td>{event.event_type === 'serving' ? 'אירוע הגשה' : 'אירוע הפוכה'}</td>
                 </tr>
                 <tr>
-                  <td className="font-semibold">מספר סועדים:</td>
+                  <td className="font-semibold">סה״כ אורחים:</td>
+                  <td>{event.total_guests ?? event.guest_count ?? 0}</td>
+                </tr>
+                <tr>
+                  <td className="font-semibold">ילדים:</td>
+                  <td>{event.children_count || 0}</td>
+                </tr>
+                <tr>
+                  <td className="font-semibold">סה״כ מבוגרים להתחייבות:</td>
                   <td>{event.guest_count || 0}</td>
                 </tr>
               </tbody>
