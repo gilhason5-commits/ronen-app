@@ -1,5 +1,6 @@
 import React from "react";
 import RecurringTaskColumns from "../components/tasks/RecurringTaskColumns.jsx";
+import RecurringTasksDailySummary from "../components/tasks/RecurringTasksDailySummary.jsx";
 import TaskAssignmentList from "../components/tasks/TaskAssignmentList.jsx";
 
 export default function RecurringTasks() {
@@ -11,6 +12,8 @@ export default function RecurringTasks() {
       </div>
 
       <RecurringTaskColumns />
+
+      <RecurringTasksDailySummary />
 
       <TaskAssignmentList taskType="RECURRING" />
     </div>
