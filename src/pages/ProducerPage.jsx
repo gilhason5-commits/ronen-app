@@ -27,7 +27,16 @@ export default function ProducerPage() {
     initialData: []
   });
 
-  const approvedOnly = approvedEvents.filter(e => e.status !== "producer_draft");
+  // Sort approved events with the furthest future date at the top.
+  // Events without a date sink to the bottom.
+  const approvedOnly = approvedEvents
+    .filter(e => e.status !== "producer_draft")
+    .slice()
+    .sort((a, b) => {
+      const tA = a.event_date ? new Date(a.event_date).getTime() : -Infinity;
+      const tB = b.event_date ? new Date(b.event_date).getTime() : -Infinity;
+      return tB - tA;
+    });
 
   const { data: allEventDishes = [] } = useQuery({
     queryKey: ["all_event_dishes"],
