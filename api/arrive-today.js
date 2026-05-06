@@ -29,10 +29,12 @@ export default async function handler(req, res) {
     const nowHour = israelTime.getHours();
     const nowMin = israelTime.getMinutes();
 
-    // Only run at or after the configured time, with a 60-minute grace window after
+    // Run within ±60 minutes of the configured time. The existing-record
+    // check below dedupes any duplicate sends if the cron fires multiple
+    // times in the window.
     const totalNowMin = nowHour * 60 + nowMin;
     const totalTargetMin = targetHour * 60 + targetMin;
-    if (totalNowMin < totalTargetMin || totalNowMin > totalTargetMin + 60) {
+    if (Math.abs(totalNowMin - totalTargetMin) > 60) {
       return res.status(200).json({ message: 'Not send time yet', sendHour, nowIsrael: `${nowHour}:${nowMin}` });
     }
 
