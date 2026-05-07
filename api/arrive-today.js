@@ -101,7 +101,21 @@ export default async function handler(req, res) {
 
           sent++;
         } catch (err) {
-          console.error(`Failed to send to ${emp.full_name}:`, err.message);
+          console.error(`Failed to send to ${emp.full_name} (${emp.phone_e164}):`, err.message);
+          // Persist a row so the cron does not keep retrying every 10 minutes
+          // for an entire ±60-minute window. NO_RESPONSE is used because the
+          // existing check constraint does not include a FAILED state and
+          // because the employee in fact never received a reachable message.
+          // The 2-hour no-response escalator only acts on PENDING rows so it
+          // will not pile a second alert on top of this.
+          await supabase.from('EmployeeDailyAvailability').insert({
+            event_id: event.id,
+            employee_id: emp.id,
+            employee_name: emp.full_name,
+            event_date: event.event_date,
+            confirmation_status: 'NO_RESPONSE',
+            confirmation_sent_at: new Date().toISOString(),
+          });
         }
       }
     }
