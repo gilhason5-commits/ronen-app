@@ -435,11 +435,13 @@ export default function EventTimelineGrid({ eventId, event, templates }) {
                     selectedTask.status === 'DONE' ? 'bg-green-100 text-green-800' :
                     selectedTask.status === 'NOT_DONE' ? 'bg-red-100 text-red-800' :
                     selectedTask.status === 'OVERDUE' ? 'bg-orange-100 text-orange-800' :
+                    selectedTask.status === 'NOT_ARRIVING' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-stone-100 text-stone-800'
                   }>
                     {selectedTask.status === 'DONE' ? 'בוצע' :
                      selectedTask.status === 'NOT_DONE' ? 'לא בוצע' :
                      selectedTask.status === 'OVERDUE' ? 'באיחור' :
+                     selectedTask.status === 'NOT_ARRIVING' ? 'לא מגיע' :
                      'ממתין'}
                   </Badge>
                 </div>
