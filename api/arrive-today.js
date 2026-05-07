@@ -6,6 +6,15 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Phone numbers to never send to (regardless of TaskEmployee.whatsapp_enabled).
+// Used to silence employees whose underlying WhatsApp number is broken until
+// the root cause is fixed. Numbers are matched in E.164 form.
+const BLOCKED_PHONES = new Set([
+  '+972523342321', // Lev — repeated Twilio Failed; investigate before re-enabling
+]);
+
+const normalizePhone = (p) => (p ? String(p).replace(/[\s-]/g, '') : '');
+
 /**
  * GET/POST /api/arrive-today  (Vercel Cron: every 5 minutes)
  * At availability_send_hour: sends "מגיע היום?" to employees assigned to today's events.
@@ -78,6 +87,10 @@ export default async function handler(req, res) {
       for (const emp of employees) {
         if (!assignedIds.has(emp.id)) continue;
         if (!emp.phone_e164) continue;
+        if (BLOCKED_PHONES.has(normalizePhone(emp.phone_e164))) {
+          console.log(`arrive-today: skipping ${emp.full_name} — phone ${emp.phone_e164} is on block list`);
+          continue;
+        }
 
         // Skip if already sent today for this event
         const { data: existing } = await supabase
