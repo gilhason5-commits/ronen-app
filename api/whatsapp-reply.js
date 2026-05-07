@@ -302,14 +302,12 @@ async function processAvailabilityRecord(record, isAvailable) {
 
   console.log(`❌ ${record.employee_name || "Employee"} confirmed UNAVAILABLE`);
 
-  if (record.source_type === "recurring") {
-    await cancelRecurringTasksForEmployee(record);
-    await cancelEventTasksForEmployeeOnDate(record);
-    await sendRecurringUnavailableEscalation(record);
-  } else {
-    await cancelEventTasksForEmployee(record);
-    await sendManagerAvailabilityEscalation(record);
-  }
+  // Only event tasks are cancelled by availability replies. Recurring tasks
+  // are unrelated to the per-event "are you coming today?" check and stay
+  // assigned to the employee. Their status is updated to NOT_ARRIVING so
+  // the per-event status views render them in yellow as "לא מגיע".
+  await cancelEventTasksForEmployee(record);
+  await sendManagerAvailabilityEscalation(record);
 }
 
 async function sendManagerAvailabilityEscalation(record) {
