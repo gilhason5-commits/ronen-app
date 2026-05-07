@@ -107,21 +107,35 @@ export default async function handler(req, res) {
 
           sent++;
         } catch (err) {
-          console.error(`Failed to send to ${emp.full_name} (${emp.phone_e164}):`, err.message);
+          console.error(`arrive-today: send failed to ${emp.full_name} (${emp.phone_e164}) for event ${event.id}: ${err.message}`);
           // Persist a row so the cron does not keep retrying every 10 minutes
-          // for an entire ±60-minute window. NO_RESPONSE is used because the
+          // for the rest of the window. NO_RESPONSE is used because the
           // existing check constraint does not include a FAILED state and
-          // because the employee in fact never received a reachable message.
-          // The 2-hour no-response escalator only acts on PENDING rows so it
-          // will not pile a second alert on top of this.
-          await supabase.from('EmployeeDailyAvailability').insert({
-            event_id: event.id,
-            employee_id: emp.id,
-            employee_name: emp.full_name,
-            event_date: event.event_date,
-            confirmation_status: 'NO_RESPONSE',
-            confirmation_sent_at: new Date().toISOString(),
-          });
+          // the employee in fact never received a reachable message. The
+          // 2-hour no-response escalator only acts on PENDING rows so it
+          // will not pile a second alert on top of this. The insert itself
+          // is wrapped in try/catch — if it throws (transient DB blip, RLS,
+          // constraint, etc.) the next cron run would otherwise see no
+          // existing row and retry the same dead number forever.
+          try {
+            const { error: insertErr } = await supabase
+              .from('EmployeeDailyAvailability')
+              .insert({
+                event_id: event.id,
+                employee_id: emp.id,
+                employee_name: emp.full_name,
+                event_date: event.event_date,
+                confirmation_status: 'NO_RESPONSE',
+                confirmation_sent_at: new Date().toISOString(),
+              });
+            if (insertErr) {
+              console.error(`arrive-today: failed to persist NO_RESPONSE marker for ${emp.full_name} (event ${event.id}): ${insertErr.message}`);
+            } else {
+              console.log(`arrive-today: marked ${emp.full_name} as NO_RESPONSE for event ${event.id} (delivery failed, will not retry)`);
+            }
+          } catch (insertEx) {
+            console.error(`arrive-today: exception persisting NO_RESPONSE marker for ${emp.full_name}: ${insertEx.message}`);
+          }
         }
       }
     }
