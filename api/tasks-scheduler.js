@@ -70,8 +70,12 @@ export default async function handler(req, res) {
       // A) Start reminder
       if (startTime && !task.last_notification_start_sent_at) {
         const reminderTime = new Date(startTime.getTime() - reminderMinutes * 60 * 1000);
+        // Only send within 1 hour of when the reminder was due. If the cron
+        // missed that window (downtime, fetch limit cutoff, etc.) drop the
+        // reminder rather than fire it hours/days late.
+        const reminderDeadline = new Date(reminderTime.getTime() + 60 * 60 * 1000);
 
-        if (currentTime >= reminderTime) {
+        if (currentTime >= reminderTime && currentTime <= reminderDeadline) {
           const templateData = buildTemplateData(task, eventById);
 
           let reminderSent = false;
@@ -128,8 +132,17 @@ export default async function handler(req, res) {
 
         console.log(`Task ${task.id} (event #${task.event_id || 'recurring'}) marked OVERDUE`);
 
+        // Only escalate within 1 hour of end_time. Past that window, mark
+        // the task OVERDUE for UI but don't fire a stale WhatsApp alert
+        // — that's how a task missed by the cron earlier ended up paging
+        // the manager hours/days late.
+        const escalationDeadline = new Date(endTime.getTime() + 60 * 60 * 1000);
+        const withinEscalationWindow = currentTime <= escalationDeadline;
+
         let escalationSent = false;
-        if (task.escalation_employee_phone) {
+        if (!withinEscalationWindow) {
+          console.log(`Task ${task.id}: end_time ${endTime.toISOString()} more than 1h ago, skipping escalation`);
+        } else if (task.escalation_employee_phone) {
           const escPhone = normalizePhone(task.escalation_employee_phone);
           const escTemplateData = buildEscalationTemplateData(task, employee, eventById);
           const escSent = await sendTaskEscalation(escPhone, escTemplateData);
