@@ -29,14 +29,20 @@ export default async function handler(req, res) {
     const nowHour = israelTime.getHours();
     const nowMin = israelTime.getMinutes();
 
-    // Run within ±60 minutes of the configured time. The existing-record
-    // check below dedupes any duplicate sends if the cron fires multiple
-    // times in the window.
+    // Forward-only window: send only between the configured time and 60
+    // minutes after. Sending before the configured time was the bug that
+    // had availability checks going out an hour early; the existing-record
+    // check below still dedupes any duplicate sends if the cron fires
+    // multiple times in the 60-minute window.
     const totalNowMin = nowHour * 60 + nowMin;
     const totalTargetMin = targetHour * 60 + targetMin;
-    if (Math.abs(totalNowMin - totalTargetMin) > 60) {
-      return res.status(200).json({ message: 'Not send time yet', sendHour, nowIsrael: `${nowHour}:${nowMin}` });
+    const padded = (n) => String(n).padStart(2, '0');
+    const nowIsrael = `${padded(nowHour)}:${padded(nowMin)}`;
+    if (totalNowMin < totalTargetMin || totalNowMin > totalTargetMin + 60) {
+      console.log(`arrive-today: skip (now=${nowIsrael} israel, target=${sendHour}, window=[${sendHour}, ${sendHour}+60min])`);
+      return res.status(200).json({ message: 'Not send time yet', sendHour, nowIsrael });
     }
+    console.log(`arrive-today: in window (now=${nowIsrael} israel, target=${sendHour})`);
 
     const todayStr = israelTime.toISOString().split('T')[0];
 
