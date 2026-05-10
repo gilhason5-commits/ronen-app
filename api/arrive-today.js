@@ -46,12 +46,16 @@ export default async function handler(req, res) {
 
     const todayStr = israelTime.toISOString().split('T')[0];
 
-    // Get today's events
+    // Pull every event for today regardless of status. Earlier this filtered
+    // out 'producer_draft', but tasks-scheduler doesn't apply that filter at
+    // all — so producer-drafted events were getting their task reminders
+    // sent while their employees never received the matching availability
+    // check. Match the tasks-scheduler behaviour: if the event is in the
+    // table for today, send.
     const { data: events } = await supabase
       .from('Event')
-      .select('id, event_name, event_date, event_time')
-      .eq('event_date', todayStr)
-      .not('status', 'eq', 'producer_draft');
+      .select('id, event_name, event_date, event_time, status')
+      .eq('event_date', todayStr);
 
     if (!events?.length) return res.status(200).json({ message: 'No events today', sent: 0 });
 
