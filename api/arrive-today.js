@@ -23,11 +23,27 @@ export default async function handler(req, res) {
     const sendHour = setting?.value || '11:00';
     const [targetHour, targetMin] = sendHour.split(':').map(Number);
 
+    // Read the current Israel-local hour, minute and date with Intl, which
+    // does not depend on the JS runtime's own timezone setting. The previous
+    // implementation used `new Date(toLocaleString(...))` which only produced
+    // the right values when the host happened to be UTC; if Vercel ever
+    // moves a deployment to a non-UTC runtime the window check silently
+    // shifts and the cron skips its slot.
     const now = new Date();
-    // Convert to Israel timezone for comparison
-    const israelTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
-    const nowHour = israelTime.getHours();
-    const nowMin = israelTime.getMinutes();
+    const timeParts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Jerusalem',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(now);
+    const nowHour = parseInt(timeParts.find((p) => p.type === 'hour').value, 10);
+    const nowMin = parseInt(timeParts.find((p) => p.type === 'minute').value, 10);
+    const todayStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jerusalem',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
 
     // Forward-only window: send only between the configured time and 60
     // minutes after. Sending before the configured time was the bug that
@@ -39,12 +55,10 @@ export default async function handler(req, res) {
     const padded = (n) => String(n).padStart(2, '0');
     const nowIsrael = `${padded(nowHour)}:${padded(nowMin)}`;
     if (totalNowMin < totalTargetMin || totalNowMin > totalTargetMin + 60) {
-      console.log(`arrive-today: skip (now=${nowIsrael} israel, target=${sendHour}, window=[${sendHour}, ${sendHour}+60min])`);
-      return res.status(200).json({ message: 'Not send time yet', sendHour, nowIsrael });
+      console.log(`arrive-today: skip — outside window (now=${nowIsrael} israel ${todayStr}, target=${sendHour}, window=[${sendHour}, ${sendHour}+60min])`);
+      return res.status(200).json({ message: 'Not send time yet', sendHour, nowIsrael, todayStr });
     }
-    console.log(`arrive-today: in window (now=${nowIsrael} israel, target=${sendHour})`);
-
-    const todayStr = israelTime.toISOString().split('T')[0];
+    console.log(`arrive-today: in window (now=${nowIsrael} israel ${todayStr}, target=${sendHour})`);
 
     // Pull every event for today regardless of status. Earlier this filtered
     // out 'producer_draft', but tasks-scheduler doesn't apply that filter at
@@ -52,23 +66,41 @@ export default async function handler(req, res) {
     // sent while their employees never received the matching availability
     // check. Match the tasks-scheduler behaviour: if the event is in the
     // table for today, send.
-    const { data: events } = await supabase
+    const { data: events, error: eventsErr } = await supabase
       .from('Event')
       .select('id, event_name, event_date, event_time, status')
       .eq('event_date', todayStr);
 
-    if (!events?.length) return res.status(200).json({ message: 'No events today', sent: 0 });
+    if (eventsErr) {
+      console.error(`arrive-today: events query error: ${eventsErr.message}`);
+      return res.status(500).json({ error: eventsErr.message });
+    }
+    if (!events?.length) {
+      console.log(`arrive-today: skip — no events for ${todayStr}`);
+      return res.status(200).json({ message: 'No events today', sent: 0, todayStr });
+    }
+    console.log(`arrive-today: found ${events.length} event(s) for ${todayStr}: ${events.map((e) => `${e.event_name} [${e.status}]`).join(', ')}`);
 
     // Get all active employees with WhatsApp
-    const { data: employees } = await supabase
+    const { data: employees, error: empErr } = await supabase
       .from('TaskEmployee')
       .select('id, full_name, phone_e164')
       .eq('is_active', true)
       .eq('whatsapp_enabled', true);
 
-    if (!employees?.length) return res.status(200).json({ message: 'No employees', sent: 0 });
+    if (empErr) {
+      console.error(`arrive-today: employees query error: ${empErr.message}`);
+      return res.status(500).json({ error: empErr.message });
+    }
+    if (!employees?.length) {
+      console.log('arrive-today: skip — no active employees with whatsapp_enabled');
+      return res.status(200).json({ message: 'No employees', sent: 0 });
+    }
+    console.log(`arrive-today: ${employees.length} candidate employee(s) with whatsapp_enabled`);
 
     let sent = 0;
+    let skippedExisting = 0;
+    let skippedUnassigned = 0;
 
     for (const event of events) {
       // Get employees assigned to this event's tasks
@@ -78,20 +110,26 @@ export default async function handler(req, res) {
         .eq('event_id', event.id);
 
       const assignedIds = new Set((assignments || []).map(a => a.assigned_to_id).filter(Boolean));
+      console.log(`arrive-today: event ${event.event_name} has ${assignedIds.size} assigned employee(s)`);
 
       for (const emp of employees) {
-        if (!assignedIds.has(emp.id)) continue;
+        if (!assignedIds.has(emp.id)) { skippedUnassigned++; continue; }
         if (!emp.phone_e164) continue;
 
-        // Skip if already sent today for this event
+        // Skip if a row was already created today for this event/employee.
+        // Filter by event_date too — a stale record from a previous date
+        // for the same event_id (rescheduled event) should not block today's
+        // send. maybeSingle is used because .single() errors when 0 rows
+        // match, forcing extra error handling for a normal case.
         const { data: existing } = await supabase
           .from('EmployeeDailyAvailability')
           .select('id')
           .eq('event_id', event.id)
           .eq('employee_id', emp.id)
-          .single();
+          .eq('event_date', todayStr)
+          .maybeSingle();
 
-        if (existing) continue;
+        if (existing) { skippedExisting++; continue; }
 
         try {
           await sendWhatsApp(emp.phone_e164, TEMPLATES.ARRIVE_TODAY, {
@@ -144,8 +182,10 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ success: true, sent });
+    console.log(`arrive-today: done — sent=${sent}, skipped_existing=${skippedExisting}, skipped_unassigned=${skippedUnassigned}`);
+    return res.status(200).json({ success: true, sent, skippedExisting, skippedUnassigned });
   } catch (err) {
+    console.error(`arrive-today: unhandled error: ${err.message}`);
     return res.status(500).json({ error: err.message });
   }
 }
