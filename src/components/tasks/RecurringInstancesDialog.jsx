@@ -1,10 +1,31 @@
 import React from "react";
+import { supabase } from "@/api/supabaseClient";
+import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 
 import { Clock, Calendar, AlertTriangle, Bell } from "lucide-react";
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear } from "date-fns";
+import {
+  format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, isAfter,
+} from "date-fns";
 import { he } from "date-fns/locale";
+
+function getPeriodForRecType(recType) {
+  const now = new Date();
+  if (recType === 'daily') {
+    return { start: startOfWeek(now, { weekStartsOn: 0 }), end: endOfWeek(now, { weekStartsOn: 0 }) };
+  }
+  if (recType === 'weekly') {
+    return { start: startOfMonth(now), end: endOfMonth(now) };
+  }
+  if (recType === 'monthly') {
+    const currentMonth = now.getMonth();
+    return currentMonth < 6
+      ? { start: new Date(now.getFullYear(), 0, 1), end: new Date(now.getFullYear(), 5, 31, 23, 59, 59) }
+      : { start: new Date(now.getFullYear(), 6, 1), end: new Date(now.getFullYear(), 11, 31, 23, 59, 59) };
+  }
+  return null;
+}
 
 const statusConfig = {
   PENDING: { color: "bg-blue-50 border-blue-300", badge: "bg-blue-100 text-blue-700", label: "ממתין" },
@@ -12,52 +33,112 @@ const statusConfig = {
   NOT_DONE: { color: "bg-red-50 border-red-300", badge: "bg-red-100 text-red-700", label: "לא בוצע" },
   OVERDUE: { color: "bg-orange-50 border-orange-300", badge: "bg-orange-100 text-orange-700", label: "באיחור" },
   NOT_ARRIVING: { color: "bg-yellow-50 border-yellow-300", badge: "bg-yellow-100 text-yellow-700", label: "לא מגיע" },
+  MISSING: { color: "bg-stone-50 border-stone-200", badge: "bg-stone-100 text-stone-500", label: "אין רשומה" },
 };
 
-function getRelevantInstances(instances) {
-  if (!instances || instances.length === 0) return [];
+// Derive a live status. tasks-scheduler only flips PENDING → OVERDUE on its
+// own 10-minute tick; until then a row whose end_time has already passed is
+// still 'PENDING' in the DB. Compute it on the client so the dialog matches
+// reality.
+function effectiveStatus(instance) {
+  const now = new Date();
+  const end = instance.end_time ? new Date(instance.end_time) : null;
+  const status = (instance.status || "").toUpperCase();
+  if (status === "DONE") return "DONE";
+  if (status === "NOT_DONE") return "NOT_DONE";
+  if (status === "OVERDUE") return "OVERDUE";
+  if (status === "NOT_ARRIVING") return "NOT_ARRIVING";
+  if (status === "PENDING" && end && now > end) return "OVERDUE";
+  return "PENDING";
+}
 
-  const rep = instances[0];
+// Combine real instances within the period with placeholder entries for any
+// expected dates that don't have a TaskAssignment row yet (the generator
+// only schedules forward, so days before a series was created have no row).
+// Placeholder entries carry { _placeholder: true, expected_date } and render
+// in a muted "אין רשומה" style.
+function getRelevantInstances(instances, fallback = []) {
+  // Use any available instance to discover the recurrence pattern, so we
+  // can still draw placeholders for a period that has zero real rows.
+  const known = (instances && instances.length > 0) ? instances : fallback;
+  if (!known || known.length === 0) return [];
+
+  const rep = known[0];
   const recType = rep.recurrence_type;
+  const recDays = Array.isArray(rep.recurrence_days) ? rep.recurrence_days : [];
+  const recDayOfMonth = rep.recurrence_day_of_month;
+  const recTime = rep.recurrence_time || "09:00";
   const now = new Date();
 
+  // Working-window helpers
+  let periodStart, periodEnd;
+  let isExpectedDay;
+
   if (recType === 'daily') {
-    // Current week (Sun-Thu)
-    const weekStart = startOfWeek(now, { weekStartsOn: 0 });
-    const weekEnd = endOfWeek(now, { weekStartsOn: 0 });
-    return instances.filter(i => {
-      const d = new Date(i.start_time);
-      return d >= weekStart && d <= weekEnd;
-    }).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-  }
-
-  if (recType === 'weekly') {
-    // Current month
-    const monthStart = startOfMonth(now);
-    const monthEnd = endOfMonth(now);
-    return instances.filter(i => {
-      const d = new Date(i.start_time);
-      return d >= monthStart && d <= monthEnd;
-    }).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-  }
-
-  if (recType === 'monthly') {
-    // Current half year (6 months from start of current year half)
+    periodStart = startOfWeek(now, { weekStartsOn: 0 });
+    periodEnd = endOfWeek(now, { weekStartsOn: 0 });
+    // Match the generator: skip Fri (5) and Sat (6)
+    isExpectedDay = (d) => d.getDay() !== 5 && d.getDay() !== 6;
+  } else if (recType === 'weekly') {
+    periodStart = startOfMonth(now);
+    periodEnd = endOfMonth(now);
+    isExpectedDay = (d) => recDays.length === 0 ? false : recDays.includes(d.getDay());
+  } else if (recType === 'monthly') {
     const currentMonth = now.getMonth();
-    const halfStart = currentMonth < 6
+    periodStart = currentMonth < 6
       ? new Date(now.getFullYear(), 0, 1)
       : new Date(now.getFullYear(), 6, 1);
-    const halfEnd = currentMonth < 6
+    periodEnd = currentMonth < 6
       ? new Date(now.getFullYear(), 5, 31, 23, 59, 59)
       : new Date(now.getFullYear(), 11, 31, 23, 59, 59);
-    return instances.filter(i => {
-      const d = new Date(i.start_time);
-      return d >= halfStart && d <= halfEnd;
-    }).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+    isExpectedDay = (d) => {
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      const targetDay = Math.min(recDayOfMonth || 1, lastDay);
+      return d.getDate() === targetDay;
+    };
+  } else {
+    // once / unknown — show all known instances, no placeholders
+    return instances
+      .slice()
+      .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
   }
 
-  // once - show all
-  return instances.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  // Real instances inside the period
+  const realInPeriod = instances.filter((i) => {
+    const d = new Date(i.start_time);
+    return d >= periodStart && d <= periodEnd;
+  });
+  const realKey = new Set(
+    realInPeriod.map((i) => format(new Date(i.start_time), "yyyy-MM-dd"))
+  );
+
+  // Walk every day in the period and add placeholders for expected days
+  // without a real row.
+  const [hours, minutes] = recTime.split(":").map(Number);
+  const placeholders = [];
+  let cursor = new Date(periodStart);
+  while (!isAfter(cursor, periodEnd)) {
+    if (isExpectedDay(cursor)) {
+      const dayKey = format(cursor, "yyyy-MM-dd");
+      if (!realKey.has(dayKey)) {
+        const startISO = new Date(
+          cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), hours, minutes
+        ).toISOString();
+        placeholders.push({
+          _placeholder: true,
+          id: `placeholder-${dayKey}`,
+          start_time: startISO,
+          end_time: null,
+          status: "MISSING",
+        });
+      }
+    }
+    cursor = addDays(cursor, 1);
+  }
+
+  return [...realInPeriod, ...placeholders].sort(
+    (a, b) => new Date(a.start_time) - new Date(b.start_time)
+  );
 }
 
 function getPeriodLabel(instances) {
@@ -87,9 +168,37 @@ function getPeriodLabel(instances) {
   return "";
 }
 
-export default function RecurringInstancesDialog({ open, onClose, taskTitle, allInstances, onStatusChange }) {
-  const relevant = getRelevantInstances(allInstances);
-  const periodLabel = getPeriodLabel(allInstances);
+export default function RecurringInstancesDialog({ open, onClose, taskTitle, allInstances, templateId, onStatusChange }) {
+  // Re-fetch instances directly from the DB by template_id when the dialog
+  // opens. The parent only holds the latest 500 rows globally — for a task
+  // with many co-templates that cap silently drops both today's row and
+  // anything more than a week or two old.
+  const recType = allInstances?.[0]?.recurrence_type;
+  const period = getPeriodForRecType(recType);
+  const { data: fetchedInstances } = useQuery({
+    queryKey: ["recurringInstances", templateId, recType, period?.start?.toISOString()],
+    queryFn: async () => {
+      if (!templateId || !period) return null;
+      const { data, error } = await supabase
+        .from("TaskAssignment")
+        .select("*")
+        .eq("task_template_id", templateId)
+        .gte("start_time", period.start.toISOString())
+        .lte("start_time", period.end.toISOString())
+        .order("start_time", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!(open && templateId && period),
+  });
+
+  // Use the freshly-fetched instances when available; fall back to whatever
+  // the parent passed (handy for the small subset of templates that already
+  // fit in the 500-row window). Pass allInstances as a pattern fallback so
+  // we can still draw placeholders if the period itself returned zero rows.
+  const effectiveInstances = fetchedInstances ?? allInstances ?? [];
+  const relevant = getRelevantInstances(effectiveInstances, allInstances || []);
+  const periodLabel = getPeriodLabel(effectiveInstances.length ? effectiveInstances : (allInstances || []));
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -104,7 +213,8 @@ export default function RecurringInstancesDialog({ open, onClose, taskTitle, all
             <p className="text-center text-stone-500 py-8">אין מופעים בתקופה זו</p>
           ) : (
             relevant.map(instance => {
-              const cfg = statusConfig[instance.status] || statusConfig.PENDING;
+              const status = instance._placeholder ? "MISSING" : effectiveStatus(instance);
+              const cfg = statusConfig[status] || statusConfig.PENDING;
               const startDate = new Date(instance.start_time);
               return (
                 <div key={instance.id} className={`border-2 rounded-lg p-3 ${cfg.color} transition-all`}>
@@ -117,13 +227,15 @@ export default function RecurringInstancesDialog({ open, onClose, taskTitle, all
                     </div>
                     <Badge className={`${cfg.badge} text-xs`}>{cfg.label}</Badge>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-stone-600 mb-2">
-                    <Clock className="w-3 h-3" />
-                    <span>
-                      {format(startDate, "HH:mm")}
-                      {instance.end_time && ` - ${format(new Date(instance.end_time), "HH:mm")}`}
-                    </span>
-                  </div>
+                  {!instance._placeholder && (
+                    <div className="flex items-center gap-1 text-xs text-stone-600 mb-2">
+                      <Clock className="w-3 h-3" />
+                      <span>
+                        {format(startDate, "HH:mm")}
+                        {instance.end_time && ` - ${format(new Date(instance.end_time), "HH:mm")}`}
+                      </span>
+                    </div>
+                  )}
 
                   {instance.completed_at && (
                     <p className="text-xs text-stone-500 mb-2">

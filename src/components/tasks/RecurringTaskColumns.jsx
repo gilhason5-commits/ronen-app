@@ -304,6 +304,7 @@ export default function RecurringTaskColumns() {
         open={!!selectedTask}
         onClose={() => setSelectedTask(null)}
         taskTitle={selectedTask?.taskTitle || ''}
+        templateId={selectedTask?.templateId}
         allInstances={selectedTask?.instances || []}
         onStatusChange={(id, status) => updateStatusMutation.mutate({ id, status })}
       />

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/api/supabaseClient";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,11 +51,25 @@ export default function RecurringTasksDailySummary() {
     return new Set(employees.filter((e) => e.department_name === "פטי וור").map((e) => e.id));
   }, [employees]);
 
+  // Fetch only the recurring assignments for the selected day. The shared
+  // "latest 500 by start_time" query that RecurringTaskColumns uses would
+  // miss historical days entirely once the recurring-tasks-generator has
+  // pre-created enough future rows to fill the cap.
+  const dayKey = format(selectedDay, "yyyy-MM-dd");
   const { data: assignments = [] } = useQuery({
-    queryKey: ["taskAssignments", "RECURRING", [...pvEmployeeIds]],
+    queryKey: ["taskAssignments", "RECURRING_DAY", dayKey, [...pvEmployeeIds]],
     queryFn: async () => {
-      const data = await base44.entities.TaskAssignment.list("-start_time", 500);
-      return data.filter((a) => !a.event_id && !pvEmployeeIds.has(a.assigned_to_id));
+      const dayStartIso = startOfDay(selectedDay).toISOString();
+      const dayEndIso = endOfDay(selectedDay).toISOString();
+      const { data, error } = await supabase
+        .from("TaskAssignment")
+        .select("*")
+        .is("event_id", null)
+        .gte("start_time", dayStartIso)
+        .lte("start_time", dayEndIso)
+        .order("start_time", { ascending: true });
+      if (error) throw error;
+      return (data || []).filter((a) => !pvEmployeeIds.has(a.assigned_to_id));
     },
     initialData: [],
   });
