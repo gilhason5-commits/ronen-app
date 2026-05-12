@@ -22,12 +22,16 @@ export default async function handler(req, res) {
     const in3Days = new Date(today);
     in3Days.setDate(in3Days.getDate() + 3);
 
+    // Include all events regardless of status — once an event is in the
+    // table it should be treated identically to any other event, whether
+    // it originated from the producer flow or directly. Earlier this
+    // excluded 'producer_draft' which kept the matching tasks-scheduler
+    // and event UIs out of sync.
     const { data: events, error: eventsError } = await supabase
       .from('Event')
       .select('*')
       .gte('event_date', today.toISOString().split('T')[0])
-      .lte('event_date', in3Days.toISOString().split('T')[0])
-      .not('status', 'eq', 'producer_draft');
+      .lte('event_date', in3Days.toISOString().split('T')[0]);
 
     if (eventsError) throw eventsError;
     if (!events || events.length === 0) {
