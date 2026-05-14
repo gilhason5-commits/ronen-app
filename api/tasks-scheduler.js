@@ -182,11 +182,21 @@ export default async function handler(req, res) {
 }
 
 async function fetchTasksByStatus(status, limit) {
+  // Bound by a time window around now and sort ASC: a growing backlog of
+  // far-future PENDING rows was filling the 500-row slice and pushing today's
+  // tasks out of view, so today's reminders never fired. Tasks past their
+  // reminder/escalation windows can't be acted on anyway.
+  const now = Date.now();
+  const lowerBound = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+  const upperBound = new Date(now + 60 * 60 * 1000).toISOString();
+
   const { data, error } = await supabase
     .from('TaskAssignment')
     .select('*')
     .eq('status', status)
-    .order('start_time', { ascending: false })
+    .gte('start_time', lowerBound)
+    .lte('start_time', upperBound)
+    .order('start_time', { ascending: true })
     .limit(limit);
 
   if (error) throw error;
@@ -303,14 +313,14 @@ function buildTemplateData(task, eventById) {
 }
 
 async function checkManagerEscalationTimeout(currentTime) {
-  // Find availability records where manager was notified but hasn't responded within 30 minutes
-  const thirtyMinAgo = new Date(currentTime.getTime() - 30 * 60 * 1000).toISOString();
+  // Find availability records where manager was notified but hasn't responded within 1 hour
+  const oneHourAgo = new Date(currentTime.getTime() - 60 * 60 * 1000).toISOString();
 
   const { data: pendingRecords, error } = await supabase
     .from('EmployeeDailyAvailability')
     .select('*')
     .eq('manager_replacement_status', 'PENDING')
-    .lt('manager_notified_at', thirtyMinAgo)
+    .lt('manager_notified_at', oneHourAgo)
     .is('ceo_escalated_at', null);
 
   if (error) {
@@ -320,7 +330,7 @@ async function checkManagerEscalationTimeout(currentTime) {
 
   if (!pendingRecords?.length) return 0;
 
-  console.log(`Found ${pendingRecords.length} manager escalation(s) with no response after 30 min`);
+  console.log(`Found ${pendingRecords.length} manager escalation(s) with no response after 1 hour`);
 
   // Find CEO employees
   const { data: ceoEmployees } = await supabase

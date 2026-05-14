@@ -8,8 +8,11 @@ const supabase = createClient(
 
 /**
  * GET/POST /api/ceo-escalation  (Vercel Cron: every 15 minutes)
- * If manager was notified about an explicitly-unavailable employee 30+ minutes
- * ago and no replacement was confirmed → escalate to CEO.
+ * If manager was notified about an explicitly-unavailable employee 60+ minutes
+ * ago and she hasn't responded yet (still PENDING) → escalate to CEO.
+ * Records where the manager already marked APPROVED/REJECTED are skipped:
+ * APPROVED needs no CEO action, REJECTED already triggers immediate escalation
+ * from the inbound webhook.
  *
  * NO_RESPONSE intentionally stops at the office manager: silence from the
  * employee's side is the manager's call to handle and the CEO is not paged
@@ -17,13 +20,14 @@ const supabase = createClient(
  */
 export default async function handler(req, res) {
   try {
-    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
     const { data: records } = await supabase
       .from('EmployeeDailyAvailability')
       .select('*, Event:event_id(event_name, event_time)')
       .eq('confirmation_status', 'CONFIRMED_UNAVAILABLE')
-      .lt('manager_notified_at', thirtyMinAgo)
+      .eq('manager_replacement_status', 'PENDING')
+      .lt('manager_notified_at', oneHourAgo)
       .is('ceo_escalated_at', null)
       .not('manager_notified_at', 'is', null);
 
