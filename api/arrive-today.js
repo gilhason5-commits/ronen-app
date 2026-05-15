@@ -45,6 +45,16 @@ export default async function handler(req, res) {
       day: '2-digit',
     }).format(now);
 
+    // One-time skip: do not send "מגיע היום?" availability checks on this
+    // date. Safe to remove once the date has passed — todayStr can never
+    // match it again. The 3-day pre-check in send-availability.js is
+    // unaffected and keeps running normally.
+    const ARRIVE_TODAY_SKIP_DATE = '2026-05-15';
+    if (todayStr === ARRIVE_TODAY_SKIP_DATE) {
+      console.log(`arrive-today: skip — one-time skip configured for ${ARRIVE_TODAY_SKIP_DATE}`);
+      return res.status(200).json({ message: 'Skipped (one-time)', skipDate: ARRIVE_TODAY_SKIP_DATE, todayStr, sent: 0 });
+    }
+
     // Forward-only window: send only between the configured time and 60
     // minutes after. Sending before the configured time was the bug that
     // had availability checks going out an hour early; the existing-record
