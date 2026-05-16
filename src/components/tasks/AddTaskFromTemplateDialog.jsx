@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { clampMorningEventTaskTimes } from "@/lib/eventTaskSchedule";
 
 export default function AddTaskFromTemplateDialog({ open, onClose, eventId, event, staffing }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -88,8 +89,11 @@ export default function AddTaskFromTemplateDialog({ open, onClose, eventId, even
 
     const employee = allEmployees.find(e => e.id === selectedEmployee);
     const eventStartTime = new Date(`${event.event_date}T${event.event_time || '00:00'}`);
-    const startTime = new Date(eventStartTime.getTime() + startOffsetMinutes * 60000);
-    const endTime = new Date(startTime.getTime() + (selectedTemplate.duration_minutes || 60) * 60000);
+    const rawStart = new Date(eventStartTime.getTime() + startOffsetMinutes * 60000);
+    const rawEnd = new Date(rawStart.getTime() + (selectedTemplate.duration_minutes || 60) * 60000);
+    const { startTime, endTime } = clampMorningEventTaskTimes(
+      event.event_date, event.event_time, rawStart, rawEnd
+    );
 
     // Find escalation employee from template's escalation role
     const escalationRoleId = selectedTemplate.escalation_role_id;

@@ -6,27 +6,54 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Morning events (event_time < 14:00) get a 1h response window, matching the
+// 07:30 send time in arrive-today.js. Other events keep the existing 2h
+// window aligned with the configured availability_send_hour.
+const MORNING_THRESHOLD_HOUR = 14;
+const MORNING_TIMEOUT_MS = 60 * 60 * 1000;
+const EVENING_TIMEOUT_MS = 2 * 60 * 60 * 1000;
+
+function parseHhmm(s) {
+  if (!s) return null;
+  const [h, m] = String(s).split(':').map(Number);
+  if (!Number.isFinite(h)) return null;
+  return h * 60 + (m || 0);
+}
+
 /**
  * GET/POST /api/availability-no-response  (Vercel Cron: every 5 minutes)
- * Runs 2 hours after availability_send_hour.
  * Marks PENDING availability as NO_RESPONSE and escalates to office manager.
+ * Timeout is 1h for morning events (event_time < 14:00) or 2h otherwise.
  */
 export default async function handler(req, res) {
   try {
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const now = Date.now();
+    // Fetch with the shorter timeout as the lower bound so morning records
+    // become visible at 1h; per-record filtering below enforces the right
+    // timeout for each event.
+    const earliestCutoff = new Date(now - MORNING_TIMEOUT_MS).toISOString();
 
-    // Find PENDING records sent more than 2 hours ago
     const { data: pending } = await supabase
       .from('EmployeeDailyAvailability')
       .select('*, Event:event_id(event_name, event_time)')
       .eq('confirmation_status', 'PENDING')
-      .lt('confirmation_sent_at', twoHoursAgo);
+      .lt('confirmation_sent_at', earliestCutoff);
 
     if (!pending?.length) return res.status(200).json({ message: 'No pending records', processed: 0 });
 
+    const ready = pending.filter((record) => {
+      const evMin = parseHhmm(record.Event?.event_time);
+      const isMorning = evMin !== null && evMin < MORNING_THRESHOLD_HOUR * 60;
+      const timeoutMs = isMorning ? MORNING_TIMEOUT_MS : EVENING_TIMEOUT_MS;
+      const ageMs = now - new Date(record.confirmation_sent_at).getTime();
+      return ageMs >= timeoutMs;
+    });
+
+    if (!ready.length) return res.status(200).json({ message: 'No records past timeout', processed: 0 });
+
     let processed = 0;
 
-    for (const record of pending) {
+    for (const record of ready) {
       // Update to NO_RESPONSE
       await supabase
         .from('EmployeeDailyAvailability')

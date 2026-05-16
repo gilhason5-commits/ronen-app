@@ -20,6 +20,7 @@ import {
 import { Clock, User, Users, Save, Info, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { clampMorningEventTaskTimes } from "@/lib/eventTaskSchedule";
 
 export default function TaskEditDialog({ open, onClose, template, assignment, eventId, event }) {
   const queryClient = useQueryClient();
@@ -39,7 +40,13 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
     if (!event?.event_date) return null;
     const eventStart = new Date(`${event.event_date}T${event.event_time || '00:00'}`);
     const offsetMinutes = template?.start_offset_minutes || 0;
-    return new Date(eventStart.getTime() + offsetMinutes * 60000);
+    const rawStart = new Date(eventStart.getTime() + offsetMinutes * 60000);
+    const duration = template?.duration_minutes || 60;
+    const rawEnd = new Date(rawStart.getTime() + duration * 60000);
+    const { startTime } = clampMorningEventTaskTimes(
+      event.event_date, event.event_time, rawStart, rawEnd
+    );
+    return startTime;
   };
 
   // Calculate default employee from template role

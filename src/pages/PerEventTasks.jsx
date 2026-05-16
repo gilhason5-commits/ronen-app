@@ -15,6 +15,7 @@ import { format, addMinutes } from "date-fns";
 import EventTimelineGrid from "../components/tasks/EventTimelineGrid.jsx";
 import EventTasksByRoleColumns from "../components/tasks/EventTasksByRoleColumns.jsx";
 import AvailabilitySendTimeControl from "../components/tasks/AvailabilitySendTimeControl.jsx";
+import { clampMorningEventTaskTimes } from "@/lib/eventTaskSchedule";
 
 
 export default function PerEventTasks() {
@@ -108,10 +109,13 @@ export default function PerEventTasks() {
       }
 
       const eventStartTime = new Date(`${selectedEvent.event_date}T${selectedEvent.event_time || '00:00'}`);
-      
+
       const newAssignments = templatesToCreate.map(template => {
-        const startTime = new Date(eventStartTime.getTime() + (template.start_offset_minutes || 0) * 60000);
-        const endTime = new Date(startTime.getTime() + (template.duration_minutes || 60) * 60000);
+        const rawStart = new Date(eventStartTime.getTime() + (template.start_offset_minutes || 0) * 60000);
+        const rawEnd = new Date(rawStart.getTime() + (template.duration_minutes || 60) * 60000);
+        const { startTime, endTime } = clampMorningEventTaskTimes(
+          selectedEvent.event_date, selectedEvent.event_time, rawStart, rawEnd
+        );
 
         // Auto-assign ALL employees with this role
         const roleEmployees = template.default_role 

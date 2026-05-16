@@ -6,22 +6,38 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Morning events (event_time < 14:00) follow a fixed earlier window so the
+// 11:00 default doesn't collide with a 11:00 event start. Each event picks
+// its own send window based on event_time, and this cron processes the
+// events whose window is currently open.
+const MORNING_THRESHOLD_HOUR = 14;
+const MORNING_SEND_HHMM = '07:30';
+const SEND_WINDOW_MIN = 60;
+
+function parseHhmm(s) {
+  if (!s) return null;
+  const [h, m] = String(s).split(':').map(Number);
+  if (!Number.isFinite(h)) return null;
+  return h * 60 + (m || 0);
+}
+
 /**
  * GET/POST /api/arrive-today  (Vercel Cron: every 5 minutes)
- * At availability_send_hour: sends "מגיע היום?" to employees assigned to today's events.
+ * Sends "מגיע היום?" to employees assigned to today's events when the
+ * event's send window opens. Morning events (event_time < 14:00) send at
+ * 07:30; other events send at the configured availability_send_hour.
  * Skips if already sent today.
  */
 export default async function handler(req, res) {
   try {
-    // Get configured send hour
+    // Get configured send hour (used for non-morning events)
     const { data: setting } = await supabase
       .from('AppSetting')
       .select('value')
       .eq('key', 'availability_send_hour')
       .single();
 
-    const sendHour = setting?.value || '11:00';
-    const [targetHour, targetMin] = sendHour.split(':').map(Number);
+    const eveningSendHHMM = setting?.value || '11:00';
 
     // Read the current Israel-local hour, minute and date with Intl, which
     // does not depend on the JS runtime's own timezone setting. The previous
@@ -38,6 +54,9 @@ export default async function handler(req, res) {
     }).formatToParts(now);
     const nowHour = parseInt(timeParts.find((p) => p.type === 'hour').value, 10);
     const nowMin = parseInt(timeParts.find((p) => p.type === 'minute').value, 10);
+    const totalNowMin = nowHour * 60 + nowMin;
+    const padded = (n) => String(n).padStart(2, '0');
+    const nowIsrael = `${padded(nowHour)}:${padded(nowMin)}`;
     const todayStr = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Jerusalem',
       year: 'numeric',
@@ -45,20 +64,16 @@ export default async function handler(req, res) {
       day: '2-digit',
     }).format(now);
 
-    // Forward-only window: send only between the configured time and 60
-    // minutes after. Sending before the configured time was the bug that
-    // had availability checks going out an hour early; the existing-record
-    // check below still dedupes any duplicate sends if the cron fires
-    // multiple times in the 60-minute window.
-    const totalNowMin = nowHour * 60 + nowMin;
-    const totalTargetMin = targetHour * 60 + targetMin;
-    const padded = (n) => String(n).padStart(2, '0');
-    const nowIsrael = `${padded(nowHour)}:${padded(nowMin)}`;
-    if (totalNowMin < totalTargetMin || totalNowMin > totalTargetMin + 60) {
-      console.log(`arrive-today: skip — outside window (now=${nowIsrael} israel ${todayStr}, target=${sendHour}, window=[${sendHour}, ${sendHour}+60min])`);
-      return res.status(200).json({ message: 'Not send time yet', sendHour, nowIsrael, todayStr });
+    const morningSendMin = parseHhmm(MORNING_SEND_HHMM);
+    const eveningSendMin = parseHhmm(eveningSendHHMM);
+    const inMorningWindow = totalNowMin >= morningSendMin && totalNowMin <= morningSendMin + SEND_WINDOW_MIN;
+    const inEveningWindow = totalNowMin >= eveningSendMin && totalNowMin <= eveningSendMin + SEND_WINDOW_MIN;
+
+    if (!inMorningWindow && !inEveningWindow) {
+      console.log(`arrive-today: skip — outside any send window (now=${nowIsrael} israel ${todayStr}, morning=${MORNING_SEND_HHMM}, evening=${eveningSendHHMM})`);
+      return res.status(200).json({ message: 'Not send time yet', morningSendHHMM: MORNING_SEND_HHMM, eveningSendHHMM, nowIsrael, todayStr });
     }
-    console.log(`arrive-today: in window (now=${nowIsrael} israel ${todayStr}, target=${sendHour})`);
+    console.log(`arrive-today: in ${inMorningWindow ? 'morning' : 'evening'} window (now=${nowIsrael} israel ${todayStr})`);
 
     // Pull every event for today regardless of status. Earlier this filtered
     // out 'producer_draft', but tasks-scheduler doesn't apply that filter at
@@ -66,7 +81,7 @@ export default async function handler(req, res) {
     // sent while their employees never received the matching availability
     // check. Match the tasks-scheduler behaviour: if the event is in the
     // table for today, send.
-    const { data: events, error: eventsErr } = await supabase
+    const { data: allEvents, error: eventsErr } = await supabase
       .from('Event')
       .select('id, event_name, event_date, event_time, status')
       .eq('event_date', todayStr);
@@ -75,11 +90,26 @@ export default async function handler(req, res) {
       console.error(`arrive-today: events query error: ${eventsErr.message}`);
       return res.status(500).json({ error: eventsErr.message });
     }
-    if (!events?.length) {
+    if (!allEvents?.length) {
       console.log(`arrive-today: skip — no events for ${todayStr}`);
       return res.status(200).json({ message: 'No events today', sent: 0, todayStr });
     }
-    console.log(`arrive-today: found ${events.length} event(s) for ${todayStr}: ${events.map((e) => `${e.event_name} [${e.status}]`).join(', ')}`);
+
+    // Only process events whose send window matches the window we're in now.
+    // Morning events (event_time < 14:00) belong to the 07:30 window; the
+    // rest belong to the evening (configured) window.
+    const events = allEvents.filter((ev) => {
+      const evMin = parseHhmm(ev.event_time);
+      if (evMin === null) return inEveningWindow; // events without a time fall back to evening behaviour
+      const isMorning = evMin < MORNING_THRESHOLD_HOUR * 60;
+      return (isMorning && inMorningWindow) || (!isMorning && inEveningWindow);
+    });
+
+    if (!events.length) {
+      console.log(`arrive-today: ${allEvents.length} event(s) today but none match the current window`);
+      return res.status(200).json({ message: 'No events match this window', sent: 0, todayStr });
+    }
+    console.log(`arrive-today: processing ${events.length}/${allEvents.length} event(s) in this window: ${events.map((e) => `${e.event_name} [${e.event_time}]`).join(', ')}`);
 
     // Get all active employees with WhatsApp
     const { data: employees, error: empErr } = await supabase

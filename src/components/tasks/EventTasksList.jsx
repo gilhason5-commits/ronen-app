@@ -8,6 +8,7 @@ import { Clock, Bell, AlertTriangle, Edit2, Users, Plus, Minus, Check } from "lu
 import { toast } from "sonner";
 import { format } from "date-fns";
 import TaskEditDialog from "./TaskEditDialog";
+import { clampMorningEventTaskTimes } from "@/lib/eventTaskSchedule";
 
 export default function EventTasksList({ eventId, event, templates, staffing }) {
   const [editingTask, setEditingTask] = useState(null);
@@ -41,8 +42,11 @@ export default function EventTasksList({ eventId, event, templates, staffing }) 
 
   const handleAddToEvent = (template) => {
     const eventStartTime = new Date(`${event.event_date}T${event.event_time || '00:00'}`);
-    const startTime = new Date(eventStartTime.getTime() + (template.start_offset_minutes || 0) * 60000);
-    const endTime = new Date(startTime.getTime() + (template.duration_minutes || 60) * 60000);
+    const rawStart = new Date(eventStartTime.getTime() + (template.start_offset_minutes || 0) * 60000);
+    const rawEnd = new Date(rawStart.getTime() + (template.duration_minutes || 60) * 60000);
+    const { startTime, endTime } = clampMorningEventTaskTimes(
+      event.event_date, event.event_time, rawStart, rawEnd
+    );
     
     createAssignmentMutation.mutate({
       task_template_id: template.id,
