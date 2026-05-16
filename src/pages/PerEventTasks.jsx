@@ -14,7 +14,6 @@ import { CalendarDays } from "lucide-react";
 import { format, addMinutes } from "date-fns";
 import EventTimelineGrid from "../components/tasks/EventTimelineGrid.jsx";
 import EventTasksByRoleColumns from "../components/tasks/EventTasksByRoleColumns.jsx";
-import AvailabilitySendTimeControl from "../components/tasks/AvailabilitySendTimeControl.jsx";
 import { clampMorningEventTaskTimes } from "@/lib/eventTaskSchedule";
 
 
@@ -188,12 +187,9 @@ export default function PerEventTasks() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-stone-900">תכנון משימות אירועים</h1>
-          <p className="text-stone-500 mt-1">הקצאת משימות וניהול צוות לאירועים</p>
-        </div>
-        <AvailabilitySendTimeControl />
+      <div>
+        <h1 className="text-3xl font-bold text-stone-900">תכנון משימות אירועים</h1>
+        <p className="text-stone-500 mt-1">הקצאת משימות וניהול צוות לאירועים</p>
       </div>
 
       <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
