@@ -27,11 +27,18 @@ const CATEGORY_TO_SUPPORT_DEPT = {
 };
 
 const formatNumber = (num) => {
-  if (num === 0) return '0';
+  if (num === 0 || num == null) return '0';
   if (Number.isInteger(num)) return num.toString();
-  // Max 3 decimal places
-  const fixed = Math.round(num * 1000) / 1000;
-  return fixed.toFixed(3).replace(/\.?0+$/, '');
+  // Show up to 4 decimal places normally; if a non-zero value is so small it
+  // rounds to zero, bump precision so the row doesn't misleadingly read "0".
+  for (const decimals of [4, 6, 8]) {
+    const factor = Math.pow(10, decimals);
+    const rounded = Math.round(num * factor) / factor;
+    if (rounded !== 0) {
+      return rounded.toFixed(decimals).replace(/\.?0+$/, '');
+    }
+  }
+  return '0';
 };
 
 const formatUnit = (unit) => {
@@ -438,6 +445,15 @@ export default function DepartmentPrintDialog({
     const now = new Date();
     const ts = `${now.toLocaleDateString('he-IL')} ${now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
     
+    const isFirstCourseCategory = (name) => {
+      if (!name) return false;
+      const n = name.toLowerCase();
+      return n.includes('first course') || n.includes('מנה ראשונה') || n.includes('מנות ראשונות');
+    };
+    const hasFirstCourseDishes = pages.some(p => (p.dishes || []).some(d => isFirstCourseCategory(d.category_name)));
+    const guestCount = event.guest_count || 0;
+    const tableCentersCount = hasFirstCourseDishes ? Math.ceil(guestCount / 6) : null;
+
     setPreviewTitle(`דוח ${deptNames} | ${event.event_name} | ${eventDate}`);
     setPreviewHtml(htmlContent);
     setPreviewHeaderInfo({
@@ -445,7 +461,8 @@ export default function DepartmentPrintDialog({
       eventName: event.event_name,
       eventDate,
       eventTime: event.event_time || '-',
-      guestCount: event.guest_count || 0,
+      guestCount,
+      tableCentersCount,
       printTimestamp: ts
     });
     setPreviewOpen(true);

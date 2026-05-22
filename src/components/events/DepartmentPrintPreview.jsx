@@ -39,6 +39,7 @@ export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent
         <span>${hi.eventTime || '-'}</span>
         <span class="page-header-sep">|</span>
         <span>${hi.guestCount || 0} סועדים</span>
+        ${hi.tableCentersCount ? `<span class="page-header-sep">|</span><span>${hi.tableCentersCount} מרכזי שולחן</span>` : ''}
       </div>
       <div class="page-header-left">
         <span class="page-header-time">${hi.printTimestamp || ''}</span>
