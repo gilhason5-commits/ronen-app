@@ -735,6 +735,12 @@ export default function DepartmentPrintDialog({
 
   const allDepartments = [...MAIN_DEPARTMENTS, ...SUPPORT_DEPARTMENTS];
 
+  const eventHasFirstCourse = (eventDishes || []).some(ed => {
+    const d = dishes.find(x => x.id === ed.dish_id);
+    return d && isFirstCourseDish(d);
+  });
+  const tableCentersCount = eventHasFirstCourse ? Math.ceil((event.guest_count || 0) / 6) : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md" dir="rtl">
@@ -744,7 +750,7 @@ export default function DepartmentPrintDialog({
 
         <div className="space-y-4">
           <div className="text-sm text-stone-600 mb-4">
-            <strong>{event.event_name}</strong> | {event.event_date ? format(new Date(event.event_date), 'dd/MM/yyyy') : '-'} | {event.total_guests ?? event.guest_count ?? 0} אורחים | {event.guest_count} מבוגרים להתחייבות
+            <strong>{event.event_name}</strong> | {event.event_date ? format(new Date(event.event_date), 'dd/MM/yyyy') : '-'} | {event.total_guests ?? event.guest_count ?? 0} אורחים | {event.guest_count} מבוגרים להתחייבות{tableCentersCount ? ` | ${tableCentersCount} מרכזי שולחן` : ''}
           </div>
 
           <div className="space-y-2">
