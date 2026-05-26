@@ -454,7 +454,8 @@ export default function DepartmentPrintDialog({
     const guestCount = event.guest_count || 0;
     const tableCentersCount = hasFirstCourseDishes ? Math.ceil(guestCount / 6) : null;
 
-    setPreviewTitle(`דוח ${deptNames} | ${event.event_name} | ${eventDate}`);
+    const titleSuffix = tableCentersCount ? ` | ${tableCentersCount} מרכזי שולחן` : '';
+    setPreviewTitle(`דוח ${deptNames} | ${event.event_name} | ${eventDate}${titleSuffix}`);
     setPreviewHtml(htmlContent);
     setPreviewHeaderInfo({
       deptName: deptNames,
