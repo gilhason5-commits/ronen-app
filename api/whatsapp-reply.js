@@ -665,18 +665,22 @@ function buildTaskEscalationTemplateData(task, employee) {
 
 async function findEmployeeByPhone(fromPhone) {
   const normalized = normalizePhone(fromPhone);
-  const variants = [fromPhone, normalized, normalized.replace("+972", "0")].filter(Boolean);
+  if (!normalized) return null;
 
-  for (const phone of variants) {
-    const { data } = await supabase
-      .from("TaskEmployee")
-      .select("id, full_name, phone_e164")
-      .eq("phone_e164", phone)
-      .limit(1);
-    if (data?.[0]) return data[0];
-  }
+  // Some employee rows store the phone wrapped in Unicode directional marks
+  // (U+2066 LRI, U+2069 PDI) inherited from spreadsheet imports. A literal
+  // .eq() against "+972..." misses them and the inbound reply gets dropped
+  // with an "Unknown phone" log. Pull candidates by the digit suffix and
+  // compare via normalizePhone so the invisible wrappers don't matter.
+  const digits = normalized.replace(/^\+/, "");
 
-  return null;
+  const { data } = await supabase
+    .from("TaskEmployee")
+    .select("id, full_name, phone_e164")
+    .ilike("phone_e164", `%${digits}%`);
+
+  if (!data?.length) return null;
+  return data.find((emp) => normalizePhone(emp.phone_e164) === normalized) || null;
 }
 
 async function getRequestParams(req) {
