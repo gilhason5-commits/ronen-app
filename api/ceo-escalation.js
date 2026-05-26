@@ -58,9 +58,12 @@ export default async function handler(req, res) {
 
     for (const record of records) {
       try {
+        const ctxName = record.event_id
+          ? (record.Event?.event_name || 'אירוע')
+          : 'משימות שוטפות פטי וור';
         await sendWhatsApp(ceoPhone, TEMPLATES.CEO_ESC_FINAL, {
           '1': record.employee_name,
-          '2': record.Event?.event_name || 'אירוע',
+          '2': ctxName,
           '3': record.Event?.event_time || '',
           '4': record.confirmation_status === 'NO_RESPONSE' ? 'לא ענה' : 'לא זמין',
         });

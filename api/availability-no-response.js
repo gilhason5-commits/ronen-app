@@ -42,9 +42,11 @@ export default async function handler(req, res) {
     if (!pending?.length) return res.status(200).json({ message: 'No pending records', processed: 0 });
 
     const ready = pending.filter((record) => {
+      // Peti Vor records (event_id IS NULL) follow the morning 1h timeout.
+      const isPetiVor = !record.event_id;
       const evMin = parseHhmm(record.Event?.event_time);
       const isMorning = evMin !== null && evMin < MORNING_THRESHOLD_HOUR * 60;
-      const timeoutMs = isMorning ? MORNING_TIMEOUT_MS : EVENING_TIMEOUT_MS;
+      const timeoutMs = (isPetiVor || isMorning) ? MORNING_TIMEOUT_MS : EVENING_TIMEOUT_MS;
       const ageMs = now - new Date(record.confirmation_sent_at).getTime();
       return ageMs >= timeoutMs;
     });
@@ -70,9 +72,12 @@ export default async function handler(req, res) {
       const manager = managers?.[0];
       if (manager?.phone_e164) {
         try {
+          const ctxName = record.event_id
+            ? (record.Event?.event_name || 'אירוע')
+            : 'משימות שוטפות פטי וור';
           await sendWhatsApp(manager.phone_e164, TEMPLATES.NO_ANSWER_ESC, {
             '1': record.employee_name,
-            '2': record.Event?.event_name || 'אירוע',
+            '2': ctxName,
             '3': record.Event?.event_time || '',
           });
 

@@ -302,11 +302,15 @@ async function processAvailabilityRecord(record, isAvailable) {
 
   console.log(`❌ ${record.employee_name || "Employee"} confirmed UNAVAILABLE`);
 
-  // Only event tasks are cancelled by availability replies. Recurring tasks
-  // are unrelated to the per-event "are you coming today?" check and stay
-  // assigned to the employee. Their status is updated to NOT_ARRIVING so
-  // the per-event status views render them in yellow as "לא מגיע".
-  await cancelEventTasksForEmployee(record);
+  // Event-bound records cancel the event's tasks for the employee. Peti Vor
+  // standalone availability records (event_id IS NULL) instead cancel that
+  // day's recurring tasks; their flows don't overlap because Peti Vor staff
+  // and event staff are separate populations.
+  if (record.event_id) {
+    await cancelEventTasksForEmployee(record);
+  } else {
+    await cancelRecurringTasksForEmployee(record);
+  }
   await sendManagerAvailabilityEscalation(record);
 }
 
