@@ -84,6 +84,26 @@ export default function RoleEditDialog({ open, onClose, roleId, roleName, curren
         await Promise.all(
           recurringPending.map((t) => base44.entities.TaskAssignment.update(t.id, updates)),
         );
+
+        // Also move the role on the TaskEmployee records themselves so the
+        // employees page reflects the swap: clear it on the previous holder,
+        // assign it to the new one. Department fields are derived from the
+        // role record, matching the handleSave logic on the employees page.
+        const role = roleId ? await base44.entities.EmployeeRole.get(roleId).catch(() => null) : null;
+        await base44.entities.TaskEmployee.update(currentEmployeeId, {
+          role_id: null,
+          role_name: "",
+          department_id: null,
+          department_name: "",
+        });
+        if (newEmpId) {
+          await base44.entities.TaskEmployee.update(newEmpId, {
+            role_id: roleId || null,
+            role_name: role?.role_name || "",
+            department_id: role?.department_id || null,
+            department_name: role?.department_name || "",
+          });
+        }
       }
 
       // 2. Toggle pause via the AppSetting row keyed by the (possibly new)
@@ -103,6 +123,7 @@ export default function RoleEditDialog({ open, onClose, roleId, roleName, curren
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["taskAssignments"] });
+      queryClient.invalidateQueries({ queryKey: ["taskEmployees"] });
       queryClient.invalidateQueries({ queryKey: ["pausedEmployees"] });
       toast.success("התפקיד עודכן");
       onClose();
