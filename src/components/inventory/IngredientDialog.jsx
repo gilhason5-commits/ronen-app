@@ -26,9 +26,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown, ChevronsUpDown } from "lucide-react";
 import { fmtCurrency, fmtNum } from "../utils/formatNumbers";
 
 export default function IngredientDialog({ ingredient, suppliers = [], ingredientCategories = [], open, onClose }) {
@@ -181,6 +194,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
   };
 
   const [validationError, setValidationError] = useState('');
+  const [supplierPopoverOpen, setSupplierPopoverOpen] = useState(false);
 
   const handleSubmit = (e) => {
     if (e?.preventDefault) e.preventDefault();
@@ -216,21 +230,44 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
 
           <div>
             <Label>שם ספק</Label>
-            <Select
-              value={formData.current_supplier_id}
-              onValueChange={handleSupplierChange}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="בחר ספק..." />
-              </SelectTrigger>
-              <SelectContent>
-                {suppliers.map(supplier => (
-                  <SelectItem key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={supplierPopoverOpen} onOpenChange={setSupplierPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={supplierPopoverOpen}
+                  className="w-full justify-between font-normal"
+                >
+                  {suppliers.find(s => s.id === formData.current_supplier_id)?.name || (
+                    <span className="text-muted-foreground">בחר ספק...</span>
+                  )}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="חיפוש ספק..." />
+                  <CommandList>
+                    <CommandEmpty>לא נמצאו ספקים</CommandEmpty>
+                    <CommandGroup>
+                      {suppliers.map(supplier => (
+                        <CommandItem
+                          key={supplier.id}
+                          value={supplier.name}
+                          onSelect={() => {
+                            handleSupplierChange(supplier.id);
+                            setSupplierPopoverOpen(false);
+                          }}
+                        >
+                          {supplier.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div>
