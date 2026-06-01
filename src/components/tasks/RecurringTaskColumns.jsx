@@ -265,16 +265,6 @@ export default function RecurringTaskColumns() {
                           <ChevronLeft className="w-4 h-4 text-stone-600" />
                         </button>
                       </div>
-                      {col.employeeId && roleId !== 'unassigned' && (
-                        <button
-                          onClick={() => setEditingRole({ roleId, roleName: col.name, employeeId: col.employeeId, departmentName: col.departmentName })}
-                          className="mt-2 w-full flex items-center justify-center gap-1 text-xs text-stone-500 hover:text-stone-800 hover:bg-stone-200 rounded py-1 transition-colors"
-                          title="עריכה"
-                        >
-                          <Settings className="w-3 h-3" />
-                          עריכה
-                        </button>
-                      )}
                     </div>
                     <div className="border border-t-0 border-stone-200 p-3 space-y-2 bg-stone-50 min-h-[200px] max-h-[70vh] overflow-y-auto">
                       {templateKeys.map((tmplId, taskIndex) => {
@@ -317,7 +307,18 @@ export default function RecurringTaskColumns() {
                         );
                       })}
                     </div>
-                    <div className="border border-t-0 border-stone-200 rounded-b-lg px-3 py-2 bg-white">
+                    <div className="border border-t-0 border-stone-200 rounded-b-lg px-3 py-2 bg-white space-y-1">
+                      {col.employeeId && roleId !== 'unassigned' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-stone-500 hover:text-stone-700 gap-2"
+                          onClick={() => setEditingRole({ roleId, roleName: col.name, employeeId: col.employeeId, departmentName: col.departmentName })}
+                        >
+                          <Settings className="w-4 h-4" />
+                          עריכה
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
