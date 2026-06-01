@@ -62,6 +62,13 @@ export default async function handler(req, res) {
       .eq('whatsapp_enabled', true)
       .eq('department_name', PV_DEPT_NAME);
 
+    // Drop paused employees so we don't pester them while they're off.
+    const { data: pauseRows } = await supabase
+      .from('AppSetting')
+      .select('key')
+      .ilike('key', 'paused_employee:%');
+    const pausedIds = new Set((pauseRows || []).map((r) => String(r.key).slice('paused_employee:'.length)));
+
     if (empErr) {
       console.error(`peti-vor-availability: employees query error: ${empErr.message}`);
       return res.status(500).json({ error: empErr.message });
@@ -95,6 +102,7 @@ export default async function handler(req, res) {
 
     for (const emp of pvEmployees) {
       if (!empsWithTasks.has(emp.id)) { skippedNoTasks++; continue; }
+      if (pausedIds.has(emp.id)) { continue; }
       if (!emp.phone_e164) { skippedNoPhone++; continue; }
 
       const { data: existing } = await supabase

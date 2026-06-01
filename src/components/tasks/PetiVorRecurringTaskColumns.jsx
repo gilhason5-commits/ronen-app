@@ -2,11 +2,14 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Users, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Printer } from "lucide-react";
+import { Clock, Users, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Printer, Settings, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import RecurringTaskSummaryCard from "./RecurringTaskSummaryCard";
 import RecurringInstancesDialog from "./RecurringInstancesDialog";
+import RoleEditDialog from "./RoleEditDialog";
+
+const PAUSE_KEY_PREFIX = "paused_employee:";
 
 const ORDER_KEY = "pv_recurring_task_column_order";
 const TASK_ORDER_KEY = "pv_recurring_task_order";
@@ -14,7 +17,21 @@ const TASK_ORDER_KEY = "pv_recurring_task_order";
 export default function PetiVorRecurringTaskColumns({ departmentId }) {
   const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState(null);
+  const [editingRole, setEditingRole] = useState(null);
   const orderLoaded = useRef(false);
+
+  const { data: pausedKeys = [] } = useQuery({
+    queryKey: ['pausedEmployees'],
+    queryFn: async () => {
+      const all = await base44.entities.AppSetting.list();
+      return all.filter((s) => (s.key || '').startsWith(PAUSE_KEY_PREFIX));
+    },
+    initialData: [],
+  });
+  const pausedEmployeeIds = useMemo(
+    () => new Set(pausedKeys.map((s) => s.key.slice(PAUSE_KEY_PREFIX.length))),
+    [pausedKeys],
+  );
 
   const { data: employees = [] } = useQuery({
     queryKey: ['taskEmployees'],
@@ -63,7 +80,13 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
       const roleName = role?.role_name || emp?.role_name || 'ללא תפקיד';
 
       if (!roleMap[roleId]) {
-        roleMap[roleId] = { name: roleName, employeeName: emp?.full_name || a.assigned_to_name || '', templates: {} };
+        roleMap[roleId] = {
+          name: roleName,
+          employeeName: emp?.full_name || a.assigned_to_name || '',
+          employeeId: emp?.id || a.assigned_to_id || null,
+          departmentName: emp?.department_name || '',
+          templates: {},
+        };
       }
 
       const tmplId = a.task_template_id || a.id;
@@ -194,12 +217,27 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
                         </button>
                         <div className="text-center flex-1 min-w-0">
                           <h3 className="font-bold text-stone-800 truncate">{col.name}</h3>
-                          {col.employeeName && <p className="text-xs text-stone-500 truncate mt-0.5">{col.employeeName}</p>}
+                          {col.employeeName && (
+                            <p className="text-xs text-stone-500 truncate mt-0.5 flex items-center justify-center gap-1">
+                              {pausedEmployeeIds.has(col.employeeId) && <Pause className="w-3 h-3 text-amber-600" />}
+                              {col.employeeName}
+                            </p>
+                          )}
                         </div>
                         <button onClick={() => moveColumn(colIndex, -1)} disabled={colIndex === 0} className="p-1 rounded hover:bg-stone-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors" title="הזז שמאלה">
                           <ChevronLeft className="w-4 h-4 text-stone-600" />
                         </button>
                       </div>
+                      {col.employeeId && roleId !== 'unassigned' && (
+                        <button
+                          onClick={() => setEditingRole({ roleId, roleName: col.name, employeeId: col.employeeId, departmentName: col.departmentName })}
+                          className="mt-2 w-full flex items-center justify-center gap-1 text-xs text-stone-500 hover:text-stone-800 hover:bg-stone-200 rounded py-1 transition-colors"
+                          title="עריכה"
+                        >
+                          <Settings className="w-3 h-3" />
+                          עריכה
+                        </button>
+                      )}
                     </div>
                     <div className="border border-t-0 border-stone-200 p-3 space-y-2 bg-stone-50 min-h-[200px] max-h-[70vh] overflow-y-auto">
                       {templateKeys.map((tmplId, taskIndex) => {
@@ -249,6 +287,15 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
         templateId={selectedTask?.templateId}
         allInstances={selectedTask?.instances || []}
         onStatusChange={(id, status) => updateStatusMutation.mutate({ id, status })}
+      />
+
+      <RoleEditDialog
+        open={!!editingRole}
+        onClose={() => setEditingRole(null)}
+        roleId={editingRole?.roleId}
+        roleName={editingRole?.roleName}
+        currentEmployeeId={editingRole?.employeeId}
+        departmentName={editingRole?.departmentName}
       />
     </>
   );

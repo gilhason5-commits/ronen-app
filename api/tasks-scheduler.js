@@ -19,13 +19,14 @@ export default async function handler(req, res) {
 
     console.log(`Scheduler started at ${currentTime.toISOString()}`);
 
-    const [pendingUpper, pendingLower, overdueUpper, overdueLower, allEmployees, allEvents] = await Promise.all([
+    const [pendingUpper, pendingLower, overdueUpper, overdueLower, allEmployees, allEvents, pausedEmployeeIds] = await Promise.all([
       fetchTasksByStatus('PENDING', 500),
       fetchTasksByStatus('pending', 500),
       fetchTasksByStatus('OVERDUE', 200),
       fetchTasksByStatus('overdue', 200),
       fetchEmployees(),
       fetchEvents(),
+      fetchPausedEmployeeIds(),
     ]);
 
     const pendingTasks = [...pendingUpper, ...pendingLower];
@@ -55,6 +56,11 @@ export default async function handler(req, res) {
       tasksChecked++;
 
       if (!task.assigned_to_id || String(task.assigned_to_id).trim() === '') continue;
+
+      // Paused employees: skip both reminders and escalations until the
+      // pause row is removed from AppSetting. Status is left untouched so
+      // the UI keeps showing the original PENDING/OVERDUE state.
+      if (pausedEmployeeIds.has(task.assigned_to_id)) continue;
 
       const employee = employeeById[task.assigned_to_id];
       if (!employee || !employee.phone_e164) {
@@ -219,6 +225,19 @@ async function fetchEvents() {
 
   if (error) throw error;
   return data || [];
+}
+
+const PAUSE_KEY_PREFIX = 'paused_employee:';
+async function fetchPausedEmployeeIds() {
+  const { data, error } = await supabase
+    .from('AppSetting')
+    .select('key')
+    .ilike('key', `${PAUSE_KEY_PREFIX}%`);
+  if (error) {
+    console.error('Failed to fetch paused employees:', error.message);
+    return new Set();
+  }
+  return new Set((data || []).map((r) => String(r.key).slice(PAUSE_KEY_PREFIX.length)));
 }
 
 async function updateTask(taskId, patch) {
