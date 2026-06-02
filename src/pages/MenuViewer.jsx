@@ -7,7 +7,8 @@ import { Calendar, Search } from "lucide-react";
 import { format } from "date-fns";
 
 // Read-only menus view for the "גרפיקה" role: every event in the system,
-// with just its dish names. No quantities, no edit controls.
+// with dish names grouped by category and sub-category. No quantities,
+// no edit controls.
 export default function MenuViewer() {
   const [search, setSearch] = useState("");
 
@@ -29,20 +30,66 @@ export default function MenuViewer() {
     initialData: [],
   });
 
-  const dishById = useMemo(() => Object.fromEntries(dishes.map((d) => [d.id, d])), [dishes]);
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => base44.entities.Category.list(),
+    initialData: [],
+  });
 
-  const dishesByEvent = useMemo(() => {
-    const map = {};
+  const { data: subCategories = [] } = useQuery({
+    queryKey: ["subCategories"],
+    queryFn: () => base44.entities.SubCategory.list(),
+    initialData: [],
+  });
+
+  const dishById = useMemo(() => Object.fromEntries(dishes.map((d) => [d.id, d])), [dishes]);
+  const catById = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
+  const subById = useMemo(() => Object.fromEntries(subCategories.map((s) => [s.id, s])), [subCategories]);
+
+  // For every event, group its dishes by category and sub-category, ordered
+  // by display_order so the menu reads top-down in the canonical sequence.
+  const groupedByEvent = useMemo(() => {
+    const out = {};
     for (const ed of eventDishes) {
-      if (!map[ed.event_id]) map[ed.event_id] = [];
-      const d = dishById[ed.dish_id];
-      if (d?.name) map[ed.event_id].push(d.name);
+      const dish = dishById[ed.dish_id];
+      if (!dish?.name) continue;
+      const catId = (dish.categories || [])[0] || "__no_cat__";
+      const cat = catById[catId];
+      const catName = cat?.name || "ללא קטגוריה";
+      const catOrder = cat?.display_order ?? 999;
+      const subId = dish.sub_category_id || "__no_sub__";
+      const sub = subById[subId];
+      const subName = sub?.name || dish.sub_category_name || "";
+      const subOrder = sub?.display_order ?? 999;
+
+      if (!out[ed.event_id]) out[ed.event_id] = {};
+      if (!out[ed.event_id][catId]) {
+        out[ed.event_id][catId] = { name: catName, order: catOrder, subs: {} };
+      }
+      if (!out[ed.event_id][catId].subs[subId]) {
+        out[ed.event_id][catId].subs[subId] = { name: subName, order: subOrder, dishes: [] };
+      }
+      out[ed.event_id][catId].subs[subId].dishes.push(dish.name);
     }
-    for (const id of Object.keys(map)) {
-      map[id].sort((a, b) => a.localeCompare(b, "he"));
+
+    // Sort within each event.
+    const sorted = {};
+    for (const [eventId, cats] of Object.entries(out)) {
+      const catEntries = Object.values(cats)
+        .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, "he"))
+        .map((cat) => ({
+          ...cat,
+          subs: Object.values(cat.subs)
+            .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, "he"))
+            .map((sub) => ({
+              ...sub,
+              dishes: [...sub.dishes].sort((a, b) => a.localeCompare(b, "he")),
+            })),
+        }));
+      sorted[eventId] = catEntries;
     }
-    return map;
-  }, [eventDishes, dishById]);
+    return sorted;
+  }, [eventDishes, dishById, catById, subById]);
 
   const visibleEvents = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -54,7 +101,7 @@ export default function MenuViewer() {
     <div className="p-6 lg:p-8 space-y-6" dir="rtl">
       <div>
         <h1 className="text-3xl font-bold text-stone-900">תפריטי אירועים</h1>
-        <p className="text-stone-500 mt-1">תצוגה לגרפיקה — כל האירועים והמנות שלהם</p>
+        <p className="text-stone-500 mt-1">תצוגה לגרפיקה — כל האירועים והמנות שלהם לפי קטגוריות</p>
       </div>
 
       <div className="relative">
@@ -74,7 +121,8 @@ export default function MenuViewer() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {visibleEvents.map((event) => {
-            const dishNames = dishesByEvent[event.id] || [];
+            const catGroups = groupedByEvent[event.id] || [];
+            const hasDishes = catGroups.some((c) => c.subs.some((s) => s.dishes.length > 0));
             return (
               <Card key={event.id} className="overflow-hidden">
                 <CardHeader className="bg-stone-50 border-b border-stone-200 pb-3">
@@ -89,16 +137,34 @@ export default function MenuViewer() {
                   )}
                 </CardHeader>
                 <CardContent className="pt-4">
-                  {dishNames.length === 0 ? (
+                  {!hasDishes ? (
                     <p className="text-sm text-stone-400 italic">אין מנות באירוע</p>
                   ) : (
-                    <ul className="space-y-1">
-                      {dishNames.map((name, idx) => (
-                        <li key={`${event.id}-${idx}`} className="text-sm text-stone-700 leading-relaxed">
-                          • {name}
-                        </li>
+                    <div className="space-y-4">
+                      {catGroups.map((cat, ci) => (
+                        <div key={ci}>
+                          <h4 className="font-bold text-stone-800 text-sm border-b border-stone-200 pb-1 mb-2">
+                            {cat.name}
+                          </h4>
+                          <div className="space-y-3">
+                            {cat.subs.map((sub, si) => (
+                              <div key={si}>
+                                {sub.name && (
+                                  <p className="text-xs font-medium text-stone-600 mb-1">{sub.name}</p>
+                                )}
+                                <ul className="space-y-0.5 mr-2">
+                                  {sub.dishes.map((name, di) => (
+                                    <li key={di} className="text-sm text-stone-700 leading-relaxed">
+                                      • {name}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   )}
                 </CardContent>
               </Card>
