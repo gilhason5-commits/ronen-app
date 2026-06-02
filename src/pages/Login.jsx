@@ -13,8 +13,10 @@ export default function Login() {
   const usernameToEmail = {
     'chef': 'chef@ray.local',
     'producer': 'producer@ray.local',
+    'graphics': 'graphics@ray.local',
     'טבח': 'chef@ray.local',
     'מפיק': 'producer@ray.local',
+    'גרפיקה': 'graphics@ray.local',
   };
 
   const handleLogin = async (e) => {

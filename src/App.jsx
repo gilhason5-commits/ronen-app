@@ -12,6 +12,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import WorkSummaryForm from './pages/WorkSummaryForm';
 import WorkSummaries from './pages/WorkSummaries';
 import PetiVorRecurringTasks from './pages/PetiVorRecurringTasks';
+import MenuViewer from './pages/MenuViewer';
 import Login from './pages/Login';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -77,6 +78,11 @@ const AuthenticatedApp = () => {
       <Route path="/PetiVorRecurringTasks" element={
         <LayoutWrapper currentPageName="PetiVorRecurringTasks">
           <PetiVorRecurringTasks />
+        </LayoutWrapper>
+      } />
+      <Route path="/MenuViewer" element={
+        <LayoutWrapper currentPageName="MenuViewer">
+          <MenuViewer />
         </LayoutWrapper>
       } />
       <Route path="*" element={<PageNotFound />} />

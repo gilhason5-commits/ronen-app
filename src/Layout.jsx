@@ -123,6 +123,12 @@ const navigationItems = [
     url: createPageUrl("ProducerPage"),
     icon: FileText,
     section: "operations"
+  },
+  {
+    title: "תפריטים",
+    url: createPageUrl("MenuViewer"),
+    icon: UtensilsCrossed,
+    section: "operations"
   }
 ];
 
@@ -148,12 +154,22 @@ export default function Layout({ children, currentPageName }) {
     }
   }
 
+  // Graphics role: read-only menu viewer only.
+  if (userRole === 'graphics') {
+    if (currentPageName !== "MenuViewer") {
+      return <Navigate to={createPageUrl("MenuViewer")} replace />;
+    }
+  }
+
   const filteredItems = navigationItems.filter(item => {
     if (userRole === 'purchase') {
       return item.url.includes("KitchenView");
     }
     if (userRole === 'producer') {
       return item.url.includes("ProducerPage");
+    }
+    if (userRole === 'graphics') {
+      return item.url.includes("MenuViewer");
     }
     if (adminOnlyPages.some(p => item.url.includes(p)) && userRole !== 'admin') {
       return false;
