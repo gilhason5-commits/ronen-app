@@ -20,13 +20,15 @@ export default function MenuViewer() {
 
   const { data: eventDishes = [] } = useQuery({
     queryKey: ["eventDishes", "all"],
-    queryFn: () => base44.entities.Events_Dish.list(),
+    // PostgREST caps unbounded queries at 1000 rows; pass an explicit larger
+    // limit so we don't silently drop the tail of the event-dish links.
+    queryFn: () => base44.entities.Events_Dish.list("created_date", 5000),
     initialData: [],
   });
 
   const { data: dishes = [] } = useQuery({
     queryKey: ["dishes"],
-    queryFn: () => base44.entities.Dish.list(),
+    queryFn: () => base44.entities.Dish.list("created_date", 2000),
     initialData: [],
   });
 
