@@ -1,10 +1,13 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "@/api/supabaseClient";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
-import { Clock, Calendar, AlertTriangle, Bell } from "lucide-react";
+import { Clock, Calendar, AlertTriangle, Bell, Trash2 } from "lucide-react";
 import {
   format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, isAfter,
 } from "date-fns";
@@ -36,10 +39,6 @@ const statusConfig = {
   MISSING: { color: "bg-stone-50 border-stone-200", badge: "bg-stone-100 text-stone-500", label: "אין רשומה" },
 };
 
-// Derive a live status. tasks-scheduler only flips PENDING → OVERDUE on its
-// own 10-minute tick; until then a row whose end_time has already passed is
-// still 'PENDING' in the DB. Compute it on the client so the dialog matches
-// reality.
 function effectiveStatus(instance) {
   const now = new Date();
   const end = instance.end_time ? new Date(instance.end_time) : null;
@@ -52,14 +51,7 @@ function effectiveStatus(instance) {
   return "PENDING";
 }
 
-// Combine real instances within the period with placeholder entries for any
-// expected dates that don't have a TaskAssignment row yet (the generator
-// only schedules forward, so days before a series was created have no row).
-// Placeholder entries carry { _placeholder: true, expected_date } and render
-// in a muted "אין רשומה" style.
 function getRelevantInstances(instances, fallback = []) {
-  // Use any available instance to discover the recurrence pattern, so we
-  // can still draw placeholders for a period that has zero real rows.
   const known = (instances && instances.length > 0) ? instances : fallback;
   if (!known || known.length === 0) return [];
 
@@ -70,14 +62,12 @@ function getRelevantInstances(instances, fallback = []) {
   const recTime = rep.recurrence_time || "09:00";
   const now = new Date();
 
-  // Working-window helpers
   let periodStart, periodEnd;
   let isExpectedDay;
 
   if (recType === 'daily') {
     periodStart = startOfWeek(now, { weekStartsOn: 0 });
     periodEnd = endOfWeek(now, { weekStartsOn: 0 });
-    // Match the generator: skip Fri (5) and Sat (6)
     isExpectedDay = (d) => d.getDay() !== 5 && d.getDay() !== 6;
   } else if (recType === 'weekly') {
     periodStart = startOfMonth(now);
@@ -97,13 +87,11 @@ function getRelevantInstances(instances, fallback = []) {
       return d.getDate() === targetDay;
     };
   } else {
-    // once / unknown — show all known instances, no placeholders
     return instances
       .slice()
       .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
   }
 
-  // Real instances inside the period
   const realInPeriod = instances.filter((i) => {
     const d = new Date(i.start_time);
     return d >= periodStart && d <= periodEnd;
@@ -112,8 +100,6 @@ function getRelevantInstances(instances, fallback = []) {
     realInPeriod.map((i) => format(new Date(i.start_time), "yyyy-MM-dd"))
   );
 
-  // Walk every day in the period and add placeholders for expected days
-  // without a real row.
   const [hours, minutes] = recTime.split(":").map(Number);
   const placeholders = [];
   let cursor = new Date(periodStart);
@@ -169,10 +155,7 @@ function getPeriodLabel(instances) {
 }
 
 export default function RecurringInstancesDialog({ open, onClose, taskTitle, allInstances, templateId, onStatusChange }) {
-  // Re-fetch instances directly from the DB by template_id when the dialog
-  // opens. The parent only holds the latest 500 rows globally — for a task
-  // with many co-templates that cap silently drops both today's row and
-  // anything more than a week or two old.
+  const queryClient = useQueryClient();
   const recType = allInstances?.[0]?.recurrence_type;
   const period = getPeriodForRecType(recType);
   const { data: fetchedInstances } = useQuery({
@@ -192,21 +175,146 @@ export default function RecurringInstancesDialog({ open, onClose, taskTitle, all
     enabled: !!(open && templateId && period),
   });
 
-  // Use the freshly-fetched instances when available; fall back to whatever
-  // the parent passed (handy for the small subset of templates that already
-  // fit in the 500-row window). Pass allInstances as a pattern fallback so
-  // we can still draw placeholders if the period itself returned zero rows.
   const effectiveInstances = fetchedInstances ?? allInstances ?? [];
   const relevant = getRelevantInstances(effectiveInstances, allInstances || []);
   const periodLabel = getPeriodLabel(effectiveInstances.length ? effectiveInstances : (allInstances || []));
 
+  // The owner of this column's series — every real instance in the dialog
+  // belongs to the same employee since the columns view groups by role.
+  const realInstance = (allInstances || []).find((i) => i.assigned_to_id) || effectiveInstances.find((i) => i?.assigned_to_id);
+  const assignedToId = realInstance?.assigned_to_id || null;
+  const currentRecTime = realInstance?.recurrence_time || (realInstance?.start_time ? format(new Date(realInstance.start_time), "HH:mm") : "");
+
+  const [editTime, setEditTime] = useState(currentRecTime);
+  useEffect(() => { setEditTime(currentRecTime); }, [currentRecTime, open]);
+
+  const updateTimeMutation = useMutation({
+    mutationFn: async (newTime) => {
+      if (!templateId || !assignedToId) throw new Error("חסר template_id או עובד");
+      const [h, m] = newTime.split(":").map(Number);
+      if (!Number.isFinite(h) || !Number.isFinite(m)) throw new Error("שעה לא תקינה");
+
+      // Future-only: today's row whose start_time has already passed stays
+      // untouched. Anything from "now" forward gets its HH:MM shifted, with
+      // end_time moved by the same delta so the duration is preserved.
+      const nowIso = new Date().toISOString();
+      const { data: rows, error } = await supabase
+        .from("TaskAssignment")
+        .select("id, start_time, end_time")
+        .eq("task_template_id", templateId)
+        .eq("assigned_to_id", assignedToId)
+        .gte("start_time", nowIso);
+      if (error) throw error;
+      if (!rows?.length) return { updated: 0 };
+
+      await Promise.all(rows.map(async (row) => {
+        const oldStart = new Date(row.start_time);
+        const newStart = new Date(oldStart);
+        newStart.setHours(h, m, 0, 0);
+        const durationMs = row.end_time
+          ? new Date(row.end_time).getTime() - oldStart.getTime()
+          : 60 * 60 * 1000;
+        const newEnd = new Date(newStart.getTime() + durationMs);
+        await supabase
+          .from("TaskAssignment")
+          .update({
+            start_time: newStart.toISOString(),
+            end_time: newEnd.toISOString(),
+            computed_start_time: newStart.toISOString(),
+            computed_end_time: newEnd.toISOString(),
+            recurrence_time: newTime,
+          })
+          .eq("id", row.id);
+      }));
+
+      return { updated: rows.length };
+    },
+    onSuccess: ({ updated }) => {
+      queryClient.invalidateQueries({ queryKey: ["taskAssignments"] });
+      queryClient.invalidateQueries({ queryKey: ["recurringInstances", templateId] });
+      toast.success(`עודכנו ${updated} מופעים עתידיים`);
+    },
+    onError: (err) => toast.error(`עדכון שעה נכשל: ${err?.message || ""}`),
+  });
+
+  const deleteSeriesMutation = useMutation({
+    mutationFn: async () => {
+      if (!templateId || !assignedToId) throw new Error("חסר template_id או עובד");
+      // Wipe the whole series for this employee: past, present, and future.
+      // The generator picks the "latest owner" per template — leaving any
+      // historic rows for this employee would have it regenerate the series.
+      const { data: rows, error } = await supabase
+        .from("TaskAssignment")
+        .select("id")
+        .eq("task_template_id", templateId)
+        .eq("assigned_to_id", assignedToId);
+      if (error) throw error;
+      if (!rows?.length) return { deleted: 0 };
+
+      const ids = rows.map((r) => r.id);
+      const { error: delErr } = await supabase
+        .from("TaskAssignment")
+        .delete()
+        .in("id", ids);
+      if (delErr) throw delErr;
+      return { deleted: ids.length };
+    },
+    onSuccess: ({ deleted }) => {
+      queryClient.invalidateQueries({ queryKey: ["taskAssignments"] });
+      queryClient.invalidateQueries({ queryKey: ["recurringInstances", templateId] });
+      toast.success(`נמחקו ${deleted} מופעים`);
+      onClose?.();
+    },
+    onError: (err) => toast.error(`מחיקה נכשלה: ${err?.message || ""}`),
+  });
+
+  const handleDelete = () => {
+    const ok = window.confirm(`למחוק את המשימה "${taskTitle}" לגמרי, כולל כל המופעים העתידיים?`);
+    if (!ok) return;
+    deleteSeriesMutation.mutate();
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle>{taskTitle}</DialogTitle>
           {periodLabel && <p className="text-sm text-stone-500">{periodLabel}</p>}
         </DialogHeader>
+
+        {assignedToId && (
+          <div className="border border-stone-200 rounded-lg p-3 bg-stone-50 space-y-3">
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <label className="text-xs font-medium text-stone-700 mb-1 block">שעת המשימה</label>
+                <Input
+                  type="time"
+                  value={editTime}
+                  onChange={(e) => setEditTime(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={() => updateTimeMutation.mutate(editTime)}
+                disabled={!editTime || editTime === currentRecTime || updateTimeMutation.isPending}
+              >
+                עדכן שעה לעתיד
+              </Button>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 gap-2"
+              onClick={handleDelete}
+              disabled={deleteSeriesMutation.isPending}
+            >
+              <Trash2 className="w-4 h-4" />
+              מחק את המשימה לגמרי
+            </Button>
+          </div>
+        )}
 
         <div className="space-y-3 py-2">
           {relevant.length === 0 ? (
