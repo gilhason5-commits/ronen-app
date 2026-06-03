@@ -273,9 +273,10 @@ export default function RoleEditDialog({ open, onClose, roleId, roleName, curren
                       <div className="flex items-center gap-2">
                         <Input
                           type="time"
+                          dir="ltr"
                           value={value}
                           onChange={(e) => setTaskTimes((prev) => ({ ...prev, [t.templateId]: e.target.value }))}
-                          className="h-9 w-32"
+                          className="h-9 w-32 text-left"
                         />
                         <Button
                           size="sm"
