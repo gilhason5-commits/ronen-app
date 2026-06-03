@@ -1,10 +1,31 @@
 import React, { useMemo, useState } from "react";
 import { base44 } from "@/api/base44Client";
+import { supabase } from "@/api/supabaseClient";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Calendar, Search } from "lucide-react";
 import { format } from "date-fns";
+
+// PostgREST caps any single response at ~1000 rows regardless of the limit
+// asked for, which silently drops the tail of large tables. Paginate via
+// .range() until a short page comes back so every row is included.
+async function fetchAllRows(tableName, pageSize = 1000) {
+  const out = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select("*")
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    out.push(...data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return out;
+}
 
 // Read-only menus view for the "גרפיקה" role: every event in the system,
 // with dish names grouped by category and sub-category. No quantities,
@@ -20,15 +41,13 @@ export default function MenuViewer() {
 
   const { data: eventDishes = [] } = useQuery({
     queryKey: ["eventDishes", "all"],
-    // PostgREST caps unbounded queries at 1000 rows; pass an explicit larger
-    // limit so we don't silently drop the tail of the event-dish links.
-    queryFn: () => base44.entities.Events_Dish.list("created_date", 5000),
+    queryFn: () => fetchAllRows("Events_Dish"),
     initialData: [],
   });
 
   const { data: dishes = [] } = useQuery({
     queryKey: ["dishes"],
-    queryFn: () => base44.entities.Dish.list("created_date", 2000),
+    queryFn: () => fetchAllRows("Dish"),
     initialData: [],
   });
 
