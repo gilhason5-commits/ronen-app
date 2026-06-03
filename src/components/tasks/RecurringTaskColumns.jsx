@@ -313,7 +313,17 @@ export default function RecurringTaskColumns() {
                           variant="ghost"
                           size="sm"
                           className="w-full text-stone-500 hover:text-stone-700 gap-2"
-                          onClick={() => setEditingRole({ roleId, roleName: col.name, employeeId: col.employeeId, departmentName: col.departmentName })}
+                          onClick={() => {
+                            const tasksList = Object.entries(col.templates).map(([tmplId, t]) => ({
+                              templateId: tmplId,
+                              taskTitle: t.taskTitle,
+                              recurrenceTime: t.instances?.[0]?.recurrence_time
+                                || (t.instances?.[0]?.start_time
+                                  ? new Date(t.instances[0].start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+                                  : ''),
+                            }));
+                            setEditingRole({ roleId, roleName: col.name, employeeId: col.employeeId, departmentName: col.departmentName, tasks: tasksList });
+                          }}
                         >
                           <Settings className="w-4 h-4" />
                           עריכה
@@ -353,6 +363,7 @@ export default function RecurringTaskColumns() {
         roleName={editingRole?.roleName}
         currentEmployeeId={editingRole?.employeeId}
         departmentName={editingRole?.departmentName}
+        tasks={editingRole?.tasks || []}
       />
     </>
   );
