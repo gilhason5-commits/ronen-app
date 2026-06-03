@@ -7,11 +7,11 @@ const supabase = createClient(
 );
 
 // Peti Vor employees work daily recurring tasks rather than per-event. Send a
-// standalone availability check at 08:30 with a one-hour window to respond
-// (the no-response cron uses 1h whenever event_id is null). The record is
-// stored with event_id = null so the existing inbound webhook and escalation
-// flows know to act on recurring tasks rather than event tasks.
-const SEND_HHMM = '08:30';
+// standalone availability check at 11:00 with a two-hour window to respond
+// — same cadence as the default evening flow. The record is stored with
+// event_id = null so the existing inbound webhook and escalation flows know
+// to act on recurring tasks rather than event tasks.
+const SEND_HHMM = '11:00';
 const WINDOW_MIN = 60;
 const PV_DEPT_NAME = 'פטי וור';
 const PV_LABEL = 'משימות שוטפות פטי וור';

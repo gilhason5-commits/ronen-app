@@ -42,11 +42,11 @@ export default async function handler(req, res) {
     if (!pending?.length) return res.status(200).json({ message: 'No pending records', processed: 0 });
 
     const ready = pending.filter((record) => {
-      // Peti Vor records (event_id IS NULL) follow the morning 1h timeout.
-      const isPetiVor = !record.event_id;
+      // Only morning events (event_time < 14:00) keep the 1h timeout. Peti
+      // Vor (event_id IS NULL) and regular evening events both get 2h.
       const evMin = parseHhmm(record.Event?.event_time);
       const isMorning = evMin !== null && evMin < MORNING_THRESHOLD_HOUR * 60;
-      const timeoutMs = (isPetiVor || isMorning) ? MORNING_TIMEOUT_MS : EVENING_TIMEOUT_MS;
+      const timeoutMs = isMorning ? MORNING_TIMEOUT_MS : EVENING_TIMEOUT_MS;
       const ageMs = now - new Date(record.confirmation_sent_at).getTime();
       return ageMs >= timeoutMs;
     });
