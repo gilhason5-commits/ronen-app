@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import ProducerEventForm from "../components/producer/ProducerEventForm";
 import ProducerEventCard from "../components/producer/ProducerEventCard";
 import ProducerEventPrint from "../components/producer/ProducerEventPrint";
+import { generateEventTasks, daysUntilEvent, APPROVAL_MIN_DAYS_BEFORE } from "@/lib/eventTaskGeneration";
 
 export default function ProducerPage() {
   const [showForm, setShowForm] = useState(false);
@@ -46,20 +47,34 @@ export default function ProducerPage() {
 
   const approveMutation = useMutation({
     mutationFn: async (event) => {
-      return await base44.entities.Event.update(event.id, {
+      // Defensive: the button is disabled when too early, but the mutation
+      // re-checks in case the card was rendered against a stale event_date.
+      if (daysUntilEvent(event.event_date) < APPROVAL_MIN_DAYS_BEFORE) {
+        throw new Error("ניתן לאשר רק עד 4 ימים לפני האירוע");
+      }
+      await base44.entities.Event.update(event.id, {
         producer_approved: true,
         status: "in_progress",
-        price_per_plate: 0
       });
+      // Fire the event-task generation immediately. Wrapped in try/catch so a
+      // failure surfaces a toast but doesn't roll back the approval — the
+      // PerEventTasks page still acts as a safety net for missing rows.
+      try {
+        await generateEventTasks({ ...event, producer_approved: true });
+      } catch (taskErr) {
+        console.error("Failed to generate event tasks on approval:", taskErr);
+        toast.error("האירוע אושר אך יצירת המשימות נכשלה — נסה לפתוח את עמוד משימות אירועים כדי להשלים");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["producer_events"] });
       queryClient.invalidateQueries({ queryKey: ["producer_approved_events"] });
       queryClient.invalidateQueries({ queryKey: ["events"] });
-      toast.success("האירוע אושר והועבר להנהלה בהצלחה!");
+      queryClient.invalidateQueries({ queryKey: ["taskAssignments"] });
+      toast.success("האירוע אושר והמשימות נוצרו");
     },
-    onError: () => {
-      toast.error("שגיאה באישור האירוע");
+    onError: (err) => {
+      toast.error(err?.message || "שגיאה באישור האירוע");
     }
   });
 

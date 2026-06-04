@@ -60,7 +60,6 @@ export default function Events() {
   });
 
   const filteredEvents = events.filter(event => {
-    if (event.status === "producer_draft") return false;
     const matchesSearch = event.event_name?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === "all" || event.status === filterStatus;
     return matchesSearch && matchesStatus;

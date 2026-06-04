@@ -21,7 +21,7 @@ export default function KitchenView() {
   });
 
   const approvedEvents = events.filter(e => {
-    if (!e.approved_for_kitchen) return false;
+    if (!e.producer_approved) return false;
     if (!e.event_date) return true;
     const today = new Date();
     today.setHours(0, 0, 0, 0);

@@ -1,38 +1,23 @@
 import React from 'react';
-import { base44 } from "@/api/base44Client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Users, Edit, Trash2, CheckCircle2 } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar, Users, Edit, Trash2, CheckCircle2, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
 import { fmtCurrency } from "../utils/formatNumbers";
 
 export default function EventsList({ events, isLoading, onEdit, onDelete }) {
-  const queryClient = useQueryClient();
-
-  const toggleApprovalMutation = useMutation({
-    mutationFn: async ({ eventId, approved }) => {
-      return await base44.entities.Event.update(eventId, { approved_for_kitchen: approved });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['events'] });
-    },
-    onError: () => {
-      toast.error('שגיאה בעדכון אישור האירוע');
-    }
-  });
   const statusColors = {
     in_progress: "bg-emerald-100 text-emerald-700",
-    completed: "bg-blue-100 text-blue-700"
+    completed: "bg-blue-100 text-blue-700",
+    producer_draft: "bg-amber-100 text-amber-700",
   };
 
   const statusLabels = {
     in_progress: "בתהליך",
-    completed: "הושלם"
+    completed: "הושלם",
+    producer_draft: "טיוטת מפיק",
   };
 
   if (isLoading) {
@@ -86,24 +71,22 @@ export default function EventsList({ events, isLoading, onEdit, onDelete }) {
                   )}
                 </div>
               </div>
-              <Badge className={statusColors[event.status]}>
-                {statusLabels[event.status] || event.status}
-              </Badge>
-            </div>
-
-            <div className="flex items-center gap-3 pt-3 pb-1 px-1">
-              <Checkbox
-                id={`approve-${event.id}`}
-                checked={!!event.approved_for_kitchen}
-                onCheckedChange={(checked) => toggleApprovalMutation.mutate({ eventId: event.id, approved: !!checked })}
-              />
-              <label 
-                htmlFor={`approve-${event.id}`}
-                className={`text-sm cursor-pointer select-none ${event.approved_for_kitchen ? 'text-emerald-700 font-semibold' : 'text-stone-500'}`}
-              >
-                {event.approved_for_kitchen && <CheckCircle2 className="w-4 h-4 inline ml-1 -mt-0.5" />}
-                האירוע נבדק ואושר על ידי ההנהלה והכמויות בו סופיות
-              </label>
+              <div className="flex flex-col items-end gap-1.5">
+                <Badge className={statusColors[event.status]}>
+                  {statusLabels[event.status] || event.status}
+                </Badge>
+                {event.producer_approved ? (
+                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300">
+                    <CheckCircle2 className="w-3 h-3 ml-1" />
+                    מאושר סופית
+                  </Badge>
+                ) : (
+                  <Badge className="bg-amber-50 text-amber-700 border-amber-200">
+                    <Clock className="w-3 h-3 ml-1" />
+                    ממתין לאישור המפיק
+                  </Badge>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-stone-100">

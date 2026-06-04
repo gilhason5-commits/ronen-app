@@ -14,7 +14,7 @@ import { CalendarDays } from "lucide-react";
 import { format, addMinutes } from "date-fns";
 import EventTimelineGrid from "../components/tasks/EventTimelineGrid.jsx";
 import EventTasksByRoleColumns from "../components/tasks/EventTasksByRoleColumns.jsx";
-import { clampMorningEventTaskTimes } from "@/lib/eventTaskSchedule";
+import { generateEventTasks } from "@/lib/eventTaskGeneration";
 
 
 export default function PerEventTasks() {
@@ -33,8 +33,7 @@ export default function PerEventTasks() {
       const oneWeekAgo = new Date(today);
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
       return data.filter(e => {
-        if (e.status === 'producer_draft') return false;
-        if (!e.approved_for_kitchen) return false;
+        if (!e.producer_approved) return false;
         if (!e.event_date) return true;
         const eventDate = new Date(e.event_date);
         eventDate.setHours(23, 59, 59, 999);
@@ -83,97 +82,30 @@ export default function PerEventTasks() {
     initialData: [],
   });
 
-  // Auto-create all active PER_EVENT templates as assignments when an event is selected
-  // and has no assignments yet
+  // Safety net for legacy events that have producer_approved=true but never
+  // got their tasks created (the producer approval flow now generates them
+  // immediately, but pre-existing approved rows still need to be filled in
+  // on first visit).
   useEffect(() => {
     if (!selectedEventId || !selectedEvent || assignmentsLoading || autoCreating) return;
-    if (templates.length === 0) return;
-    if (assignments.length > 0) return; // already has assignments
-    if (autoCreatedRef.current.has(selectedEventId)) return; // already triggered for this event
-
-    const activeTemplates = templates.filter(t => t.is_active);
-    if (activeTemplates.length === 0) return;
+    if (assignments.length > 0) return;
+    if (autoCreatedRef.current.has(selectedEventId)) return;
 
     autoCreatedRef.current.add(selectedEventId);
     setAutoCreating(true);
 
-    // Double-check from DB to prevent race conditions
-    base44.entities.TaskAssignment.filter({ event_id: selectedEventId }).then(existingAssignments => {
-      const existingTemplateIds = new Set(existingAssignments.map(a => a.task_template_id));
-      const templatesToCreate = activeTemplates.filter(t => !existingTemplateIds.has(t.id));
-
-      if (templatesToCreate.length === 0) {
+    generateEventTasks(selectedEvent)
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['taskAssignments', selectedEventId] });
         setAutoCreating(false);
-        return;
-      }
-
-      const eventStartTime = new Date(`${selectedEvent.event_date}T${selectedEvent.event_time || '00:00'}`);
-
-      const newAssignments = templatesToCreate.map(template => {
-        const rawStart = new Date(eventStartTime.getTime() + (template.start_offset_minutes || 0) * 60000);
-        const rawEnd = new Date(rawStart.getTime() + (template.duration_minutes || 60) * 60000);
-        const { startTime, endTime } = clampMorningEventTaskTimes(
-          selectedEvent.event_date, selectedEvent.event_time, rawStart, rawEnd
-        );
-
-        // Auto-assign ALL employees with this role
-        const roleEmployees = template.default_role 
-          ? allEmployees.filter(e => e.role_id === template.default_role && e.is_active) 
-          : [];
-
-        const primaryEmployee = roleEmployees[0] || null;
-        const additionalEmployees = roleEmployees.slice(1).map(emp => ({
-          employee_id: emp.id,
-          employee_name: emp.full_name,
-          employee_phone: emp.phone_e164 || ''
-        }));
-
-        // Auto-assign escalation employee based on template's escalation_role_id
-        const escalationEmployee = template.escalation_role_id 
-          ? allEmployees.find(e => e.role_id === template.escalation_role_id && e.is_active)
-          : null;
-
-        return {
-          task_template_id: template.id,
-          task_title: template.title,
-          task_description: template.description,
-          event_id: selectedEventId,
-          event_name: selectedEvent.event_name,
-          assigned_to_id: primaryEmployee?.id || null,
-          assigned_to_name: primaryEmployee?.full_name || '',
-          assigned_to_phone: primaryEmployee?.phone_e164 || '',
-          additional_employees: additionalEmployees,
-          computed_start_time: startTime.toISOString(),
-          computed_end_time: endTime.toISOString(),
-          start_time: startTime.toISOString(),
-          end_time: endTime.toISOString(),
-          status: 'PENDING',
-          reminder_before_start_minutes: template.reminder_before_start_minutes || 10,
-          reminder_before_end_minutes: template.reminder_before_end_minutes || 10,
-          escalate_to_manager: template.escalate_to_manager_if_not_done || false,
-          escalation_role_id: template.escalation_role_id || null,
-          escalation_role_name: template.escalation_role_name || '',
-          escalation_employee_id: escalationEmployee?.id || null,
-          escalation_employee_name: escalationEmployee?.full_name || '',
-          escalation_employee_phone: escalationEmployee?.phone_e164 || '',
-          manager_id: primaryEmployee?.manager_id || null,
-          manager_name: primaryEmployee?.manager_name || '',
-          manager_phone: '',
-          manually_overridden: false
-        };
+      })
+      .catch((err) => {
+        console.error('Failed to auto-create task assignments:', err);
+        alert('שגיאה ביצירת משימות: ' + (err?.message || JSON.stringify(err)));
+        autoCreatedRef.current.delete(selectedEventId);
+        setAutoCreating(false);
       });
-
-      return base44.entities.TaskAssignment.bulkCreate(newAssignments);
-    }).then(() => {
-      queryClient.invalidateQueries({ queryKey: ['taskAssignments', selectedEventId] });
-      setAutoCreating(false);
-    }).catch((err) => {
-      console.error('Failed to auto-create task assignments:', err);
-      alert('שגיאה ביצירת משימות: ' + (err?.message || JSON.stringify(err)));
-      autoCreatedRef.current.delete(selectedEventId);
-      setAutoCreating(false);
-    });
-  }, [selectedEventId, selectedEvent, templates, assignments.length, assignmentsLoading]);
+  }, [selectedEventId, selectedEvent, assignments.length, assignmentsLoading]);
 
   const formatEventDisplay = (event) => {
     if (!event) return '';

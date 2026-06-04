@@ -1,5 +1,6 @@
 import React from 'react';
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import {
   Dialog,
@@ -16,17 +17,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Package, Printer } from "lucide-react";
+import { Package, Printer, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
+import { createPageUrl } from "@/utils";
 
 export default function SupplierProductsDialog({ supplier, open, onClose }) {
+  const navigate = useNavigate();
   const { data: ingredients = [] } = useQuery({
     queryKey: ['supplier-ingredients', supplier?.id],
-    queryFn: () => supplier?.id 
+    queryFn: () => supplier?.id
       ? base44.entities.Ingredient.filter({ current_supplier_id: supplier.id })
       : Promise.resolve([]),
     enabled: !!supplier?.id && open
   });
+
+  const openIngredient = (ingredient) => {
+    onClose?.();
+    navigate(`${createPageUrl("Ingredients")}?edit=${ingredient.id}`);
+  };
 
   const handlePrint = () => {
     const printContent = document.getElementById('supplier-products-print');
@@ -47,7 +55,7 @@ export default function SupplierProductsDialog({ supplier, open, onClose }) {
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               <Package className="w-5 h-5 text-emerald-600" />
-              מוצרים של {supplier?.name}
+              רכיבים של {supplier?.name}
             </DialogTitle>
             <Button
               variant="outline"
@@ -63,26 +71,27 @@ export default function SupplierProductsDialog({ supplier, open, onClose }) {
 
         <div id="supplier-products-print">
           <div className="mb-4 print:block">
-            <h2 className="text-xl font-bold">מוצרים של {supplier?.name}</h2>
+            <h2 className="text-xl font-bold">רכיבים של {supplier?.name}</h2>
             <p className="text-sm text-stone-500">תאריך: {format(new Date(), 'dd/MM/yyyy')}</p>
           </div>
 
         {ingredients.length === 0 ? (
           <div className="p-8 text-center text-stone-500">
             <Package className="w-12 h-12 mx-auto mb-3 text-stone-300" />
-            <p>אין מוצרים רשומים לספק זה</p>
+            <p>אין רכיבים רשומים לספק זה</p>
           </div>
         ) : (
           <div className="border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>שם המוצר</TableHead>
+                  <TableHead>שם הרכיב</TableHead>
                   <TableHead className="text-center">כמות ליחידת רכישה</TableHead>
                   <TableHead className="text-center">יחידת מערכת</TableHead>
                   <TableHead className="text-right">מחיר רכישה</TableHead>
                   <TableHead className="text-right">מחיר ליחידה</TableHead>
                   <TableHead className="text-center">תאריך עדכון</TableHead>
+                  <TableHead className="text-center print:hidden">פעולות</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -102,9 +111,20 @@ export default function SupplierProductsDialog({ supplier, open, onClose }) {
                       ₪{ingredient.price_per_system?.toFixed(2) || '0.00'}
                     </TableCell>
                     <TableCell className="text-center text-sm text-stone-500">
-                      {ingredient.last_price_update 
+                      {ingredient.last_price_update
                         ? format(new Date(ingredient.last_price_update), 'dd/MM/yyyy')
                         : '-'}
+                    </TableCell>
+                    <TableCell className="text-center print:hidden">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openIngredient(ingredient)}
+                        className="gap-1"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        פתח
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -115,7 +135,7 @@ export default function SupplierProductsDialog({ supplier, open, onClose }) {
 
         <div className="mt-4 p-4 bg-stone-50 rounded-lg">
           <div className="flex justify-between items-center text-sm">
-            <span className="text-stone-600">סה"כ מוצרים:</span>
+            <span className="text-stone-600">סה"כ רכיבים:</span>
             <span className="font-semibold">{ingredients.length}</span>
           </div>
         </div>

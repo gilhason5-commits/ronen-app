@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Users, Pencil, Send, CheckCircle2, Printer, Trash2, Download } from "lucide-react";
 import { format } from "date-fns";
+import { daysUntilEvent, APPROVAL_MIN_DAYS_BEFORE } from "@/lib/eventTaskGeneration";
 
 const eventTypeLabels = {
   serving: "אירוע הגשה",
@@ -13,6 +14,8 @@ const eventTypeLabels = {
 
 export default function ProducerEventCard({ event, dishCount, onEdit, onApprove, onPrint, onDelete, onSavePdf }) {
   const isApproved = event.producer_approved;
+  const days = daysUntilEvent(event.event_date);
+  const tooEarly = days < APPROVAL_MIN_DAYS_BEFORE;
 
   return (
     <Card className={`border-stone-200 ${isApproved ? "bg-emerald-50 border-emerald-200" : ""}`}>
@@ -69,14 +72,26 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
                   <Trash2 className="w-4 h-4 ml-1" />
                   מחיקה
                 </Button>
-                <Button
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700"
-                  onClick={() => onApprove(event)}
-                >
-                  <Send className="w-4 h-4 ml-1" />
-                  אושר - העבר להנהלה
-                </Button>
+                <div className="flex flex-col items-end gap-1 max-w-[280px]">
+                  <Button
+                    size="sm"
+                    className={tooEarly ? "bg-stone-300 hover:bg-stone-300 cursor-not-allowed text-stone-600" : "bg-emerald-600 hover:bg-emerald-700"}
+                    disabled={tooEarly}
+                    title={tooEarly ? "ניתן לאשר רק עד 4 ימים לפני האירוע" : ""}
+                    onClick={() => !tooEarly && onApprove(event)}
+                  >
+                    <Send className="w-4 h-4 ml-1" />
+                    אושר - העבר להנהלה
+                  </Button>
+                  <p className="text-[11px] text-stone-500 leading-snug text-right">
+                    לחיצה על אישור היא התחייבות סופית מבחינת כמות העובדים והמטבח. לאחר האישור הכמויות נחשבות סופיות לאירוע.
+                  </p>
+                  {tooEarly && (
+                    <p className="text-[11px] text-amber-700 leading-snug text-right">
+                      ניתן לאשר רק עד 4 ימים לפני האירוע.
+                    </p>
+                  )}
+                </div>
               </>
             )}
           </div>
