@@ -34,10 +34,15 @@ export default function TaskManagement() {
   });
 
   const matchSearch = (template, term) => {
-    if (!term) return true;
-    const q = term.toLowerCase();
-    return (template.title?.toLowerCase().includes(q))
-      || (template.description?.toLowerCase().includes(q));
+    const q = (term || '').trim().toLowerCase();
+    if (!q) return true;
+    // Match if any word in the title or description begins with the typed
+    // text. Matches the user's mental model of typing the start of a word
+    // and getting only the rows that begin that way.
+    const words = `${template.title || ''} ${template.description || ''}`
+      .toLowerCase()
+      .split(/\s+/);
+    return words.some((word) => word.startsWith(q));
   };
 
   const filteredRecurringTemplates = templates.filter(
