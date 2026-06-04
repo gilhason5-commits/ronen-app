@@ -8,19 +8,25 @@ import { Plus, Edit, Trash2, Clock, Bell } from "lucide-react";
 import TaskTemplateDialog from "./TaskTemplateDialog";
 import { toast } from "sonner";
 
-export default function TaskTemplateManager({ taskType, categories }) {
+export default function TaskTemplateManager({ taskType, categories, templates: templatesProp }) {
   const [showDialog, setShowDialog] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const queryClient = useQueryClient();
 
-  const { data: templates = [] } = useQuery({
+  // The parent computes the filtered list (by search + category + type).
+  // Use it when provided so the search box in TaskManagement actually narrows
+  // the rendered list. Falls back to a direct query for legacy call sites
+  // that don't pass the prop.
+  const { data: fetchedTemplates = [] } = useQuery({
     queryKey: ['taskTemplates', taskType],
     queryFn: async () => {
       const data = await base44.entities.TaskTemplate.list();
       return data.filter(t => t.task_type === taskType);
     },
     initialData: [],
+    enabled: !templatesProp,
   });
+  const templates = templatesProp ?? fetchedTemplates;
 
   const { data: employees = [] } = useQuery({
     queryKey: ['taskEmployees'],
