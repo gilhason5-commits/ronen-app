@@ -17,7 +17,14 @@ export default async function handler(req, res) {
     let tasksChecked = 0;
     let messagesSent = 0;
 
-    console.log(`Scheduler started at ${currentTime.toISOString()}`);
+    // `?events_only=1` narrows the run to TaskAssignment rows that belong to
+    // an Event. Used by /api/run-events-only so Friday/Sabbath crons keep
+    // delivering event-day reminders even when the recurring-task cron is
+    // intentionally paused.
+    const eventsOnly = String(
+      req.query?.events_only ?? req.query?.eventsOnly ?? "",
+    ) === "1";
+    console.log(`Scheduler started at ${currentTime.toISOString()}${eventsOnly ? ' (events_only)' : ''}`);
 
     const [pendingUpper, pendingLower, overdueUpper, overdueLower, allEmployees, allEvents, pausedEmployeeIds] = await Promise.all([
       fetchTasksByStatus('PENDING', 500),
@@ -35,7 +42,8 @@ export default async function handler(req, res) {
     const tasks = [
       ...pendingTasks,
       ...overdueTasks.filter((t) => !t.escalation_sent_at),
-    ].filter((t) => t.status !== 'NOT_ARRIVING' && t.status !== 'not_arriving');
+    ].filter((t) => t.status !== 'NOT_ARRIVING' && t.status !== 'not_arriving')
+     .filter((t) => !eventsOnly || !!t.event_id);
 
     const employeeById = Object.fromEntries(allEmployees.map((e) => [e.id, e]));
     const eventById = Object.fromEntries(allEvents.map((e) => [e.id, e]));
