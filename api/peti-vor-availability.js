@@ -55,6 +55,18 @@ export default async function handler(req, res) {
       return res.status(200).json({ message: 'Not send time yet', nowIsrael, sendHHMM: SEND_HHMM });
     }
 
+    // Fri (5) / Sat (6) IL: Peti Vor staff don't work, so skip the daily
+    // "מגיע היום?" entirely. Sunday's normal 11:00 run handles the next
+    // workday's availability check.
+    const weekday = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Jerusalem',
+      weekday: 'short',
+    }).format(now);
+    if (weekday === 'Fri' || weekday === 'Sat') {
+      console.log(`peti-vor-availability: skip — ${weekday} IL is a non-workday`);
+      return res.status(200).json({ message: 'Non-workday', weekday });
+    }
+
     const { data: pvEmployees, error: empErr } = await supabase
       .from('TaskEmployee')
       .select('id, full_name, phone_e164')

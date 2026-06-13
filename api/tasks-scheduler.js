@@ -70,6 +70,29 @@ export default async function handler(req, res) {
       // the UI keeps showing the original PENDING/OVERDUE state.
       if (pausedEmployeeIds.has(task.assigned_to_id)) continue;
 
+      // Recurring tasks (no event) scheduled on Friday or Saturday IL get
+      // their start_time/end_time shifted forward to the following Sunday at
+      // 09:30 IL, preserving duration. Event-bound tasks are left as-is so
+      // a Friday/Saturday event still gets its real-time reminders.
+      if (!task.event_id && task.start_time) {
+        const day = ilDayOfWeek(new Date(task.start_time));
+        if (day === 5 || day === 6) {
+          const { start: newStart, end: newEnd } = shiftToNextSunday0930(task);
+          try {
+            await updateTask(task.id, {
+              start_time: newStart,
+              end_time: newEnd,
+              computed_start_time: newStart,
+              computed_end_time: newEnd,
+            });
+            console.log(`Deferred recurring task ${task.id} (Fri/Sat) → ${newStart}`);
+          } catch (e) {
+            console.error(`Failed to defer task ${task.id}: ${e.message}`);
+          }
+          continue;
+        }
+      }
+
       const employee = employeeById[task.assigned_to_id];
       if (!employee || !employee.phone_e164) {
         console.log(`Task ${task.id}: Employee ${task.assigned_to_id} has no phone`);
@@ -193,6 +216,61 @@ export default async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
+}
+
+// Day-of-week (0=Sun … 6=Sat) for a Date object, interpreted in Israel time.
+// Uses Intl so it stays correct across DST without relying on the host TZ.
+function ilDayOfWeek(date) {
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jerusalem',
+    weekday: 'short',
+  }).format(date);
+  const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return map[weekday];
+}
+
+// Build a UTC ISO string for "YYYY-MM-DD HH:MM in Israel time". DST-aware via
+// Intl probing of the same reference instant.
+function israelTimeToISO(year, month, day, hours, minutes) {
+  const ref = new Date(Date.UTC(year, month, day, 12, 0));
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Jerusalem',
+    hour: 'numeric',
+    hour12: false,
+  }).formatToParts(ref);
+  const refHour = parseInt(parts.find((p) => p.type === 'hour').value, 10);
+  const offsetHours = refHour - 12;
+  return new Date(Date.UTC(year, month, day, hours - offsetHours, minutes)).toISOString();
+}
+
+// Given a task whose start_time falls on Friday or Saturday IL, compute new
+// start/end ISO strings landing the task on the upcoming Sunday at 09:30 IL
+// with the original duration preserved.
+function shiftToNextSunday0930(task) {
+  const original = new Date(task.start_time);
+  const ilDateStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(original);
+  const [y, m, d] = ilDateStr.split('-').map(Number);
+  const baseUtcMidnight = Date.UTC(y, m - 1, d);
+  const day = ilDayOfWeek(original); // 5 (Fri) → +2 days, 6 (Sat) → +1 day
+  const addDays = day === 5 ? 2 : 1;
+  const sundayUtc = new Date(baseUtcMidnight + addDays * 24 * 60 * 60 * 1000);
+  const newStart = israelTimeToISO(
+    sundayUtc.getUTCFullYear(),
+    sundayUtc.getUTCMonth(),
+    sundayUtc.getUTCDate(),
+    9,
+    30,
+  );
+  const durationMs = task.end_time
+    ? new Date(task.end_time).getTime() - original.getTime()
+    : 60 * 60 * 1000;
+  const newEnd = new Date(new Date(newStart).getTime() + durationMs).toISOString();
+  return { start: newStart, end: newEnd };
 }
 
 async function fetchTasksByStatus(status, limit) {
