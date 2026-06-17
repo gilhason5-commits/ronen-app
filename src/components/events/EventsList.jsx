@@ -35,6 +35,12 @@ export default function EventsList({ events, isLoading, onEdit, onDelete }) {
     completed: "הושלם"
   };
 
+  const eventTypeLabels = {
+    serving: "אירוע הגשה",
+    wedding: "אירוע הפוכה",
+    party: "אירוע מסיבה",
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -82,7 +88,7 @@ export default function EventsList({ events, isLoading, onEdit, onDelete }) {
                     {event.guest_count} סועדים
                   </span>
                   {event.event_type && (
-                    <span className="capitalize">{event.event_type}</span>
+                    <span>{eventTypeLabels[event.event_type] || event.event_type}</span>
                   )}
                 </div>
               </div>
