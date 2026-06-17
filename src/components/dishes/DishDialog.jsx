@@ -382,11 +382,11 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
 
             <div className="col-span-2">
               <Label>אחוז מנות לכלל האורחים *</Label>
-              <p className="text-xs text-stone-500 mb-1">
-                {isFirstCourseCategory()
-                  ? 'כמות הסועדים חלקי 7 כפול האחוזים שתגדיר למטה ייקבע את כמות המנות'
-                  : 'דוגמא: 100% = מנות לכל הסועדים, 150% = פי 1.5 מהכמות'}
-              </p>
+              {!isFirstCourseCategory() && (
+                <p className="text-xs text-stone-500 mb-1">
+                  דוגמא: 100% = מנות לכל הסועדים, 150% = פי 1.5 מהכמות
+                </p>
+              )}
               <div className="relative">
                 <Input
                   type="text"
