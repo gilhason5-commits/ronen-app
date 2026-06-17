@@ -108,7 +108,8 @@ export default function DepartmentPrintDialog({
       const totalPortionsNeeded = guestCount * (servingPercentage / 100);
       return Math.ceil(totalPortionsNeeded / portionsPerPreparation);
     }
-    const portionFactor = isFirstCourseDish(dish) ? 1/6 : (dish.portion_factor ?? 1);
+    const isWedding = event?.event_type === 'wedding';
+    const portionFactor = (!isWedding && isFirstCourseDish(dish)) ? 1/6 : (dish.portion_factor ?? 1);
     const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
     return Math.ceil(rawQuantity);
   };
@@ -349,7 +350,8 @@ export default function DepartmentPrintDialog({
         const totalPortions = guestCount * (servingPct / 100);
         calcBreakdown = `${guestCount} מבוגרים × ${servingPct}% = ${formatNumber(totalPortions)} מנות ÷ ${formatNumber(portionsPerPrep)} מנות למסה = ${effectiveQty}`;
       } else {
-        const portionFactor = isFirstCourseDish(dish) ? 1/6 : (dish.portion_factor ?? 1);
+        const isWedding = event?.event_type === 'wedding';
+        const portionFactor = (!isWedding && isFirstCourseDish(dish)) ? 1/6 : (dish.portion_factor ?? 1);
         const raw = guestCount * (servingPct / 100) * portionFactor;
         if (portionFactor !== 1) {
           calcBreakdown = `${guestCount} מבוגרים × ${servingPct}% × ${formatNumber(portionFactor)} = ${formatNumber(raw)} ⇒ ${effectiveQty}`;

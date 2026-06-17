@@ -132,8 +132,9 @@ export default function EventStages({
     }
 
     // Old calculation (for backward compatibility)
-    // First-course rule applies to all event types (including weddings)
-    const portionFactor = isFirstCourseDish(dish, currentCategory) ? 1/6 : (dish.portion_factor ?? 1);
+    // אירוע הפוכה (wedding): skip the first-course 1/6 division.
+    const isWedding = event?.event_type === 'wedding';
+    const portionFactor = (!isWedding && isFirstCourseDish(dish, currentCategory)) ? 1/6 : (dish.portion_factor ?? 1);
     // Formula: planned_qty = (guest_count × serving_percentage/100 × portion_factor)
     const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
 
