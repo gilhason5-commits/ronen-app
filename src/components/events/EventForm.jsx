@@ -153,8 +153,9 @@ export default function EventForm({ event, onClose }) {
       const totalPortionsNeeded = guestCount * (servingPercentage / 100);
       plannedQty = Math.ceil(totalPortionsNeeded / portionsPerPreparation);
     } else {
-      // First-course rule applies to all event types (including weddings)
-      const portionFactor = isFirstCourseDish(dish) ? 1 / 6 : (dish.portion_factor ?? 1);
+      // אירוע הפוכה (wedding): skip the first-course 1/6 division.
+      const isWedding = formData.event_type === 'wedding';
+      const portionFactor = (!isWedding && isFirstCourseDish(dish)) ? 1 / 6 : (dish.portion_factor ?? 1);
       const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
       plannedQty = Math.ceil(rawQuantity);
     }
@@ -251,18 +252,12 @@ export default function EventForm({ event, onClose }) {
           plannedCost = plannedQty * (dish.unit_cost || 0);
         } else {
           // Old calculation (for backward compatibility)
-          // First-course rule applies to all event types (including weddings)
-          const portionFactor = isFirstCourse ? 1 / 6 : (dish.portion_factor ?? 1);
-          // Formula: planned_qty = (guest_count × serving_percentage/100 × portion_factor)
+          // אירוע הפוכה (wedding): skip the first-course 1/6 division.
+          const isWedding = formData.event_type === 'wedding';
+          const portionFactor = (!isWedding && isFirstCourse) ? 1 / 6 : (dish.portion_factor ?? 1);
           const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
           plannedQty = Math.ceil(rawQuantity);
-
-          if (isFirstCourse) {
-            plannedCost = plannedQty * (dish.unit_cost || 0);
-          } else {
-            const unitCost = dish.unit_cost || 0;
-            plannedCost = plannedQty * unitCost;
-          }
+          plannedCost = plannedQty * (dish.unit_cost || 0);
         }
 
         await base44.entities.Events_Dish.create({
