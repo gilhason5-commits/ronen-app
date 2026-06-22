@@ -153,8 +153,8 @@ export default function EventForm({ event, onClose }) {
       const totalPortionsNeeded = guestCount * (servingPercentage / 100);
       plannedQty = Math.ceil(totalPortionsNeeded / portionsPerPreparation);
     } else {
-      // First-course rule applies to all event types (including weddings)
-      const portionFactor = isFirstCourseDish(dish) ? 1 / 6 : (dish.portion_factor ?? 1);
+      const isWedding = formData.event_type === 'wedding';
+      const portionFactor = (isFirstCourseDish(dish) && !isWedding) ? 1 / 6 : (dish.portion_factor ?? 1);
       const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
       plannedQty = Math.ceil(rawQuantity);
     }
@@ -250,9 +250,8 @@ export default function EventForm({ event, onClose }) {
           // Cost = preparations × unit_cost
           plannedCost = plannedQty * (dish.unit_cost || 0);
         } else {
-          // Old calculation (for backward compatibility)
-          // First-course rule applies to all event types (including weddings)
-          const portionFactor = isFirstCourse ? 1 / 6 : (dish.portion_factor ?? 1);
+          const isWedding = formData.event_type === 'wedding';
+          const portionFactor = (isFirstCourse && !isWedding) ? 1 / 6 : (dish.portion_factor ?? 1);
           // Formula: planned_qty = (guest_count × serving_percentage/100 × portion_factor)
           const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
           plannedQty = Math.ceil(rawQuantity);

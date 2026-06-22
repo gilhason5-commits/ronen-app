@@ -17,7 +17,8 @@ export default function RecalculateAllButton({ events, allDishes, allCategories 
     });
   };
 
-  const getEffectivePlannedCost = (eventDish, guestCount, dishMap) => {
+  const getEffectivePlannedCost = (eventDish, event, dishMap) => {
+    const guestCount = event.guest_count || 0;
     if (eventDish.planned_cost && eventDish.planned_cost > 0) return eventDish.planned_cost;
     const dish = dishMap[eventDish.dish_id];
     if (!dish) return 0;
@@ -28,7 +29,8 @@ export default function RecalculateAllButton({ events, allDishes, allCategories 
       const totalPortionsNeeded = guestCount * (servingPercentage / 100);
       plannedQty = Math.ceil(totalPortionsNeeded / portionsPerPreparation);
     } else {
-      const portionFactor = isFirstCourseDish(dish) ? 1 / 6 : (dish.portion_factor ?? 1);
+      const isWedding = event?.event_type === 'wedding';
+      const portionFactor = (isFirstCourseDish(dish) && !isWedding) ? 1 / 6 : (dish.portion_factor ?? 1);
       const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
       plannedQty = Math.ceil(rawQuantity);
     }
@@ -52,7 +54,7 @@ export default function RecalculateAllButton({ events, allDishes, allCategories 
         const eventDishes = allEventDishes.filter(ed => ed.event_id === event.id);
         if (eventDishes.length === 0) continue;
 
-        const totalCost = eventDishes.reduce((sum, ed) => sum + getEffectivePlannedCost(ed, guestCount, dishMap), 0);
+        const totalCost = eventDishes.reduce((sum, ed) => sum + getEffectivePlannedCost(ed, event, dishMap), 0);
         const foodCostPct = foodRevenue > 0 ? (totalCost / foodRevenue) * 100 : 0;
         const oldCost = event.food_cost_sum || 0;
         const oldPct = event.food_cost_pct || 0;

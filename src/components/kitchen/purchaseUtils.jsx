@@ -47,8 +47,9 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
       const totalPortionsNeeded = guestCount * (servingPercentage / 100);
       return Math.ceil(totalPortionsNeeded / portionsPerPreparation);
     }
-    // First-course rule applies to all event types (including weddings)
-    const portionFactor = isFirstCourseDish(dish) ? 1 / 6 : (dish.portion_factor ?? 1);
+    // First-course rule applies to all event types EXCEPT weddings ("הפוכה")
+    const isWedding = event?.event_type === 'wedding';
+    const portionFactor = (isFirstCourseDish(dish) && !isWedding) ? 1 / 6 : (dish.portion_factor ?? 1);
     const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
     return Math.ceil(rawQuantity);
   };

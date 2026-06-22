@@ -140,7 +140,9 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
             let plannedQty, plannedCost;
             if (isFirstCourseCategory()) {
               const servingPct = data.serving_percentage ?? 100;
-              const rawQty = guestCount * (servingPct / 100) * (1 / 6);
+              const isWedding = event[0].event_type === 'wedding';
+              const portionFactor = !isWedding ? (1 / 6) : (data.portion_factor ?? 1);
+              const rawQty = guestCount * (servingPct / 100) * portionFactor;
               plannedQty = Math.ceil(rawQty);
               plannedCost = plannedQty * data.unit_cost;
             } else {

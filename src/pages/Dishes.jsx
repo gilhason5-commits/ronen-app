@@ -101,8 +101,14 @@ export default function Dishes() {
 
   const filteredDishes = dishes.filter(dish => {
     const matchesSearch = dish.name?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === "all" || 
-                           dish.categories?.includes(filterCategory);
+    let matchesCategory = false;
+    if (filterCategory === "no_ingredients") {
+      matchesCategory = !dish.ingredients || dish.ingredients.length === 0;
+    } else if (filterCategory === "all") {
+      matchesCategory = true;
+    } else {
+      matchesCategory = dish.categories?.includes(filterCategory);
+    }
     return matchesSearch && matchesCategory;
   });
 
@@ -255,6 +261,16 @@ export default function Dishes() {
                 }`}
               >
                 הכל
+              </button>
+              <button
+                onClick={() => setFilterCategory("no_ingredients")}
+                className={`px-3 py-2 rounded-lg border transition-colors text-sm font-medium ${
+                  filterCategory === "no_ingredients"
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-stone-50 border-stone-200 hover:bg-stone-100"
+                }`}
+              >
+                ללא רכיבים
               </button>
               {categories.map(category => (
                 <div key={category.id} className="relative group">

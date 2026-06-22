@@ -40,7 +40,11 @@
       "Bash(node test-all.mjs)",
       "Bash(node test-special.mjs)",
       "Bash(node -e ' *)",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Bash(curl -s 'https://cudsnpnqyvzkcicxxisc.supabase.co/rest/v1/TaskAssignment?select=id,task_title,start_time,end_time,event_id,event_name,status&id=eq.d72774ab-6ae2-4e07-bc08-76ede6abe2a3' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NjgwMTMsImV4cCI6MjA5MTE0NDAxM30.nVV3cxMOR5GSlSxFkWrdHUCJ5IjHV1y78vZHhsjYnz0')",
+      "Bash(curl -s 'https://cudsnpnqyvzkcicxxisc.supabase.co/rest/v1/Event?select=id,event_name,event_date,event_time&id=eq.48febb18-d5a4-433c-a0cc-3087135cec3d' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NjgwMTMsImV4cCI6MjA5MTE0NDAxM30.nVV3cxMOR5GSlSxFkWrdHUCJ5IjHV1y78vZHhsjYnz0')",
+      "Bash(curl -s 'https://cudsnpnqyvzkcicxxisc.supabase.co/rest/v1/Event?select=id,event_name,event_date,event_time&event_name=ilike.*בדיקה*' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NjgwMTMsImV4cCI6MjA5MTE0NDAxM30.nVV3cxMOR5GSlSxFkWrdHUCJ5IjHV1y78vZHhsjYnz0')",
+      "Bash(curl -s 'https://cudsnpnqyvzkcicxxisc.supabase.co/rest/v1/Event?select=id,event_name,event_date,event_time&order=event_date.desc&limit=10' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1ZHNucG5xeXZ6a2NpY3h4aXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NjgwMTMsImV4cCI6MjA5MTE0NDAxM30.nVV3cxMOR5GSlSxFkWrdHUCJ5IjHV1y78vZHhsjYnz0')"
     ]
   }
 }
