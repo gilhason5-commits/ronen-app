@@ -24,6 +24,7 @@ import EventPrintDialog from "../events/EventPrintDialog";
 import DepartmentPrintDialog from "../events/DepartmentPrintDialog";
 import { fmtCurrency } from "../utils/formatNumbers";
 import { calculateAdultCommitment, calculateAdultPortions } from "@/lib/dinerCount";
+import { applyWasteToValue, wasteLabel } from "@/lib/foodWaste";
 
 export default function EventForm({ event, onClose }) {
   const queryClient = useQueryClient();
@@ -141,11 +142,15 @@ export default function EventForm({ event, onClose }) {
   const recalcRef = React.useRef(false);
 
   const getEffectivePlannedCost = useCallback((eventDish) => {
-    if (eventDish.planned_cost && eventDish.planned_cost > 0) return eventDish.planned_cost;
+    const guestCount = formData.guest_count || 0;
+    // Apply the event-level food reduction (פחת) to the stored cost as well —
+    // planned_cost is saved as the pre-reduction base, so reduce it here.
+    if (eventDish.planned_cost && eventDish.planned_cost > 0) {
+      return applyWasteToValue(eventDish.planned_cost, guestCount);
+    }
     // If planned_cost is 0, calculate from suggested quantity
     const dish = dishes.find(d => d.id === eventDish.dish_id);
     if (!dish) return 0;
-    const guestCount = formData.guest_count || 0;
     const servingPercentage = dish.serving_percentage ?? 100;
     let plannedQty;
     if (dish.preparation_mass_grams && dish.portion_size_grams) {
@@ -158,7 +163,7 @@ export default function EventForm({ event, onClose }) {
       const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
       plannedQty = Math.ceil(rawQuantity);
     }
-    return plannedQty * (dish.unit_cost || 0);
+    return applyWasteToValue(plannedQty * (dish.unit_cost || 0), guestCount);
   }, [dishes, formData.guest_count, formData.event_type, categories]);
 
   const recalculateEventCosts = useCallback(async (overrideRevenue = null, specificEventId = null) => {
@@ -463,6 +468,13 @@ export default function EventForm({ event, onClose }) {
                         value={formData.guest_count || ''}
                         disabled
                         readOnly />
+                      {wasteLabel(formData.guest_count) ? (
+                        <p className="text-xs text-amber-700 mt-1">
+                          פחת אוכל: {wasteLabel(formData.guest_count)}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-stone-400 mt-1">ללא פחת (מתחת ל-150)</p>
+                      )}
                     </div>
                     <div>
                       <Label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"> מחיר מנה כולל מע״מ (₪)

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { UtensilsCrossed } from "lucide-react";
 import { fmtCurrency } from "../utils/formatNumbers";
+import { applyWasteToValue } from "@/lib/foodWaste";
 
 export default function CategoryBreakdown({ events, eventDishes: propEventDishes, getEffectivePlannedCost }) {
   // If eventDishes are passed directly, use them. Otherwise fetch from API
@@ -29,12 +30,20 @@ export default function CategoryBreakdown({ events, eventDishes: propEventDishes
     relevantDishes = fetchedEventsDishes.filter(ed => eventIds.includes(ed.event_id));
   }
 
+  // Map event_id → guest_count so we can apply the פחת to stored planned_cost.
+  const guestCountByEvent = {};
+  (events || []).forEach(e => { guestCountByEvent[e.id] = e.guest_count; });
+
   // Calculate cost by category
   const categoryTotals = {};
   relevantDishes.forEach(ed => {
     const categoryId = ed.category_id;
-    const cost = getEffectivePlannedCost ? getEffectivePlannedCost(ed) : (ed.planned_cost || 0);
-    
+    // getEffectivePlannedCost (when provided) already applies the reduction;
+    // otherwise reduce the stored base planned_cost here.
+    const cost = getEffectivePlannedCost
+      ? getEffectivePlannedCost(ed)
+      : applyWasteToValue(ed.planned_cost || 0, guestCountByEvent[ed.event_id]);
+
     if (!categoryTotals[categoryId]) {
       categoryTotals[categoryId] = 0;
     }

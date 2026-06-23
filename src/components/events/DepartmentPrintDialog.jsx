@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
 import DepartmentPrintPreview from "./DepartmentPrintPreview";
+import { eventWastePct, eventWasteFactor, applyWasteToQty } from "@/lib/foodWaste";
 
 const DEPARTMENTS = {
   hot_kitchen: 'מטבח חם',
@@ -105,19 +106,23 @@ export default function DepartmentPrintDialog({
   };
 
   const getEffectivePlannedQty = (eventDish) => {
-    // Always calculate from source (guest count × serving % × portion factor)
+    // Always calculate from source (guest count × serving % × portion factor),
+    // then apply the event-level food reduction (פחת).
     const dish = dishes.find(d => d.id === eventDish.dish_id);
     if (!dish) return 0;
     const guestCount = event?.guest_count || 0;
     const servingPercentage = dish.serving_percentage ?? 100;
+    let baseQty;
     if (dish.preparation_mass_grams && dish.portion_size_grams) {
       const portionsPerPreparation = dish.preparation_mass_grams / dish.portion_size_grams;
       const totalPortionsNeeded = guestCount * (servingPercentage / 100);
-      return Math.ceil(totalPortionsNeeded / portionsPerPreparation);
+      baseQty = Math.ceil(totalPortionsNeeded / portionsPerPreparation);
+    } else {
+      const portionFactor = isFirstCourseDish(dish) ? 1/6 : (dish.portion_factor ?? 1);
+      const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
+      baseQty = Math.ceil(rawQuantity);
     }
-    const portionFactor = isFirstCourseDish(dish) ? 1/6 : (dish.portion_factor ?? 1);
-    const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
-    return Math.ceil(rawQuantity);
+    return applyWasteToQty(baseQty, guestCount);
   };
 
   const getIngredientSupportDept = (ingredient) => {
@@ -350,19 +355,24 @@ export default function DepartmentPrintDialog({
       // Build calculation breakdown string
       const guestCount = event?.guest_count || 0;
       const servingPct = dish.serving_percentage ?? 100;
+      const wPct = eventWastePct(guestCount);
+      const wasteTail = wPct > 0
+        ? ` × ${eventWasteFactor(guestCount)} (פחת ${wPct * 100}%) = ${effectiveQty}`
+        : '';
       let calcBreakdown = '';
       if (dish.preparation_mass_grams && dish.portion_size_grams) {
         const portionsPerPrep = dish.preparation_mass_grams / dish.portion_size_grams;
         const totalPortions = guestCount * (servingPct / 100);
-        calcBreakdown = `${guestCount} מבוגרים × ${servingPct}% = ${formatNumber(totalPortions)} מנות ÷ ${formatNumber(portionsPerPrep)} מנות למסה = ${effectiveQty}`;
+        const baseQty = Math.ceil(totalPortions / portionsPerPrep);
+        const head = `${guestCount} מבוגרים × ${servingPct}% = ${formatNumber(totalPortions)} מנות ÷ ${formatNumber(portionsPerPrep)} מנות למסה`;
+        calcBreakdown = wPct > 0 ? `${head} = ${baseQty}${wasteTail}` : `${head} = ${effectiveQty}`;
       } else {
         const portionFactor = isFirstCourseDish(dish) ? 1/6 : (dish.portion_factor ?? 1);
         const raw = guestCount * (servingPct / 100) * portionFactor;
-        if (portionFactor !== 1) {
-          calcBreakdown = `${guestCount} מבוגרים × ${servingPct}% × ${formatNumber(portionFactor)} = ${formatNumber(raw)} ⇒ ${effectiveQty}`;
-        } else {
-          calcBreakdown = `${guestCount} מבוגרים × ${servingPct}% = ${formatNumber(raw)} ⇒ ${effectiveQty}`;
-        }
+        const baseQty = Math.ceil(raw);
+        const factorPart = portionFactor !== 1 ? ` × ${formatNumber(portionFactor)}` : '';
+        const head = `${guestCount} מבוגרים × ${servingPct}%${factorPart} = ${formatNumber(raw)}`;
+        calcBreakdown = wPct > 0 ? `${head} ⇒ ${baseQty}${wasteTail}` : `${head} ⇒ ${effectiveQty}`;
       }
 
       deptDishes.push({

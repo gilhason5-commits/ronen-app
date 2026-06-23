@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { subMonths, format } from 'date-fns';
+import { applyWasteToQty } from "@/lib/foodWaste";
 
 const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#6366f1'];
 
@@ -52,6 +53,8 @@ export default function IngredientCategoryPieChart() {
 
     const categoryTotals = {};
     const relevantEventIds = new Set(events.map(e => e.id));
+    const guestCountByEvent = {};
+    events.forEach(e => { guestCountByEvent[e.id] = e.guest_count; });
 
     // Filter relevant EventDishes
     const relevantEventDishes = eventsDishes.filter(ed => relevantEventIds.has(ed.event_id));
@@ -60,7 +63,8 @@ export default function IngredientCategoryPieChart() {
       const dish = dishes.find(d => d.id === ed.dish_id);
       if (!dish || !dish.ingredients) return;
 
-      const plannedQty = ed.planned_qty || 0; // Number of portions/units
+      // Number of portions/units, after the event-level food reduction (פחת).
+      const plannedQty = applyWasteToQty(ed.planned_qty || 0, guestCountByEvent[ed.event_id]);
 
       dish.ingredients.forEach(dishIng => {
         const ingredientDef = ingredients.find(i => i.id === dishIng.ingredient_id);

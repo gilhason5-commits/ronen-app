@@ -1,5 +1,6 @@
 import React from 'react';
 import { format } from 'date-fns';
+import { applyWasteToQty, applyWasteToValue } from '@/lib/foodWaste';
 
 const formatNumber = (num, maxDecimals = 2) => {
   if (num === 0) return '0';
@@ -17,8 +18,8 @@ export default function EventPrintReport({ event, eventDishes, dishes, categorie
         .filter(ed => ed.category_id === cat.id)
         .map(ed => ({
           ...dishes.find(d => d.id === ed.dish_id),
-          planned_qty: ed.planned_qty,
-          planned_cost: ed.planned_cost
+          planned_qty: applyWasteToQty(ed.planned_qty, event?.guest_count),
+          planned_cost: applyWasteToValue(ed.planned_cost, event?.guest_count)
         }))
         .filter(Boolean);
       
@@ -44,7 +45,7 @@ export default function EventPrintReport({ event, eventDishes, dishes, categorie
       const dish = dishes.find(d => d.id === eventDish.dish_id);
       if (!dish || !dish.ingredients) return;
 
-      const plannedQty = eventDish.planned_qty || 0;
+      const plannedQty = applyWasteToQty(eventDish.planned_qty || 0, event?.guest_count);
 
       dish.ingredients.forEach(ing => {
         const key = ing.ingredient_id;

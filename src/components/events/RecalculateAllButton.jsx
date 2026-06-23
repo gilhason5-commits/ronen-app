@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { applyWasteToValue } from "@/lib/foodWaste";
 
 export default function RecalculateAllButton({ events, allDishes, allCategories }) {
   const [isRunning, setIsRunning] = useState(false);
@@ -19,7 +20,10 @@ export default function RecalculateAllButton({ events, allDishes, allCategories 
 
   const getEffectivePlannedCost = (eventDish, event, dishMap) => {
     const guestCount = event.guest_count || 0;
-    if (eventDish.planned_cost && eventDish.planned_cost > 0) return eventDish.planned_cost;
+    // planned_cost is stored as the pre-reduction base — apply the פחת here too.
+    if (eventDish.planned_cost && eventDish.planned_cost > 0) {
+      return applyWasteToValue(eventDish.planned_cost, guestCount);
+    }
     const dish = dishMap[eventDish.dish_id];
     if (!dish) return 0;
     const servingPercentage = dish.serving_percentage ?? 100;
@@ -34,7 +38,7 @@ export default function RecalculateAllButton({ events, allDishes, allCategories 
       const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
       plannedQty = Math.ceil(rawQuantity);
     }
-    return plannedQty * (dish.unit_cost || 0);
+    return applyWasteToValue(plannedQty * (dish.unit_cost || 0), guestCount);
   };
 
   const handleRecalculate = async () => {
