@@ -41,5 +41,5 @@ export function wasteLabel(guestCount) {
   if (pct <= 0) return '';
   const pctNum = pct * 100;
   const pctStr = Number.isInteger(pctNum) ? String(pctNum) : pctNum.toFixed(1);
-  return `−${pctStr}% (×${eventWasteFactor(guestCount)})`;
+  return `−${pctStr}%`;
 }
