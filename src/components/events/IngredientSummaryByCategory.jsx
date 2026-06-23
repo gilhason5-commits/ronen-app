@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Package, CookingPot } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { eventWastePct, eventWasteFactor, applyWasteToQty } from "@/lib/foodWaste";
 
 const formatNumber = (num, maxDecimals = 3) => {
   if (num === 0) return '0';
@@ -30,6 +31,8 @@ export default function IngredientSummaryByCategory({ eventDetails, eventDishes 
   }
 
   const { event_name, event_date, guest_count } = eventDetails;
+  const wPct = eventWastePct(guest_count);
+  const wFactor = eventWasteFactor(guest_count);
 
   // Group ingredients by category and then by dish
   const summaryByCategory = {};
@@ -38,8 +41,10 @@ export default function IngredientSummaryByCategory({ eventDetails, eventDishes 
     const dish = dishes.find(d => d.id === eventDish.dish_id);
     if (!dish || !dish.ingredients) return;
 
-    const plannedQty = eventDish.planned_qty || 0;
-    if (plannedQty <= 0) return;
+    const basePlannedQty = eventDish.planned_qty || 0;
+    if (basePlannedQty <= 0) return;
+    // Apply the event-level food reduction (פחת) to the portion count.
+    const plannedQty = applyWasteToQty(basePlannedQty, guest_count);
 
     dish.ingredients.forEach(dishIng => {
       const ingredient = ingredients.find(ing => ing.id === dishIng.ingredient_id);
@@ -73,6 +78,7 @@ export default function IngredientSummaryByCategory({ eventDetails, eventDishes 
         ingredient_name: ingredient.name,
         unit: ingredient.system_unit,
         qtyPerServing: qtyPerServing,
+        basePlannedQty: basePlannedQty,
         plannedQty: plannedQty,
         totalNeeded: totalNeeded
       });
@@ -123,7 +129,11 @@ export default function IngredientSummaryByCategory({ eventDetails, eventDishes 
                           <span className="font-medium">כמות למנה:</span> {formatNumber(ing.qtyPerServing)} {ing.unit}
                         </p>
                         <p className="text-stone-600">
-                          <span className="font-medium">חישוב:</span> {ing.plannedQty} מנות × {formatNumber(ing.qtyPerServing)} {ing.unit} = <span className="font-bold text-emerald-700">{formatNumber(ing.totalNeeded)} {ing.unit}</span>
+                          <span className="font-medium">חישוב:</span>{' '}
+                          {wPct > 0 && (
+                            <span className="text-amber-700">{ing.basePlannedQty} × {wFactor} (פחת {wPct * 100}%) = </span>
+                          )}
+                          {ing.plannedQty} מנות × {formatNumber(ing.qtyPerServing)} {ing.unit} = <span className="font-bold text-emerald-700">{formatNumber(ing.totalNeeded)} {ing.unit}</span>
                         </p>
                       </div>
                     ))}

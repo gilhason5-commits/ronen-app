@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShoppingCart, AlertTriangle, CheckCircle, Package, Tag } from "lucide-react";
 import IngredientSummaryByCategory from "./IngredientSummaryByCategory";
+import { applyWasteToQty } from "@/lib/foodWaste";
 
 const formatNumber = (num, maxDecimals = 3) => {
   if (num === 0) return '0';
@@ -38,7 +39,9 @@ export default function EventIngredientSummary({ eventDetails, eventDishes = [],
 
     dish.ingredients.forEach(dishIng => {
       const qty = typeof dishIng.qty === 'string' ? parseFloat(dishIng.qty) || 0 : (dishIng.qty || 0);
-      const totalNeeded = qty * (eventDish.planned_qty || 0);
+      // Apply the event-level food reduction (פחת) to the portion count.
+      const effectivePlannedQty = applyWasteToQty(eventDish.planned_qty || 0, eventDetails?.guest_count);
+      const totalNeeded = qty * effectivePlannedQty;
 
       if (!ingredientSummary[dishIng.ingredient_id]) {
         ingredientSummary[dishIng.ingredient_id] = {

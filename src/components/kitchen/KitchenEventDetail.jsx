@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
 import DepartmentPrintDialog from "@/components/events/DepartmentPrintDialog";
+import { applyWasteToQty } from "@/lib/foodWaste";
 
 export default function KitchenEventDetail({ event }) {
   const [showDeptPrint, setShowDeptPrint] = React.useState(false);
@@ -66,14 +67,17 @@ export default function KitchenEventDetail({ event }) {
   const calculateSuggestedQuantity = (dish) => {
     const guestCount = event?.guest_count || 0;
     const servingPercentage = dish.serving_percentage ?? 100;
+    let baseQty;
     if (dish.preparation_mass_grams && dish.portion_size_grams) {
       const portionsPerPreparation = dish.preparation_mass_grams / dish.portion_size_grams;
       const totalPortionsNeeded = guestCount * (servingPercentage / 100);
-      return Math.ceil(totalPortionsNeeded / portionsPerPreparation);
+      baseQty = Math.ceil(totalPortionsNeeded / portionsPerPreparation);
+    } else {
+      const portionFactor = isFirstCourseDish(dish) ? 1/6 : (dish.portion_factor ?? 1);
+      const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
+      baseQty = Math.ceil(rawQuantity);
     }
-    const portionFactor = isFirstCourseDish(dish) ? 1/6 : (dish.portion_factor ?? 1);
-    const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
-    return Math.ceil(rawQuantity);
+    return applyWasteToQty(baseQty, guestCount);
   };
 
   const sortedCategories = [...categories]

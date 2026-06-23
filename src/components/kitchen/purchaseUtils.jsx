@@ -1,4 +1,5 @@
 import { format, startOfWeek, endOfWeek, addDays, subDays } from 'date-fns';
+import { applyWasteToQty } from '@/lib/foodWaste';
 
 export const roundToPurchaseUnit = (qty, purchaseUnit) => {
   if (!purchaseUnit || purchaseUnit <= 0) return qty;
@@ -37,21 +38,25 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
   };
 
   const getEffectivePlannedQty = (eventDish, event) => {
-    // Always calculate from source (guest count × serving % × portion factor)
+    // Always calculate from source (guest count × serving % × portion factor),
+    // then apply the event-level food reduction (פחת) — this drives purchasing.
     const dish = dishes.find(d => d.id === eventDish.dish_id);
     if (!dish) return 0;
     const guestCount = event?.guest_count || 0;
     const servingPercentage = dish.serving_percentage ?? 100;
+    let baseQty;
     if (dish.preparation_mass_grams && dish.portion_size_grams) {
       const portionsPerPreparation = dish.preparation_mass_grams / dish.portion_size_grams;
       const totalPortionsNeeded = guestCount * (servingPercentage / 100);
-      return Math.ceil(totalPortionsNeeded / portionsPerPreparation);
+      baseQty = Math.ceil(totalPortionsNeeded / portionsPerPreparation);
+    } else {
+      // First-course rule applies to all event types EXCEPT weddings ("הפוכה")
+      const isWedding = event?.event_type === 'wedding';
+      const portionFactor = (isFirstCourseDish(dish) && !isWedding) ? 1 / 6 : (dish.portion_factor ?? 1);
+      const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
+      baseQty = Math.ceil(rawQuantity);
     }
-    // First-course rule applies to all event types EXCEPT weddings ("הפוכה")
-    const isWedding = event?.event_type === 'wedding';
-    const portionFactor = (isFirstCourseDish(dish) && !isWedding) ? 1 / 6 : (dish.portion_factor ?? 1);
-    const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
-    return Math.ceil(rawQuantity);
+    return applyWasteToQty(baseQty, guestCount);
   };
 
   events.forEach(event => {

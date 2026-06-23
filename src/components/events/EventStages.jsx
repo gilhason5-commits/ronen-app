@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import DishDialog from "@/components/dishes/DishDialog";
 import { fmtCurrency } from "@/components/utils/formatNumbers";
 import DishNoteEditor from "@/components/events/DishNoteEditor";
+import { applyWasteToQty } from "@/lib/foodWaste";
 
 export default function EventStages({ 
   event, 
@@ -159,10 +160,11 @@ export default function EventStages({
         .map(ed => {
           const dish = dishes.find(d => d.id === ed.dish_id);
           if (!dish) return null;
-          const qty = calculateSuggestedQuantity(dish, category);
+          const baseQty = calculateSuggestedQuantity(dish, category);
+          const qty = applyWasteToQty(baseQty, event?.guest_count);
           const cost = qty * (dish.unit_cost || 0);
           const subCat = subCategoriesData.find(sc => sc.id === dish.sub_category_id);
-          return { ...dish, planned_qty: qty, cost, subCatOrder: subCat?.display_order ?? 999, subCatName: subCat?.name || '' };
+          return { ...dish, planned_qty: qty, base_qty: baseQty, cost, subCatOrder: subCat?.display_order ?? 999, subCatName: subCat?.name || '' };
         })
         .filter(Boolean)
         .sort((a, b) => a.subCatOrder - b.subCatOrder || b.cost - a.cost);
@@ -180,7 +182,7 @@ export default function EventStages({
         rows += `
           <tr>
             <td>${d.name}${d.description ? `<br><span class="desc">${d.description}</span>` : ''}</td>
-            <td class="text-center">${d.planned_qty}</td>
+            <td class="text-center">${d.base_qty}${d.planned_qty !== d.base_qty ? ` (${d.planned_qty})` : ''}</td>
             <td class="text-center">${d.serving_percentage || 100}%</td>
           </tr>
         `;
@@ -358,15 +360,16 @@ export default function EventStages({
                 <div className="space-y-3">
                   {(() => {
                     const enriched = [...selectedDishes].map(dish => {
-                      const suggestedQty = calculateSuggestedQuantity(dish, category);
+                      const baseQty = calculateSuggestedQuantity(dish, category);
+                      const suggestedQty = applyWasteToQty(baseQty, event?.guest_count);
                       const cost = suggestedQty * (dish.unit_cost || 0);
                       const subCat = subCategoriesData.find(sc => sc.id === dish.sub_category_id);
-                      return { dish, suggestedQty, cost, subCatOrder: subCat?.display_order ?? 999, subCatName: subCat?.name || '' };
+                      return { dish, baseQty, suggestedQty, cost, subCatOrder: subCat?.display_order ?? 999, subCatName: subCat?.name || '' };
                     });
                     enriched.sort((a, b) => a.subCatOrder - b.subCatOrder || b.cost - a.cost);
-                    
+
                     let lastSubCat = null;
-                    return enriched.map(({ dish, suggestedQty, cost, subCatName }) => {
+                    return enriched.map(({ dish, baseQty, suggestedQty, cost, subCatName }) => {
                       const showSubCatHeader = subCatName && subCatName !== lastSubCat;
                       lastSubCat = subCatName || lastSubCat;
                       return (
@@ -414,7 +417,10 @@ export default function EventStages({
                                   <div>
                                     <Label className="text-xs text-stone-600">כמות</Label>
                                     <p className="text-sm font-semibold text-stone-900 mt-1">
-                                      {suggestedQty}
+                                      {baseQty}
+                                      {suggestedQty !== baseQty && (
+                                        <span className="text-amber-700 font-normal"> ({suggestedQty})</span>
+                                      )}
                                     </p>
                                   </div>
                                   <div className="flex flex-col justify-between">

@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Printer, X } from "lucide-react";
+import { applyWasteToQty, applyWasteToValue } from "@/lib/foodWaste";
 
 const formatNum = (num) => {
   if (num === 0) return '0';
@@ -127,8 +128,8 @@ export default function EventPrintDialog({
         .filter(ed => ed.category_id === cat.id && ed.planned_qty > 0)
         .map(ed => ({
           ...dishes.find(d => d.id === ed.dish_id),
-          planned_qty: ed.planned_qty,
-          planned_cost: ed.planned_cost
+          planned_qty: applyWasteToQty(ed.planned_qty, event?.guest_count),
+          planned_cost: applyWasteToValue(ed.planned_cost, event?.guest_count)
         }))
         .filter(Boolean);
       
@@ -146,7 +147,7 @@ export default function EventPrintDialog({
       const dish = dishes.find(d => d.id === eventDish.dish_id);
       if (!dish || !dish.ingredients) return;
 
-      const plannedQty = eventDish.planned_qty || 0;
+      const plannedQty = applyWasteToQty(eventDish.planned_qty || 0, event?.guest_count);
 
       dish.ingredients.forEach(ing => {
         const key = ing.ingredient_id;
@@ -322,35 +323,38 @@ export default function EventPrintDialog({
             const dishesWithCategoryIngredients = [];
             eventDishes.forEach(eventDish => {
               if (!eventDish.planned_qty || eventDish.planned_qty <= 0) return;
-              
+
               const dish = dishes.find(d => d.id === eventDish.dish_id);
               if (!dish || !dish.ingredients) return;
-              
+
+              // Effective (post-פחת) portion count for this dish.
+              const effQty = applyWasteToQty(eventDish.planned_qty || 0, event?.guest_count);
+
               const dishIngredientsInCategory = dish.ingredients
                 .map(ing => {
                   const ingredient = ingredients.find(i => i.id === ing.ingredient_id);
                   if (!ingredient) return null;
-                  
+
                   const ingCatName = ingredient.ingredient_category_name || ingredient.category || 'ללא קטגוריה';
-                  
-                  const qtyNeeded = (ing.qty || 0) * (eventDish.planned_qty || 0);
+
+                  const qtyNeeded = (ing.qty || 0) * effQty;
                   return {
                     ingredient_name: ingredient?.name || ing.ingredient_name,
                     unit: ingredient?.system_unit || ing.unit,
                     qty_per_unit: ing.qty || 0,
-                    planned_qty: eventDish.planned_qty || 0,
+                    planned_qty: effQty,
                     total_qty: qtyNeeded,
                     category_name: ingCatName
                   };
                 })
                 .filter(Boolean)
                 .filter(ing => ing.category_name === categoryName && ing.total_qty > 0);
-              
+
               const filteredIngredients = dishIngredientsInCategory;
               if (filteredIngredients.length > 0) {
                 dishesWithCategoryIngredients.push({
                   dish_name: dish.name,
-                  planned_qty: eventDish.planned_qty,
+                  planned_qty: effQty,
                   ingredients: filteredIngredients
                 });
               }

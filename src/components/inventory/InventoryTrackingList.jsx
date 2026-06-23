@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sliders, Package, TrendingUp, Calendar, AlertCircle, CheckCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, addDays } from "date-fns";
+import { applyWasteToQty } from "@/lib/foodWaste";
 
 export default function InventoryTrackingList({ ingredients, events, eventsDishes, dishes, purchaseOrders, isLoading, onAdjust, onShowEventNeeds }) {
   
@@ -30,7 +31,7 @@ export default function InventoryTrackingList({ ingredients, events, eventsDishe
         const ingredient = dish.ingredients.find(i => i.ingredient_id === ingredientId);
         if (!ingredient) return;
         
-        const plannedQty = ed.planned_qty || 0;
+        const plannedQty = applyWasteToQty(ed.planned_qty || 0, event.guest_count);
         const baseQty = ingredient.qty || 0;
         const neededForEvent = baseQty * plannedQty;
         
@@ -64,7 +65,7 @@ export default function InventoryTrackingList({ ingredients, events, eventsDishe
         const ingredient = dish.ingredients.find(i => i.ingredient_id === ingredientId);
         if (!ingredient) return;
         
-        const plannedQty = ed.planned_qty || 0;
+        const plannedQty = applyWasteToQty(ed.planned_qty || 0, event.guest_count);
         const baseQty = ingredient.qty || 0;
         const neededForEvent = baseQty * plannedQty;
         
