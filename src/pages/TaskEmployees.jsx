@@ -19,6 +19,29 @@ import RoleDialog from "../components/tasks/RoleDialog";
 import RoleProceduresDialog from "../components/tasks/RoleProceduresDialog";
 import { toast } from "sonner";
 
+// Display order for the employee list, by role. Each entry is a substring
+// matched against the employee's role_name (covers variants like
+// "איש מכירות 1/2", "מנהל אירוע 2", "מנהלת כניסה"). Roles not listed sort last.
+const ROLE_ORDER = [
+  'מכירות',        // 1. אנשי מכירות
+  'אירוע',         // 2. מנהלי אירוע
+  'פלור',          // 3. מנהלי פלור
+  'מרפסת',         // 4. מנהל מרפסת
+  'מזנונים',       // 5. מנהל מזנונים
+  'מלצרית משפחה',  // 6. מלצרית משפחה
+  'כניסה',         // 7. מנהל כניסה
+  'מארחת',         // 8. מארחת
+  'מלצר',          // 9. מלצרים
+  'שף',            // 10. שף
+  'קונדיטור',      // 11. קונדיטור/ית
+];
+
+const roleRank = (roleName) => {
+  const r = roleName || '';
+  const idx = ROLE_ORDER.findIndex(key => r.includes(key));
+  return idx === -1 ? ROLE_ORDER.length : idx;
+};
+
 export default function TaskEmployees() {
   const [activeTab, setActiveTab] = useState("employees");
   const [showDeptDialog, setShowDeptDialog] = useState(false);
@@ -57,6 +80,9 @@ export default function TaskEmployees() {
       toast.success('עובד עודכן');
       setEditingId(null);
     },
+    onError: () => {
+      toast.error('עדכון העובד נכשל');
+    },
   });
 
   const createEmployeeMutation = useMutation({
@@ -66,15 +92,24 @@ export default function TaskEmployees() {
       toast.success('עובד נוצר');
       setEditingId(null);
     },
+    onError: () => {
+      toast.error('שמירת העובד נכשלה');
+    },
   });
 
   const filteredEmployees = employees.filter(emp => {
     const search = searchTerm.toLowerCase();
-    const matchesSearch = emp.full_name?.toLowerCase().includes(search) || 
+    const matchesSearch = emp.full_name?.toLowerCase().includes(search) ||
            emp.phone_e164?.toLowerCase().includes(search) ||
            emp.role?.toLowerCase().includes(search);
     const matchesDepartment = !selectedDeptFilter || emp.department_id === selectedDeptFilter;
     return matchesSearch && matchesDepartment;
+  }).sort((a, b) => {
+    const ra = roleRank(a.role_name);
+    const rb = roleRank(b.role_name);
+    if (ra !== rb) return ra - rb;
+    return (a.role_name || '').localeCompare(b.role_name || '', 'he')
+      || (a.full_name || '').localeCompare(b.full_name || '', 'he');
   });
 
   const activeCount = employees.filter(e => e.is_active).length;
@@ -120,6 +155,10 @@ export default function TaskEmployees() {
       dataToSave.department_id = '';
       dataToSave.department_name = '';
     }
+    // UUID columns reject empty strings — coerce blanks to null
+    ['role_id', 'department_id', 'manager_id'].forEach(k => {
+      if (!dataToSave[k]) dataToSave[k] = null;
+    });
     if (id === 'new') {
       createEmployeeMutation.mutate(dataToSave);
     } else {
