@@ -5,14 +5,14 @@
 //
 // Brackets (guest_count = סה״כ מבוגרים להתחייבות):
 //   < 150        → 0%
-//   150 – 249    → 2.5%
-//   250 – 349    → 5%
-//   ≥ 350        → 7.5%
+//   150 – 249    → 2%
+//   250 – 349    → 4%
+//   ≥ 350        → 6%
 export function eventWastePct(guestCount) {
   const n = parseInt(guestCount, 10) || 0;
-  if (n >= 350) return 0.075;
-  if (n >= 250) return 0.05;
-  if (n >= 150) return 0.025;
+  if (n >= 350) return 0.06;
+  if (n >= 250) return 0.04;
+  if (n >= 150) return 0.02;
   return 0;
 }
 
