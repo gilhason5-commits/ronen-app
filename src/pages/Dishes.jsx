@@ -140,7 +140,46 @@ export default function Dishes() {
 
   const handlePrint = () => {
     const eventTypeName = eventTypeFilter === 'serving' ? 'אירוע הגשה' : eventTypeFilter === 'wedding' ? 'אירוע הפוכה' : 'מסיבה';
-    
+
+    // When a specific category (or "ללא רכיבים") is filtered, print ONLY the
+    // dish titles of the currently shown dishes for that filter.
+    if (filterCategory !== 'all') {
+      const filterName = filterCategory === 'no_ingredients'
+        ? 'ללא רכיבים'
+        : (categories.find(c => c.id === filterCategory)?.name || 'קטגוריה');
+
+      const titlesHTML = `
+        <html dir="rtl">
+          <head>
+            <title>${filterName} - ${eventTypeName}</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; }
+              h1 { color: #1c1917; margin-bottom: 4px; }
+              .date { color: #78716c; font-size: 14px; margin-bottom: 20px; }
+              ol { font-size: 18px; line-height: 1.9; padding-right: 28px; margin: 0; }
+              li { margin-bottom: 4px; }
+              .empty { color: #78716c; }
+            </style>
+          </head>
+          <body>
+            <h1>${filterName}</h1>
+            <div class="date">${eventTypeName} · ${new Date().toLocaleDateString('he-IL')} · ${filteredDishes.length} מנות</div>
+            ${filteredDishes.length
+              ? `<ol>${filteredDishes.map(dish => `<li>${dish.name}</li>`).join('')}</ol>`
+              : `<p class="empty">אין מנות בקטגוריה זו</p>`}
+          </body>
+        </html>
+      `;
+
+      const win = window.open('', '', 'width=800,height=600');
+      win.document.write(titlesHTML);
+      win.document.close();
+      win.focus();
+      win.print();
+      win.close();
+      return;
+    }
+
     // Group dishes by category
     const dishesByCategory = categories.map(category => ({
       category,
