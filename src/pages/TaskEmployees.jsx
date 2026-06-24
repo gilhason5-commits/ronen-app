@@ -57,6 +57,9 @@ export default function TaskEmployees() {
       toast.success('עובד עודכן');
       setEditingId(null);
     },
+    onError: () => {
+      toast.error('עדכון העובד נכשל');
+    },
   });
 
   const createEmployeeMutation = useMutation({
@@ -65,6 +68,9 @@ export default function TaskEmployees() {
       queryClient.invalidateQueries({ queryKey: ['taskEmployees'] });
       toast.success('עובד נוצר');
       setEditingId(null);
+    },
+    onError: () => {
+      toast.error('שמירת העובד נכשלה');
     },
   });
 
@@ -120,6 +126,10 @@ export default function TaskEmployees() {
       dataToSave.department_id = '';
       dataToSave.department_name = '';
     }
+    // UUID columns reject empty strings — coerce blanks to null
+    ['role_id', 'department_id', 'manager_id'].forEach(k => {
+      if (!dataToSave[k]) dataToSave[k] = null;
+    });
     if (id === 'new') {
       createEmployeeMutation.mutate(dataToSave);
     } else {
