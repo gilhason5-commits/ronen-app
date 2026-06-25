@@ -46,6 +46,8 @@ export default function TaskTemplateDialog({ template, taskType, categories, emp
     escalate_to_manager_if_not_done: true,
     escalation_role_id: '',
     escalation_role_name: '',
+    backup_role_id: '',
+    backup_role_name: '',
     schedule_rule: '',
     anchor: 'EVENT_START',
     start_offset_minutes: 0,
@@ -71,6 +73,8 @@ export default function TaskTemplateDialog({ template, taskType, categories, emp
         escalate_to_manager_if_not_done: true,
         escalation_role_id: '',
         escalation_role_name: '',
+        backup_role_id: '',
+        backup_role_name: '',
         schedule_rule: '',
         anchor: 'EVENT_START',
         start_offset_minutes: 0,
@@ -202,6 +206,40 @@ export default function TaskTemplateDialog({ template, taskType, categories, emp
           )}
 
           {isPerEvent && (
+            <div className="pt-4 border-t">
+              <Label>תפקיד מבצע חלופי</Label>
+              <p className="text-xs text-stone-500 mb-1">אם המבצע הראשי סימן שאינו מגיע, המשימה תעבור אוטומטית לעובד בתפקיד זה (ללא הודעת זמינות נוספת)</p>
+              <Select
+                value={formData.backup_role_id || ''}
+                onValueChange={(value) => {
+                  const role = roles?.find(r => r.id === value);
+                  setFormData({
+                    ...formData,
+                    backup_role_id: value,
+                    backup_role_name: role?.role_name || ''
+                  });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="בחר תפקיד חלופי (אופציונלי)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">ללא מבצע חלופי</SelectItem>
+                  {roles?.map(role => (
+                    <SelectItem key={role.id} value={role.id}>
+                      {role.role_name}
+                      {(() => {
+                        const emps = employees?.filter(e => e.role_id === role.id && e.is_active);
+                        return emps?.length > 0 ? ` (${emps.map(e => e.full_name).join(', ')})` : '';
+                      })()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {isPerEvent && (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>היסט מתחילת אירוע (דקות)</Label>
@@ -291,9 +329,10 @@ export default function TaskTemplateDialog({ template, taskType, categories, emp
                 }
                 const { default_role_name, ...rest } = formData;
                 const clean = { ...rest };
-                ['category_id', 'escalation_role_id', 'default_role'].forEach(k => {
+                ['category_id', 'escalation_role_id', 'default_role', 'backup_role_id'].forEach(k => {
                   if (clean[k] === '' || clean[k] === 'none') clean[k] = null;
                 });
+                if (clean.backup_role_id === null) clean.backup_role_name = '';
                 saveMutation.mutate(clean);
               }}
             >
