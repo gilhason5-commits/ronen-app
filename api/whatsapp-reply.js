@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp, TEMPLATES } from "./_twilio.js";
+import { reassignEventTasksToBackup } from "./_taskBackup.js";
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -601,99 +602,25 @@ async function sendCEOEscalation(record) {
 // backup_role_id) or, if no eligible backup exists, marked NOT_ARRIVING so the
 // scheduler stops sending it. Returns { suppressManagerEscalation } — true only
 // when every task was covered by a backup, so the caller can skip the manual
-// office-manager replacement flow.
+// office-manager replacement flow. The reassignment itself lives in
+// _taskBackup.js so the manual "move to backup" button reuses identical logic.
 async function cancelEventTasksForEmployee(record) {
   if (!record.event_id || !record.employee_id) {
     console.log(`ℹ️ Missing event_id/employee_id on availability record ${record.id}, skipping event cancellation`);
     return { suppressManagerEscalation: false };
   }
 
-  const { data: tasks } = await supabase
-    .from("TaskAssignment")
-    .select("id, task_title, assigned_to_id, assigned_to_name, backup_role_id, backup_role_name")
-    .eq("event_id", record.event_id)
-    .eq("assigned_to_id", record.employee_id)
-    .eq("status", "PENDING");
-
-  if (!tasks?.length) {
-    console.log(`ℹ️ No pending event tasks to cancel for ${record.employee_name || record.employee_id}`);
-    return { suppressManagerEscalation: false };
-  }
-
-  // Resolve each distinct backup role to its first active employee.
-  const backupRoleIds = [...new Set(tasks.map((t) => t.backup_role_id).filter(Boolean))];
-  const activeByRole = {};
-  let unavailableBackupIds = new Set();
-
-  if (backupRoleIds.length) {
-    const { data: emps } = await supabase
-      .from("TaskEmployee")
-      .select("id, full_name, phone_e164, role_id")
-      .in("role_id", backupRoleIds)
-      .eq("is_active", true);
-
-    for (const e of emps || []) {
-      if (!activeByRole[e.role_id]) activeByRole[e.role_id] = e;
-    }
-
-    // A backup who already confirmed unavailable for this same event (e.g. they
-    // are a primary on another task and said they're not coming) must not
-    // receive the work. No chaining beyond this single check.
-    const candidateIds = Object.values(activeByRole).map((e) => e.id);
-    if (candidateIds.length) {
-      const { data: unavail } = await supabase
-        .from("EmployeeDailyAvailability")
-        .select("employee_id")
-        .eq("event_id", record.event_id)
-        .eq("confirmation_status", "CONFIRMED_UNAVAILABLE")
-        .in("employee_id", candidateIds);
-      unavailableBackupIds = new Set((unavail || []).map((r) => r.employee_id));
-    }
-  }
-
-  let reassigned = 0;
-  let cancelled = 0;
-
-  await Promise.all(
-    tasks.map(async (task) => {
-      const backup = task.backup_role_id ? activeByRole[task.backup_role_id] : null;
-
-      if (backup && !unavailableBackupIds.has(backup.id)) {
-        await supabase
-          .from("TaskAssignment")
-          .update({
-            assigned_to_id: backup.id,
-            assigned_to_name: backup.full_name || "",
-            assigned_to_phone: backup.phone_e164 || "",
-            original_assigned_to_id: task.assigned_to_id,
-            original_assigned_to_name: task.assigned_to_name || record.employee_name || "",
-            last_notification_start_sent_at: null,
-            last_notification_end_sent_at: null,
-          })
-          .eq("id", task.id)
-          .eq("status", "PENDING");
-        reassigned++;
-        console.log(`↪️ Task ${task.id} (${task.task_title || "-"}) reassigned to backup ${backup.full_name}`);
-      } else {
-        await supabase
-          .from("TaskAssignment")
-          .update({
-            status: "NOT_ARRIVING",
-            last_notification_start_sent_at: null,
-            last_notification_end_sent_at: null,
-          })
-          .eq("id", task.id)
-          .eq("status", "PENDING");
-        cancelled++;
-      }
-    }),
-  );
+  const result = await reassignEventTasksToBackup(supabase, {
+    eventId: record.event_id,
+    employeeId: record.employee_id,
+    employeeName: record.employee_name,
+  });
 
   console.log(
-    `🔁 Event ${record.event_id}: ${reassigned} reassigned to backup, ${cancelled} marked NOT_ARRIVING for ${record.employee_name || record.employee_id}`,
+    `🔁 Event ${record.event_id}: ${result.reassigned} reassigned to backup, ${result.cancelled} marked NOT_ARRIVING for ${record.employee_name || record.employee_id}`,
   );
 
-  return { suppressManagerEscalation: cancelled === 0 };
+  return { suppressManagerEscalation: result.suppressManagerEscalation };
 }
 
 // Symmetric undo: if an employee whose tasks were moved to a backup later

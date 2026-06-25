@@ -1,10 +1,11 @@
 import React, { useMemo } from "react";
 import { base44 } from "@/api/base44Client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Clock, Users, Printer } from "lucide-react";
+import { Clock, Users, Printer, UserCheck } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { toast } from "sonner";
 import EventTaskSummaryCard from "./EventTaskSummaryCard";
 
 const STATUS_CONFIG = {
@@ -54,6 +55,43 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
     initialData: [],
   });
 
+  const queryClient = useQueryClient();
+
+  const moveToBackupMutation = useMutation({
+    mutationFn: async (employeeId) => {
+      const res = await fetch('/api/move-tasks-to-backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId, employeeId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'שגיאה בהעברת המשימות');
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['taskAssignments', 'status', eventId] });
+      const { reassigned = 0, cancelled = 0 } = data || {};
+      if (reassigned > 0) {
+        toast.success(`${reassigned} משימות הועברו למבצע החלופי${cancelled > 0 ? `, ${cancelled} ללא חלופי סומנו "לא מגיע"` : ''}`);
+      } else if (cancelled > 0) {
+        toast.warning(`אין מבצע חלופי זמין — ${cancelled} משימות סומנו "לא מגיע"`);
+      } else {
+        toast.info('לא נמצאו משימות פעילות להעברה');
+      }
+    },
+    onError: (err) => {
+      toast.error(err?.message || 'שגיאה בהעברת המשימות');
+    },
+  });
+
+  const handleMoveToBackup = (col) => {
+    if (!col?.employeeId) return;
+    const ok = window.confirm(
+      `להעביר את משימות ${col.employeeName || 'העובד'} למבצע החלופי? ${col.employeeName || 'העובד'} יסומן כ"לא מגיע" לאירוע.`
+    );
+    if (ok) moveToBackupMutation.mutate(col.employeeId);
+  };
+
   const columns = useMemo(() => {
     const roleMap = {};
 
@@ -66,9 +104,18 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
       const employeeName = emp?.full_name || a.assigned_to_name || '';
 
       if (!roleMap[roleId]) {
-        roleMap[roleId] = { name: roleName, employeeName, tasks: [] };
+        roleMap[roleId] = { name: roleName, employeeName, employeeId: a.assigned_to_id || null, tasks: [] };
       }
       roleMap[roleId].tasks.push(a);
+    });
+
+    // A column can be moved to its backup when it has an identifiable primary
+    // employee and at least one PENDING task that has a backup role configured
+    // and hasn't already been reassigned.
+    Object.values(roleMap).forEach(col => {
+      col.canMoveToBackup = !!col.employeeId && col.tasks.some(
+        t => t.status === 'PENDING' && t.backup_role_id && !t.original_assigned_to_id
+      );
     });
 
     // Sort tasks by start_time within each role
@@ -250,6 +297,18 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
                           <p className="text-xs text-stone-500 truncate mt-0.5">{col.employeeName}</p>
                         )}
                       </div>
+                      {col.canMoveToBackup && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-2 gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50"
+                          disabled={moveToBackupMutation.isPending}
+                          onClick={() => handleMoveToBackup(col)}
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          העבר משימות לעובד חלופי
+                        </Button>
+                      )}
                     </div>
                     <div className="border border-t-0 border-stone-200 rounded-b-lg p-3 space-y-2 bg-stone-50 min-h-[200px] max-h-[70vh] overflow-y-auto">
                       {col.tasks.map(task => (
