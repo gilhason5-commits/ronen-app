@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Clock, Users, Printer, UserCheck } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
+import { markUnavailableAndReassignToBackup } from "@/lib/taskBackup";
 import EventTaskSummaryCard from "./EventTaskSummaryCard";
 
 const STATUS_CONFIG = {
@@ -59,14 +60,9 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
 
   const moveToBackupMutation = useMutation({
     mutationFn: async (employeeId) => {
-      const res = await fetch('/api/move-tasks-to-backup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId, employeeId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'שגיאה בהעברת המשימות');
-      return data;
+      const employee = employees.find((e) => e.id === employeeId);
+      if (!employee) throw new Error('לא נמצא העובד הראשי');
+      return markUnavailableAndReassignToBackup({ event, employee, employees });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['taskAssignments', 'status', eventId] });
