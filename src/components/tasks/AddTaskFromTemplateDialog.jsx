@@ -123,6 +123,8 @@ export default function AddTaskFromTemplateDialog({ open, onClose, eventId, even
       escalation_employee_id: escalationEmployee?.id || null,
       escalation_employee_name: escalationEmployee?.full_name || '',
       escalation_employee_phone: escalationEmployee?.phone_e164 || '',
+      backup_role_id: selectedTemplate.backup_role_id || null,
+      backup_role_name: selectedTemplate.backup_role_name || '',
       manager_id: employee.manager_id || null,
       manager_name: employee.manager_name || '',
       manager_phone: '',

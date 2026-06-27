@@ -1,6 +1,6 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Bell, ArrowUpCircle } from "lucide-react";
+import { Clock, Bell, ArrowUpCircle, ArrowLeftRight } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 const statusConfig = {
@@ -50,6 +50,13 @@ export default function EventTaskSummaryCard({ assignment }) {
         <Clock className="w-3 h-3 flex-shrink-0" />
         <span>{startTime} - {endTime}</span>
       </div>
+
+      {assignment.original_assigned_to_name && (
+        <div className="flex items-center gap-1.5 text-xs text-amber-600 mb-1">
+          <ArrowLeftRight className="w-3 h-3 flex-shrink-0" />
+          <span>הועבר מ-{assignment.original_assigned_to_name} (מבצע חלופי)</span>
+        </div>
+      )}
 
       {assignment.last_notification_start_sent_at && (
         <div className="flex items-center gap-1.5 text-xs text-blue-600">

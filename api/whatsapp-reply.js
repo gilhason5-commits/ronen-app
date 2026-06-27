@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsApp, TEMPLATES } from "./_twilio.js";
+import { reassignEventTasksToBackup } from "./_taskBackup.js";
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -297,6 +298,9 @@ async function processAvailabilityRecord(record, isAvailable) {
 
   if (isAvailable) {
     console.log(`✅ ${record.employee_name || "Employee"} confirmed AVAILABLE`);
+    // If this employee had previously been marked unavailable and their tasks
+    // were auto-moved to a backup performer, a re-confirmation hands them back.
+    if (record.event_id) await restoreBackupReassignments(record);
     return;
   }
 
@@ -307,11 +311,15 @@ async function processAvailabilityRecord(record, isAvailable) {
   // day's recurring tasks; their flows don't overlap because Peti Vor staff
   // and event staff are separate populations.
   if (record.event_id) {
-    await cancelEventTasksForEmployee(record);
+    const { suppressManagerEscalation } = await cancelEventTasksForEmployee(record);
+    // Only chase the office manager for a manual replacement when at least one
+    // task could not be auto-reassigned to a backup performer. If backups
+    // covered everything, the absence is already handled.
+    if (!suppressManagerEscalation) await sendManagerAvailabilityEscalation(record);
   } else {
     await cancelRecurringTasksForEmployee(record);
+    await sendManagerAvailabilityEscalation(record);
   }
-  await sendManagerAvailabilityEscalation(record);
 }
 
 async function sendManagerAvailabilityEscalation(record) {
@@ -589,38 +597,73 @@ async function sendCEOEscalation(record) {
   }
 }
 
+// When an employee confirms unavailable, each of their pending event tasks is
+// either handed to a backup performer (the active employee filling the task's
+// backup_role_id) or, if no eligible backup exists, marked NOT_ARRIVING so the
+// scheduler stops sending it. Returns { suppressManagerEscalation } — true only
+// when every task was covered by a backup, so the caller can skip the manual
+// office-manager replacement flow. The reassignment itself lives in
+// _taskBackup.js so the manual "move to backup" button reuses identical logic.
 async function cancelEventTasksForEmployee(record) {
   if (!record.event_id || !record.employee_id) {
     console.log(`ℹ️ Missing event_id/employee_id on availability record ${record.id}, skipping event cancellation`);
-    return;
+    return { suppressManagerEscalation: false };
   }
+
+  const result = await reassignEventTasksToBackup(supabase, {
+    eventId: record.event_id,
+    employeeId: record.employee_id,
+    employeeName: record.employee_name,
+  });
+
+  console.log(
+    `🔁 Event ${record.event_id}: ${result.reassigned} reassigned to backup, ${result.cancelled} marked NOT_ARRIVING for ${record.employee_name || record.employee_id}`,
+  );
+
+  return { suppressManagerEscalation: result.suppressManagerEscalation };
+}
+
+// Symmetric undo: if an employee whose tasks were moved to a backup later
+// confirms they ARE coming, hand the tasks back. Only fires while the
+// availability record is still PENDING at reply time (the update guard in
+// processAvailabilityRecord ignores a second reply once a status is locked in).
+async function restoreBackupReassignments(record) {
+  if (!record.event_id || !record.employee_id) return;
 
   const { data: tasks } = await supabase
     .from("TaskAssignment")
     .select("id")
     .eq("event_id", record.event_id)
-    .eq("assigned_to_id", record.employee_id)
+    .eq("original_assigned_to_id", record.employee_id)
     .eq("status", "PENDING");
 
-  if (!tasks?.length) {
-    console.log(`ℹ️ No pending event tasks to cancel for ${record.employee_name || record.employee_id}`);
-    return;
-  }
+  if (!tasks?.length) return;
+
+  const { data: emp } = await supabase
+    .from("TaskEmployee")
+    .select("full_name, phone_e164")
+    .eq("id", record.employee_id)
+    .single();
 
   await Promise.all(
     tasks.map((task) =>
       supabase
         .from("TaskAssignment")
         .update({
-          status: "NOT_ARRIVING",
+          assigned_to_id: record.employee_id,
+          assigned_to_name: emp?.full_name || record.employee_name || "",
+          assigned_to_phone: emp?.phone_e164 || "",
+          original_assigned_to_id: null,
+          original_assigned_to_name: null,
           last_notification_start_sent_at: null,
           last_notification_end_sent_at: null,
         })
-        .eq("id", task.id),
+        .eq("id", task.id)
+        .eq("status", "PENDING"),
     ),
   );
 
-  console.log(`🚫 Cancelled ${tasks.length} event task(s) for ${record.employee_name || record.employee_id}`);
+  console.log(`↩️ Restored ${tasks.length} task(s) to ${record.employee_name || record.employee_id} after re-confirming available`);
 }
 
 async function sendTaskEscalation(task, employee) {
