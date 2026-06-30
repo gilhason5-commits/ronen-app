@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import ProducerEventForm from "../components/producer/ProducerEventForm";
 import ProducerEventCard from "../components/producer/ProducerEventCard";
 import ProducerEventPrint from "../components/producer/ProducerEventPrint";
-import { generateEventTasks, daysUntilEvent, APPROVAL_MIN_DAYS_BEFORE } from "@/lib/eventTaskGeneration";
+import { generateEventTasks, daysUntilEvent, APPROVAL_MAX_DAYS_BEFORE } from "@/lib/eventTaskGeneration";
 
 export default function ProducerPage() {
   const [showForm, setShowForm] = useState(false);
@@ -49,8 +49,8 @@ export default function ProducerPage() {
     mutationFn: async (event) => {
       // Defensive: the button is disabled when too early, but the mutation
       // re-checks in case the card was rendered against a stale event_date.
-      if (daysUntilEvent(event.event_date) < APPROVAL_MIN_DAYS_BEFORE) {
-        throw new Error("ניתן לאשר רק עד 4 ימים לפני האירוע");
+      if (daysUntilEvent(event.event_date) > APPROVAL_MAX_DAYS_BEFORE) {
+        throw new Error("ניתן לאשר את האירוע רק ב-4 הימים שלפניו");
       }
       await base44.entities.Event.update(event.id, {
         producer_approved: true,

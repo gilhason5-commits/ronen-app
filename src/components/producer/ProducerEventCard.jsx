@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Users, Pencil, Send, CheckCircle2, Printer, Trash2, Download } from "lucide-react";
 import { format } from "date-fns";
-import { daysUntilEvent, APPROVAL_MIN_DAYS_BEFORE } from "@/lib/eventTaskGeneration";
+import { daysUntilEvent, APPROVAL_MAX_DAYS_BEFORE } from "@/lib/eventTaskGeneration";
 
 const eventTypeLabels = {
   serving: "אירוע הגשה",
@@ -15,7 +15,8 @@ const eventTypeLabels = {
 export default function ProducerEventCard({ event, dishCount, onEdit, onApprove, onPrint, onDelete, onSavePdf }) {
   const isApproved = event.producer_approved;
   const days = daysUntilEvent(event.event_date);
-  const tooEarly = days < APPROVAL_MIN_DAYS_BEFORE;
+  // Too early to approve while the event is still more than the window away.
+  const tooEarly = days > APPROVAL_MAX_DAYS_BEFORE;
 
   return (
     <Card className={`border-stone-200 ${isApproved ? "bg-emerald-50 border-emerald-200" : ""}`}>
@@ -77,7 +78,7 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
                     size="sm"
                     className={tooEarly ? "bg-stone-300 hover:bg-stone-300 cursor-not-allowed text-stone-600" : "bg-emerald-600 hover:bg-emerald-700"}
                     disabled={tooEarly}
-                    title={tooEarly ? "ניתן לאשר רק עד 4 ימים לפני האירוע" : ""}
+                    title={tooEarly ? "ניתן לאשר את האירוע רק ב-4 הימים שלפניו" : ""}
                     onClick={() => !tooEarly && onApprove(event)}
                   >
                     <Send className="w-4 h-4 ml-1" />
@@ -88,7 +89,7 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
                   </p>
                   {tooEarly && (
                     <p className="text-[11px] text-amber-700 leading-snug text-right">
-                      ניתן לאשר רק עד 4 ימים לפני האירוע.
+                      ניתן לאשר את האירוע רק ב-4 הימים שלפניו.
                     </p>
                   )}
                 </div>
