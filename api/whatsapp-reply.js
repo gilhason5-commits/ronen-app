@@ -317,8 +317,11 @@ async function processAvailabilityRecord(record, isAvailable) {
     // covered everything, the absence is already handled.
     if (!suppressManagerEscalation) await sendManagerAvailabilityEscalation(record);
   } else {
-    await cancelRecurringTasksForEmployee(record);
-    await sendManagerAvailabilityEscalation(record);
+    const { suppressManagerEscalation } = await cancelRecurringTasksForEmployee(record);
+    // When a backup performer picked up the task, don't ping the manager about
+    // the absence — if the backup then fails to do it, the normal task
+    // escalation (NOT_DONE / OVERDUE) notifies the manager as usual.
+    if (!suppressManagerEscalation) await sendManagerAvailabilityEscalation(record);
   }
 }
 
@@ -369,15 +372,22 @@ async function sendManagerAvailabilityEscalation(record) {
   console.log(`✅ Availability escalation complete: ${successCount}/${escalationTargets.length}`);
 }
 
+// A recurring (event_id IS NULL) employee marked unavailable for the day. Each
+// of that day's PENDING recurring tasks is handed to its configured backup
+// employee (Peti Vor tasks carry a per-assignment backup_employee_id), or marked
+// NOT_ARRIVING when there's no eligible backup. A backup who has themselves
+// confirmed unavailable for the same day is skipped (no chaining). No restore is
+// needed — the next occurrence is a separate row already assigned to the primary.
+// Returns { suppressManagerEscalation } — true only when every task was covered.
 async function cancelRecurringTasksForEmployee(record) {
-  if (!record.employee_id || !record.event_date) return;
+  if (!record.employee_id || !record.event_date) return { suppressManagerEscalation: false };
 
   const dayStartIso = new Date(`${record.event_date}T00:00:00`).toISOString();
   const dayEndIso = new Date(`${record.event_date}T23:59:59`).toISOString();
 
   const { data: tasks } = await supabase
     .from("TaskAssignment")
-    .select("id")
+    .select("id, task_title, assigned_to_id, assigned_to_name, backup_employee_id, backup_employee_name, backup_employee_phone")
     .eq("assigned_to_id", record.employee_id)
     .eq("status", "PENDING")
     .is("event_id", null)
@@ -386,16 +396,62 @@ async function cancelRecurringTasksForEmployee(record) {
 
   if (!tasks?.length) {
     console.log(`ℹ️ No recurring tasks to cancel for ${record.employee_name || record.employee_id}`);
-    return;
+    return { suppressManagerEscalation: false };
   }
 
+  // Backup employees who already confirmed unavailable for this same day must
+  // not receive the work.
+  const backupIds = [...new Set(tasks.map((t) => t.backup_employee_id).filter(Boolean))];
+  let unavailableBackupIds = new Set();
+  if (backupIds.length) {
+    const { data: unavail } = await supabase
+      .from("EmployeeDailyAvailability")
+      .select("employee_id")
+      .is("event_id", null)
+      .eq("event_date", record.event_date)
+      .eq("confirmation_status", "CONFIRMED_UNAVAILABLE")
+      .in("employee_id", backupIds);
+    unavailableBackupIds = new Set((unavail || []).map((r) => r.employee_id));
+  }
+
+  let reassigned = 0;
+  let cancelled = 0;
+
   await Promise.all(
-    tasks.map((task) =>
-      supabase.from("TaskAssignment").update({ status: "NOT_ARRIVING" }).eq("id", task.id),
-    ),
+    tasks.map(async (task) => {
+      const hasBackup = task.backup_employee_id && !unavailableBackupIds.has(task.backup_employee_id);
+      if (hasBackup) {
+        await supabase
+          .from("TaskAssignment")
+          .update({
+            assigned_to_id: task.backup_employee_id,
+            assigned_to_name: task.backup_employee_name || "",
+            assigned_to_phone: task.backup_employee_phone || "",
+            original_assigned_to_id: task.assigned_to_id,
+            original_assigned_to_name: task.assigned_to_name || record.employee_name || "",
+            last_notification_start_sent_at: null,
+            last_notification_end_sent_at: null,
+          })
+          .eq("id", task.id)
+          .eq("status", "PENDING");
+        reassigned++;
+        console.log(`↪️ Recurring task ${task.id} (${task.task_title || "-"}) reassigned to backup ${task.backup_employee_name}`);
+      } else {
+        await supabase
+          .from("TaskAssignment")
+          .update({ status: "NOT_ARRIVING" })
+          .eq("id", task.id)
+          .eq("status", "PENDING");
+        cancelled++;
+      }
+    }),
   );
 
-  console.log(`🚫 Cancelled ${tasks.length} recurring tasks for ${record.employee_name || record.employee_id}`);
+  console.log(
+    `🔁 Recurring for ${record.employee_name || record.employee_id}: ${reassigned} reassigned to backup, ${cancelled} marked NOT_ARRIVING`,
+  );
+
+  return { suppressManagerEscalation: cancelled === 0 };
 }
 
 async function cancelEventTasksForEmployeeOnDate(record) {
