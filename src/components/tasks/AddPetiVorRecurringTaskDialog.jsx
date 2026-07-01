@@ -25,6 +25,7 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
   const [selectedWeekdays, setSelectedWeekdays] = useState([]);
   const [selectedDayOfMonth, setSelectedDayOfMonth] = useState("1");
   const [escalationRole, setEscalationRole] = useState("");
+  const [selectedBackupEmployee, setSelectedBackupEmployee] = useState("");
   
   const queryClient = useQueryClient();
 
@@ -94,6 +95,7 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
       setSelectedWeekdays(editingAssignment.recurrence_days || []);
       setSelectedDayOfMonth(String(editingAssignment.recurrence_day_of_month || 1));
       setEscalationRole(editingAssignment.escalation_role_id || "");
+      setSelectedBackupEmployee(editingAssignment.backup_employee_id || "");
       const template = templates.find(t => t.id === editingAssignment.task_template_id);
       if (template) {
         setSelectedTemplate(template);
@@ -172,6 +174,7 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
     const effectiveEscalationRole = (escalationRole && escalationRole !== 'none') ? escalationRole : '';
     const escalationEmployee = effectiveEscalationRole ? getEmployeeForRole(effectiveEscalationRole) : null;
     const escalationRoleObj = effectiveEscalationRole ? allRoles.find(r => r.id === effectiveEscalationRole) : null;
+    const backupEmployee = selectedBackupEmployee ? getEmployeeById(selectedBackupEmployee) : null;
 
     if (editingAssignment) {
       const employee = getEmployeeById(selectedEmployee);
@@ -192,6 +195,9 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
         escalation_employee_name: escalationEmployee?.full_name || '',
         escalation_employee_phone: escalationEmployee?.phone_e164 || '',
         escalate_to_manager: !!effectiveEscalationRole,
+        backup_employee_id: backupEmployee?.id || null,
+        backup_employee_name: backupEmployee?.full_name || '',
+        backup_employee_phone: backupEmployee?.phone_e164 || '',
       };
       if (startTime && startDate) {
         const [hours, minutes] = startTime.split(':').map(Number);
@@ -239,6 +245,9 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
         escalation_employee_id: escalationEmployee?.id || null,
         escalation_employee_name: escalationEmployee?.full_name || '',
         escalation_employee_phone: escalationEmployee?.phone_e164 || '',
+        backup_employee_id: backupEmployee?.id || null,
+        backup_employee_name: backupEmployee?.full_name || '',
+        backup_employee_phone: backupEmployee?.phone_e164 || '',
         additional_employees: selectedEmployees.filter(id => id !== employee.id).map(id => {
           const e = getEmployeeById(id);
           return e ? { employee_id: e.id, employee_name: e.full_name, employee_phone: e.phone_e164 } : null;
@@ -294,7 +303,7 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
   const handleClose = () => {
     setSearchTerm(""); setSelectedCategory(null); setSelectedTemplate(null);
     setSelectedEmployee(""); setSelectedEmployees([]); setStartDate(""); setStartTime("");
-    setRecurrenceType(""); setSelectedWeekdays([]); setSelectedDayOfMonth("1"); setEscalationRole("");
+    setRecurrenceType(""); setSelectedWeekdays([]); setSelectedDayOfMonth("1"); setEscalationRole(""); setSelectedBackupEmployee("");
     onClose();
   };
 
@@ -404,6 +413,23 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
                     )}
                   </div>
                 )}
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-stone-700 mb-2 block">
+                  <Briefcase className="w-4 h-4 inline mr-1" />
+                  עובד חלופי (אופציונלי)
+                </label>
+                <p className="text-xs text-stone-500 mb-2">אם המבצע יסמן שאינו מגיע, המשימה של אותו יום תעבור אוטומטית לעובד זה</p>
+                <Select value={selectedBackupEmployee || 'none'} onValueChange={(v) => setSelectedBackupEmployee(v === 'none' ? '' : v)}>
+                  <SelectTrigger><SelectValue placeholder="בחר עובד חלופי" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">ללא עובד חלופי</SelectItem>
+                    {activeEmployees.map(emp => (
+                      <SelectItem key={emp.id} value={emp.id}>{emp.full_name} - {emp.role_name || ''}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
