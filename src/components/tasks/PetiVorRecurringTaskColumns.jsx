@@ -54,7 +54,10 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
     queryKey: ['taskAssignments', 'PETI_VOR_RECURRING'],
     queryFn: async () => {
       const data = await base44.entities.TaskAssignment.list('-start_time', 500);
-      return data.filter(a => !a.event_id && pvEmployeeIds.has(a.assigned_to_id));
+      // Keep only recurring rows here; the Peti-Vor-employee filter happens in
+      // the `columns` memo so it re-applies once the employees list has loaded
+      // (filtering here would capture an empty pvEmployeeIds on the first run).
+      return data.filter(a => !a.event_id);
     },
     initialData: [],
   });
@@ -74,6 +77,7 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
   const columns = useMemo(() => {
     const roleMap = {};
     assignments.forEach(a => {
+      if (!pvEmployeeIds.has(a.assigned_to_id)) return;
       const emp = employees.find(e => e.id === a.assigned_to_id);
       const roleId = emp?.role_id || 'unassigned';
       const role = roles.find(r => r.id === roleId);
@@ -100,7 +104,7 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
       roleMap[roleId].templates[tmplId].instances.push(a);
     });
     return roleMap;
-  }, [assignments, employees, roles]);
+  }, [assignments, employees, roles, pvEmployeeIds]);
 
   const [columnOrder, setColumnOrder] = useState(null);
   const [taskOrder, setTaskOrder] = useState({});
