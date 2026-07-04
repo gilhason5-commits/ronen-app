@@ -2,12 +2,13 @@
 // handler (api/whatsapp-reply.js) and the manual "move to backup" button
 // (client-side mirror in src/lib/taskBackup.js).
 //
-// Backup resolution order, for both event tasks and Peti Vor recurring tasks:
-//   1. The employee-level backup ("עובד חלופי") configured on the employee's
-//      row in the employees page — receives ALL the leaving employee's tasks
-//      and any task escalations that pointed at them.
-//   2. Fallbacks when unset: the task's template backup_role (event tasks) or
-//      the per-assignment backup_employee (Peti Vor tasks).
+// Backup resolution:
+//   - The employee-level backup ("עובד חלופי") configured on the employee's
+//     row in the employees page — the single source of truth — receives ALL
+//     the leaving employee's tasks and any task escalations that pointed at
+//     them. For Peti Vor recurring tasks it is the only mechanism.
+//   - Event tasks keep one fallback when unset: the task's template
+//     backup_role.
 // A backup who is inactive or has themselves confirmed unavailable for the
 // same event/day is skipped (single check, no chaining). Tasks with no
 // eligible backup are marked NOT_ARRIVING so the scheduler stops sending them.
@@ -155,12 +156,12 @@ export async function reassignEventTasksToBackup(
 }
 
 // A Peti Vor / recurring (event_id IS NULL) employee marked unavailable for the
-// day. Each of that day's PENDING recurring tasks is handed to the backup
-// (employee-level first, then the per-assignment backup_employee), or marked
-// NOT_ARRIVING when there's no eligible backup. Escalations on that day's
-// recurring tasks that point at the absent employee move to their
-// employee-level backup as well. No restore is needed — the next occurrence is
-// a separate row already assigned to the primary.
+// day. Each of that day's PENDING recurring tasks is handed to the
+// employee-level backup ("עובד חלופי" from the employees page — the single
+// source of truth), or marked NOT_ARRIVING when no eligible backup exists.
+// Escalations on that day's recurring tasks that point at the absent employee
+// move to the backup as well. No restore is needed — the next occurrence is a
+// separate row already assigned to the primary.
 export async function reassignRecurringTasksToBackup(supabase, record) {
   if (!record.employee_id || !record.event_date) {
     return { reassigned: 0, cancelled: 0, escalationsRerouted: 0, suppressManagerEscalation: false };
@@ -177,38 +178,19 @@ export async function reassignRecurringTasksToBackup(supabase, record) {
 
   const { data: tasks } = await supabase
     .from("TaskAssignment")
-    .select("id, task_title, assigned_to_id, assigned_to_name, backup_employee_id, backup_employee_name, backup_employee_phone")
+    .select("id, task_title, assigned_to_id, assigned_to_name")
     .eq("assigned_to_id", record.employee_id)
     .eq("status", "PENDING")
     .is("event_id", null)
     .gte("start_time", dayStartIso)
     .lte("start_time", dayEndIso);
 
-  // Per-assignment backups who already confirmed unavailable for this same day
-  // must not receive the work (the employee-level backup was already vetted).
-  const backupIds = [...new Set((tasks || []).map((t) => t.backup_employee_id).filter(Boolean))];
-  let unavailableBackupIds = new Set();
-  if (!employeeBackup && backupIds.length) {
-    const { data: unavail } = await supabase
-      .from("EmployeeDailyAvailability")
-      .select("employee_id")
-      .is("event_id", null)
-      .eq("event_date", record.event_date)
-      .eq("confirmation_status", "CONFIRMED_UNAVAILABLE")
-      .in("employee_id", backupIds);
-    unavailableBackupIds = new Set((unavail || []).map((r) => r.employee_id));
-  }
-
   let reassigned = 0;
   let cancelled = 0;
 
   await Promise.all(
     (tasks || []).map(async (task) => {
-      const assignmentBackup =
-        task.backup_employee_id && !unavailableBackupIds.has(task.backup_employee_id)
-          ? { id: task.backup_employee_id, full_name: task.backup_employee_name, phone_e164: task.backup_employee_phone }
-          : null;
-      const backup = employeeBackup || assignmentBackup;
+      const backup = employeeBackup;
 
       if (backup) {
         await supabase

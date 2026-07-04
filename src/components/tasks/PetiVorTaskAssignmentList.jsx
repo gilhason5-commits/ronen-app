@@ -162,11 +162,6 @@ export default function PetiVorTaskAssignmentList({ departmentId }) {
                         ⇄ הועבר מ-{assignment.original_assigned_to_name} (עובד חלופי)
                       </p>
                     )}
-                    {!assignment.original_assigned_to_name && assignment.backup_employee_name && (
-                      <p className="text-xs text-stone-500 mt-1">
-                        עובד חלופי: {assignment.backup_employee_name}
-                      </p>
-                    )}
                     {assignment.escalation_employee_name && (
                       <p className="text-xs text-amber-600 mt-1">
                         <AlertTriangle className="w-3 h-3 inline mr-1" />

@@ -275,10 +275,7 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
                                   ? new Date(t.instances[0].start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
                                   : ''),
                             }));
-                            const currentBackupEmployeeId = Object.values(col.templates)
-                              .flatMap((t) => t.instances)
-                              .find((i) => i.backup_employee_id)?.backup_employee_id || "";
-                            setEditingRole({ roleId, roleName: col.name, employeeId: col.employeeId, departmentName: col.departmentName, tasks: tasksList, currentBackupEmployeeId });
+                            setEditingRole({ roleId, roleName: col.name, employeeId: col.employeeId, departmentName: col.departmentName, tasks: tasksList });
                           }}
                         >
                           <Settings className="w-4 h-4" />
@@ -313,7 +310,6 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
         roleId={editingRole?.roleId}
         roleName={editingRole?.roleName}
         currentEmployeeId={editingRole?.employeeId}
-        currentBackupEmployeeId={editingRole?.currentBackupEmployeeId}
         departmentName={editingRole?.departmentName}
         tasks={editingRole?.tasks || []}
       />
