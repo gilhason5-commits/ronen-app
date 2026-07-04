@@ -377,9 +377,9 @@ async function sendManagerAvailabilityEscalation(record) {
 }
 
 // A recurring (event_id IS NULL) employee marked unavailable for the day.
-// Tasks move to the backup (employee-level first, then the per-assignment
-// backup_employee), and escalations pointing at the absent employee move to
-// their employee-level backup. Logic lives in _taskBackup.js.
+// Tasks and escalations pointing at the absent employee move to their
+// employee-level backup ("עובד חלופי" from the employees page). Logic lives
+// in _taskBackup.js.
 async function cancelRecurringTasksForEmployee(record) {
   return reassignRecurringTasksToBackup(supabase, record);
 }

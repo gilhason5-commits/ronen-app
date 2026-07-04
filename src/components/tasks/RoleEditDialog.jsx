@@ -29,10 +29,9 @@ import { toast } from "sonner";
 // reminders and escalations.
 const PAUSE_KEY_PREFIX = "paused_employee:";
 
-export default function RoleEditDialog({ open, onClose, roleId, roleName, currentEmployeeId, currentBackupEmployeeId, departmentName, tasks = [] }) {
+export default function RoleEditDialog({ open, onClose, roleId, roleName, currentEmployeeId, departmentName, tasks = [] }) {
   const queryClient = useQueryClient();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(currentEmployeeId || "");
-  const [selectedBackupEmployeeId, setSelectedBackupEmployeeId] = useState(currentBackupEmployeeId || "");
   const [isPaused, setIsPaused] = useState(false);
   const [taskTimes, setTaskTimes] = useState({});
 
@@ -54,14 +53,13 @@ export default function RoleEditDialog({ open, onClose, roleId, roleName, curren
   useEffect(() => {
     if (!open) return;
     setSelectedEmployeeId(currentEmployeeId || "");
-    setSelectedBackupEmployeeId(currentBackupEmployeeId || "");
     setIsPaused(pausedKeys.some((s) => s.key === `${PAUSE_KEY_PREFIX}${currentEmployeeId}`));
     const initialTimes = {};
     for (const t of tasks) {
       initialTimes[t.templateId] = t.recurrenceTime || "";
     }
     setTaskTimes(initialTimes);
-  }, [open, currentEmployeeId, currentBackupEmployeeId, pausedKeys, tasks]);
+  }, [open, currentEmployeeId, pausedKeys, tasks]);
 
   // Employees in the same department as the column. Falls back to all active
   // employees if the column has no department on the role record so the picker
@@ -115,25 +113,6 @@ export default function RoleEditDialog({ open, onClose, roleId, roleName, curren
             department_name: role?.department_name || "",
           });
         }
-      }
-
-      // 1b. Set/clear the backup employee on every recurring PENDING task of the
-      //     effective employee, so one edit covers all of that person's tasks.
-      const effectiveEmpId = newEmpId || currentEmployeeId;
-      if (effectiveEmpId && (selectedBackupEmployeeId || "") !== (currentBackupEmployeeId || "")) {
-        const backupEmp = allEmployees.find((e) => e.id === selectedBackupEmployeeId) || null;
-        const backupPatch = {
-          backup_employee_id: backupEmp?.id || null,
-          backup_employee_name: backupEmp?.full_name || "",
-          backup_employee_phone: backupEmp?.phone_e164 || "",
-        };
-        const empTasks = await base44.entities.TaskAssignment.filter({ assigned_to_id: effectiveEmpId });
-        const pendingRecurring = empTasks.filter(
-          (t) => !t.event_id && (t.status === "PENDING" || t.status === "pending"),
-        );
-        await Promise.all(
-          pendingRecurring.map((t) => base44.entities.TaskAssignment.update(t.id, backupPatch)),
-        );
       }
 
       // 2. Toggle pause via the AppSetting row keyed by the (possibly new)
@@ -257,28 +236,6 @@ export default function RoleEditDialog({ open, onClose, roleId, roleName, curren
               <SelectContent>
                 <SelectItem value="__none__">ללא עובד</SelectItem>
                 {candidateEmployees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    {emp.full_name}
-                    {emp.role_name ? ` — ${emp.role_name}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>עובד חלופי</Label>
-            <p className="text-xs text-stone-500 mt-1 mb-1">אם העובד יסמן שאינו מגיע, המשימה של אותו יום תעבור לעובד זה. חל על כל משימות העובד.</p>
-            <Select
-              value={selectedBackupEmployeeId || "__none__"}
-              onValueChange={(v) => setSelectedBackupEmployeeId(v === "__none__" ? "" : v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="בחר עובד חלופי" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">ללא עובד חלופי</SelectItem>
-                {allEmployees.filter((e) => e.is_active && e.id !== selectedEmployeeId).map((emp) => (
                   <SelectItem key={emp.id} value={emp.id}>
                     {emp.full_name}
                     {emp.role_name ? ` — ${emp.role_name}` : ""}
