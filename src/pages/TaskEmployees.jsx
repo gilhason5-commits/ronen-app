@@ -153,6 +153,40 @@ export default function TaskEmployees() {
     }
   };
 
+  const handleBackupChange = (value) => {
+    if (value === '__none__') {
+      setEditForm({ ...editForm, backup_employee_id: null, backup_employee_name: '' });
+    } else {
+      const backup = employees.find(e => e.id === value);
+      setEditForm({
+        ...editForm,
+        backup_employee_id: value,
+        backup_employee_name: backup?.full_name || ''
+      });
+    }
+  };
+
+  const renderBackupSelect = () => (
+    <Select
+      value={editForm.backup_employee_id || "__none__"}
+      onValueChange={handleBackupChange}
+    >
+      <SelectTrigger className="w-full">
+        <SelectValue placeholder="עובד חלופי" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__none__">ללא</SelectItem>
+        {employees
+          .filter(e => e.is_active && e.id !== editingId)
+          .map(e => (
+            <SelectItem key={e.id} value={e.id}>
+              {e.full_name}{e.role_name ? ` (${e.role_name})` : ''}
+            </SelectItem>
+          ))}
+      </SelectContent>
+    </Select>
+  );
+
   const deleteDeptMutation = useMutation({
     mutationFn: (id) => base44.entities.Department.delete(id),
     onSuccess: () => {
@@ -303,6 +337,7 @@ export default function TaskEmployees() {
                   <th className="text-right p-3 text-sm font-semibold text-stone-700">מנהל</th>
                   <th className="text-right p-3 text-sm font-semibold text-stone-700">סטטוס</th>
                   <th className="text-right p-3 text-sm font-semibold text-stone-700">WhatsApp</th>
+                  <th className="text-right p-3 text-sm font-semibold text-stone-700">עובד חלופי</th>
                   <th className="text-right p-3 text-sm font-semibold text-stone-700">פעולות</th>
                 </tr>
               </thead>
@@ -350,6 +385,7 @@ export default function TaskEmployees() {
                     <td className="p-3">-</td>
                     <td className="p-3">-</td>
                     <td className="p-3">-</td>
+                    <td className="p-3">{renderBackupSelect()}</td>
                     <td className="p-3">
                       <div className="flex gap-2">
                         <Button
@@ -423,6 +459,7 @@ export default function TaskEmployees() {
                             {employee.whatsapp_enabled ? 'מופעל' : 'כבוי'}
                           </Badge>
                         </td>
+                        <td className="p-3">{renderBackupSelect()}</td>
                         <td className="p-3">
                           <div className="flex gap-2">
                             <Button
@@ -470,6 +507,9 @@ export default function TaskEmployees() {
                           <Badge className={employee.whatsapp_enabled ? "bg-green-100 text-green-700" : "bg-stone-100 text-stone-700"}>
                             {employee.whatsapp_enabled ? 'מופעל' : 'כבוי'}
                           </Badge>
+                        </td>
+                        <td className="p-3">
+                          <p className="text-sm text-stone-600">{employee.backup_employee_name || '-'}</p>
                         </td>
                         <td className="p-3">
                           <div className="flex gap-2">
