@@ -173,6 +173,11 @@ export default function PetiVorTaskAssignmentList({ departmentId }) {
                         אסקלציה: {assignment.escalation_role_name} ({assignment.escalation_employee_name})
                       </p>
                     )}
+                    {assignment.original_escalation_employee_name && (
+                      <p className="text-xs text-amber-700 mt-1 font-medium">
+                        ⇄ אסקלציה הועברה מ-{assignment.original_escalation_employee_name} (עובד חלופי)
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {!item.isGroup && (

@@ -66,11 +66,14 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['taskAssignments', 'status', eventId] });
-      const { reassigned = 0, cancelled = 0 } = data || {};
+      const { reassigned = 0, cancelled = 0, escalationsRerouted = 0 } = data || {};
+      const escSuffix = escalationsRerouted > 0 ? `, ${escalationsRerouted} אסקלציות הועברו אליו` : '';
       if (reassigned > 0) {
-        toast.success(`${reassigned} משימות הועברו למבצע החלופי${cancelled > 0 ? `, ${cancelled} ללא חלופי סומנו "לא מגיע"` : ''}`);
+        toast.success(`${reassigned} משימות הועברו למבצע החלופי${cancelled > 0 ? `, ${cancelled} ללא חלופי סומנו "לא מגיע"` : ''}${escSuffix}`);
       } else if (cancelled > 0) {
-        toast.warning(`אין מבצע חלופי זמין — ${cancelled} משימות סומנו "לא מגיע"`);
+        toast.warning(`אין מבצע חלופי זמין — ${cancelled} משימות סומנו "לא מגיע"${escSuffix}`);
+      } else if (escalationsRerouted > 0) {
+        toast.success(`${escalationsRerouted} אסקלציות הועברו למבצע החלופי`);
       } else {
         toast.info('לא נמצאו משימות פעילות להעברה');
       }
@@ -106,12 +109,14 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
     });
 
     // A column can be moved to its backup when it has an identifiable primary
-    // employee and at least one PENDING task that has a backup role configured
-    // and hasn't already been reassigned.
+    // employee, at least one PENDING task that hasn't already been reassigned,
+    // and some backup to hand it to — the employee-level backup ("עובד חלופי"
+    // from the employees page) or a per-task backup role.
     Object.values(roleMap).forEach(col => {
-      col.canMoveToBackup = !!col.employeeId && col.tasks.some(
-        t => t.status === 'PENDING' && t.backup_role_id && !t.original_assigned_to_id
-      );
+      const emp = employees.find(e => e.id === col.employeeId);
+      const movable = col.tasks.filter(t => t.status === 'PENDING' && !t.original_assigned_to_id);
+      col.canMoveToBackup = !!col.employeeId && movable.length > 0 &&
+        (!!emp?.backup_employee_id || movable.some(t => t.backup_role_id));
     });
 
     // Sort tasks by start_time within each role
