@@ -58,6 +58,13 @@ export default function EventTaskSummaryCard({ assignment }) {
         </div>
       )}
 
+      {assignment.covered_by_backup_name && (
+        <div className="flex items-center gap-1.5 text-xs text-amber-600 mb-1">
+          <ArrowLeftRight className="w-3 h-3 flex-shrink-0" />
+          <span>הועבר ל-{assignment.covered_by_backup_name} (מבצע חלופי)</span>
+        </div>
+      )}
+
       {assignment.original_escalation_employee_name && (
         <div className="flex items-center gap-1.5 text-xs text-amber-600 mb-1">
           <ArrowUpCircle className="w-3 h-3 flex-shrink-0" />
