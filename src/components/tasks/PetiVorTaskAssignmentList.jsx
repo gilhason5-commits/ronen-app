@@ -148,7 +148,7 @@ export default function PetiVorTaskAssignmentList({ departmentId }) {
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-sm text-stone-600">
                       <span className={!assignment.assigned_to_name ? 'text-red-600 font-medium' : ''}>
-                        {assignment.assigned_to_name || 'יש להקצות עובד לתפקיד זה'}
+                        {assignment.original_assigned_to_name || assignment.assigned_to_name || 'יש להקצות עובד לתפקיד זה'}
                       </span>
                       {assignment.assigned_to_phone && (
                         <span className="flex items-center gap-1">
@@ -159,12 +159,7 @@ export default function PetiVorTaskAssignmentList({ departmentId }) {
                     </div>
                     {assignment.original_assigned_to_name && (
                       <p className="text-xs text-amber-700 mt-1 font-medium">
-                        ⇄ הועבר מ-{assignment.original_assigned_to_name} (עובד חלופי)
-                      </p>
-                    )}
-                    {assignment.covered_by_backup_name && (
-                      <p className="text-xs text-amber-700 mt-1 font-medium">
-                        ⇄ הועבר ל-{assignment.covered_by_backup_name} (עובד חלופי)
+                        ⇄ הועבר ל-{assignment.assigned_to_name} (עובד חלופי)
                       </p>
                     )}
                     {assignment.escalation_employee_name && (

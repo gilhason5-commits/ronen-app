@@ -111,8 +111,21 @@ export async function reassignEventTasksToBackup(
         (roleBackup && !unavailableBackupIds.has(roleBackup.id) ? roleBackup : null);
 
       if (backup) {
-        const copied = await handTaskToBackupAsCopy(supabase, task.id, backup, employeeName);
-        if (copied) reassigned++;
+        await supabase
+          .from("TaskAssignment")
+          .update({
+            assigned_to_id: backup.id,
+            assigned_to_name: backup.full_name || "",
+            assigned_to_phone: backup.phone_e164 || "",
+            original_assigned_to_id: task.assigned_to_id,
+            original_assigned_to_name: task.assigned_to_name || employeeName || "",
+            last_notification_start_sent_at: null,
+            last_notification_end_sent_at: null,
+          })
+          .eq("id", task.id)
+          .eq("status", "PENDING");
+        reassigned++;
+        console.log(`↪️ Task ${task.id} (${task.task_title || "-"}) reassigned to backup ${backup.full_name}`);
       } else {
         await supabase
           .from("TaskAssignment")
@@ -177,9 +190,24 @@ export async function reassignRecurringTasksToBackup(supabase, record) {
 
   await Promise.all(
     (tasks || []).map(async (task) => {
-      if (employeeBackup) {
-        const copied = await handTaskToBackupAsCopy(supabase, task.id, employeeBackup, record.employee_name);
-        if (copied) reassigned++;
+      const backup = employeeBackup;
+
+      if (backup) {
+        await supabase
+          .from("TaskAssignment")
+          .update({
+            assigned_to_id: backup.id,
+            assigned_to_name: backup.full_name || "",
+            assigned_to_phone: backup.phone_e164 || "",
+            original_assigned_to_id: task.assigned_to_id,
+            original_assigned_to_name: task.assigned_to_name || record.employee_name || "",
+            last_notification_start_sent_at: null,
+            last_notification_end_sent_at: null,
+          })
+          .eq("id", task.id)
+          .eq("status", "PENDING");
+        reassigned++;
+        console.log(`↪️ Recurring task ${task.id} (${task.task_title || "-"}) reassigned to backup ${backup.full_name}`);
       } else {
         await supabase
           .from("TaskAssignment")
@@ -209,119 +237,6 @@ export async function reassignRecurringTasksToBackup(supabase, record) {
     escalationsRerouted,
     suppressManagerEscalation: (tasks || []).length > 0 && cancelled === 0,
   };
-}
-
-// Two-row handoff: mark the original task NOT_ARRIVING on the absent employee
-// (with covered_by_backup_* so the board shows who took it), and create a
-// linked PENDING copy for the backup, who gets the normal reminder/escalation
-// lifecycle. Returns true when the copy was created, false when the task was
-// no longer PENDING (already handled elsewhere — no copy is made).
-export async function handTaskToBackupAsCopy(supabase, taskId, backup, employeeName) {
-  const { data: fullRows } = await supabase
-    .from("TaskAssignment")
-    .select("*")
-    .eq("id", taskId)
-    .limit(1);
-  const task = fullRows?.[0];
-  if (!task || task.status !== "PENDING") return false;
-
-  const { data: marked } = await supabase
-    .from("TaskAssignment")
-    .update({
-      status: "NOT_ARRIVING",
-      covered_by_backup_id: backup.id,
-      covered_by_backup_name: backup.full_name || "",
-      last_notification_start_sent_at: null,
-      last_notification_end_sent_at: null,
-    })
-    .eq("id", task.id)
-    .eq("status", "PENDING")
-    .select("id");
-  if (!marked?.length) return false;
-
-  const copy = { ...task };
-  delete copy.id;
-  delete copy.created_date;
-  delete copy.updated_date;
-  Object.assign(copy, {
-    assigned_to_id: backup.id,
-    assigned_to_name: backup.full_name || "",
-    assigned_to_phone: backup.phone_e164 || "",
-    original_assigned_to_id: task.assigned_to_id,
-    original_assigned_to_name: task.assigned_to_name || employeeName || "",
-    copied_from_task_id: task.id,
-    covered_by_backup_id: null,
-    covered_by_backup_name: null,
-    status: "PENDING",
-    completed_at: null,
-    escalation_sent_at: null,
-    last_notification_start_sent_at: null,
-    last_notification_end_sent_at: null,
-  });
-
-  const { error } = await supabase.from("TaskAssignment").insert(copy);
-  if (error) {
-    // Roll the original back so the task isn't silently lost.
-    await supabase
-      .from("TaskAssignment")
-      .update({ status: "PENDING", covered_by_backup_id: null, covered_by_backup_name: null })
-      .eq("id", task.id);
-    console.error(`❌ Failed to copy task ${task.id} to backup: ${error.message}`);
-    return false;
-  }
-
-  console.log(`↪️ Task ${task.id} (${task.task_title || "-"}) marked NOT_ARRIVING; copy created for backup ${backup.full_name}`);
-  return true;
-}
-
-// Undo for the two-row handoff (event scope, "coming after all"): delete each
-// still-PENDING copy and revive its original back to PENDING. A copy the
-// backup already completed is left alone — the work is done. Also handles
-// legacy single-row moves (no copied_from_task_id) by reassigning them back.
-export async function restoreBackupCopies(supabase, { eventId, employeeId, employeeName, employeePhone }) {
-  const { data: moved } = await supabase
-    .from("TaskAssignment")
-    .select("id, copied_from_task_id")
-    .eq("event_id", eventId)
-    .eq("original_assigned_to_id", employeeId)
-    .eq("status", "PENDING");
-
-  let restored = 0;
-  for (const row of moved || []) {
-    if (row.copied_from_task_id) {
-      await supabase
-        .from("TaskAssignment")
-        .update({
-          status: "PENDING",
-          covered_by_backup_id: null,
-          covered_by_backup_name: null,
-          last_notification_start_sent_at: null,
-          last_notification_end_sent_at: null,
-        })
-        .eq("id", row.copied_from_task_id)
-        .eq("status", "NOT_ARRIVING");
-      await supabase.from("TaskAssignment").delete().eq("id", row.id).eq("status", "PENDING");
-      restored++;
-    } else {
-      await supabase
-        .from("TaskAssignment")
-        .update({
-          assigned_to_id: employeeId,
-          assigned_to_name: employeeName || "",
-          assigned_to_phone: employeePhone || "",
-          original_assigned_to_id: null,
-          original_assigned_to_name: null,
-          last_notification_start_sent_at: null,
-          last_notification_end_sent_at: null,
-        })
-        .eq("id", row.id)
-        .eq("status", "PENDING");
-      restored++;
-    }
-  }
-
-  if (restored) console.log(`↩️ Restored ${restored} task(s) to ${employeeName || employeeId} after re-confirming available`);
-  return restored;
 }
 
 // Fallback escalation backup when no employee-level backup exists: whoever

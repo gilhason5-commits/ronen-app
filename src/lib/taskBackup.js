@@ -84,36 +84,15 @@ export async function markUnavailableAndReassignToBackup({ event, employee, empl
         (roleBackup && !unavailableBackupIds.has(roleBackup.id) ? roleBackup : null);
 
       if (backup) {
-        // Two-row handoff: the original stays on the absent employee as
-        // NOT_ARRIVING (with who covered it), and the backup gets a linked
-        // PENDING copy that carries the normal reminder/escalation lifecycle.
         await base44.entities.TaskAssignment.update(task.id, {
-          status: "NOT_ARRIVING",
-          covered_by_backup_id: backup.id,
-          covered_by_backup_name: backup.full_name || "",
-          last_notification_start_sent_at: null,
-          last_notification_end_sent_at: null,
-        });
-        const copy = { ...task };
-        delete copy.id;
-        delete copy.created_date;
-        delete copy.updated_date;
-        Object.assign(copy, {
           assigned_to_id: backup.id,
           assigned_to_name: backup.full_name || "",
           assigned_to_phone: backup.phone_e164 || "",
           original_assigned_to_id: task.assigned_to_id,
           original_assigned_to_name: task.assigned_to_name || employee.full_name || "",
-          copied_from_task_id: task.id,
-          covered_by_backup_id: null,
-          covered_by_backup_name: null,
-          status: "PENDING",
-          completed_at: null,
-          escalation_sent_at: null,
           last_notification_start_sent_at: null,
           last_notification_end_sent_at: null,
         });
-        await base44.entities.TaskAssignment.create(copy);
         reassigned++;
       } else {
         await base44.entities.TaskAssignment.update(task.id, {

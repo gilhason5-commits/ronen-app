@@ -77,8 +77,11 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
   const columns = useMemo(() => {
     const roleMap = {};
     assignments.forEach(a => {
-      if (!pvEmployeeIds.has(a.assigned_to_id)) return;
-      const emp = employees.find(e => e.id === a.assigned_to_id);
+      // A task handed to a backup stays in its ORIGINAL owner's column — the
+      // card just notes who it moved to. Group by the original assignee.
+      const ownerId = a.original_assigned_to_id || a.assigned_to_id;
+      if (!pvEmployeeIds.has(ownerId)) return;
+      const emp = employees.find(e => e.id === ownerId);
       const roleId = emp?.role_id || 'unassigned';
       const role = roles.find(r => r.id === roleId);
       const roleName = role?.role_name || emp?.role_name || 'ללא תפקיד';
