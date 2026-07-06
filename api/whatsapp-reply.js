@@ -3,6 +3,7 @@ import { sendWhatsApp, TEMPLATES } from "./_twilio.js";
 import {
   reassignEventTasksToBackup,
   reassignRecurringTasksToBackup,
+  restoreBackupCopies,
   restoreEscalationReroutes,
 } from "./_taskBackup.js";
 
@@ -609,11 +610,12 @@ async function cancelEventTasksForEmployee(record) {
   return { suppressManagerEscalation: result.suppressManagerEscalation };
 }
 
-// Symmetric undo: if an employee whose tasks were moved to a backup later
-// confirms they ARE coming, hand the tasks back — and hand back any task
-// escalations that were rerouted off them. Only fires while the availability
-// record is still PENDING at reply time (the update guard in
-// processAvailabilityRecord ignores a second reply once a status is locked in).
+// Symmetric undo: if an employee whose tasks were handed to a backup later
+// confirms they ARE coming, revive their originals and drop the pending
+// copies — and hand back any task escalations that were rerouted off them.
+// Only fires while the availability record is still PENDING at reply time
+// (the update guard in processAvailabilityRecord ignores a second reply once
+// a status is locked in).
 async function restoreBackupReassignments(record) {
   if (!record.event_id || !record.employee_id) return;
 
@@ -622,40 +624,18 @@ async function restoreBackupReassignments(record) {
     employeeId: record.employee_id,
   });
 
-  const { data: tasks } = await supabase
-    .from("TaskAssignment")
-    .select("id")
-    .eq("event_id", record.event_id)
-    .eq("original_assigned_to_id", record.employee_id)
-    .eq("status", "PENDING");
-
-  if (!tasks?.length) return;
-
   const { data: emp } = await supabase
     .from("TaskEmployee")
     .select("full_name, phone_e164")
     .eq("id", record.employee_id)
     .single();
 
-  await Promise.all(
-    tasks.map((task) =>
-      supabase
-        .from("TaskAssignment")
-        .update({
-          assigned_to_id: record.employee_id,
-          assigned_to_name: emp?.full_name || record.employee_name || "",
-          assigned_to_phone: emp?.phone_e164 || "",
-          original_assigned_to_id: null,
-          original_assigned_to_name: null,
-          last_notification_start_sent_at: null,
-          last_notification_end_sent_at: null,
-        })
-        .eq("id", task.id)
-        .eq("status", "PENDING"),
-    ),
-  );
-
-  console.log(`↩️ Restored ${tasks.length} task(s) to ${record.employee_name || record.employee_id} after re-confirming available`);
+  await restoreBackupCopies(supabase, {
+    eventId: record.event_id,
+    employeeId: record.employee_id,
+    employeeName: emp?.full_name || record.employee_name || "",
+    employeePhone: emp?.phone_e164 || "",
+  });
 }
 
 async function sendTaskEscalation(task, employee) {
