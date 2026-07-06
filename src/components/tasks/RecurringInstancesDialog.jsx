@@ -221,6 +221,12 @@ export default function RecurringInstancesDialog({ open, onClose, taskTitle, all
                     </div>
                   )}
 
+                  {instance.original_assigned_to_id && (
+                    <p className="text-xs text-amber-700 font-medium mb-2">
+                      ⇄ הועבר ל-{instance.assigned_to_name} (עובד חלופי)
+                    </p>
+                  )}
+
                   {instance.completed_at && (
                     <p className="text-xs text-stone-500 mb-2">
                       הושלם: {format(new Date(instance.completed_at), "dd/MM HH:mm")}

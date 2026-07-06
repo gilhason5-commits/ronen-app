@@ -95,15 +95,17 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
     const roleMap = {};
 
     assignments.forEach(a => {
-      // Find the employee to get role info
-      const emp = employees.find(e => e.id === a.assigned_to_id);
+      // A task handed to a backup stays in its ORIGINAL owner's column — the
+      // card just notes who it moved to. Group by the original assignee.
+      const ownerId = a.original_assigned_to_id || a.assigned_to_id;
+      const emp = employees.find(e => e.id === ownerId);
       const roleId = emp?.role_id || 'unassigned';
       const role = roles.find(r => r.id === roleId);
       const roleName = role?.role_name || emp?.role_name || 'ללא תפקיד';
       const employeeName = emp?.full_name || a.assigned_to_name || '';
 
       if (!roleMap[roleId]) {
-        roleMap[roleId] = { name: roleName, employeeName, employeeId: a.assigned_to_id || null, tasks: [] };
+        roleMap[roleId] = { name: roleName, employeeName, employeeId: ownerId || null, tasks: [] };
       }
       roleMap[roleId].tasks.push(a);
     });
