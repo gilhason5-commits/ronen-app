@@ -230,7 +230,7 @@ export default function RecurringTaskColumns() {
               <p className="text-stone-500">אין משימות שוטפות מוגדרות</p>
             </div>
           ) : (
-            <div className="flex gap-4 overflow-x-auto pb-4">
+            <div className="flex flex-wrap gap-4 pb-4">
               {orderedColumnKeys.map((roleId, colIndex) => {
                 const col = columns[roleId];
                 if (!col) return null;

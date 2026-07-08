@@ -287,7 +287,7 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
               <p className="text-stone-500">אין משימות לאירוע זה</p>
             </div>
           ) : (
-            <div className="flex gap-4 overflow-x-auto pb-4">
+            <div className="flex flex-wrap gap-4 pb-4">
               {columnKeys.map(roleId => {
                 const col = columns[roleId];
                 if (!col) return null;
