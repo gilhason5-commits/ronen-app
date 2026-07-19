@@ -15,6 +15,11 @@ import WorkSummaries from './pages/WorkSummaries';
 import PetiVorRecurringTasks from './pages/PetiVorRecurringTasks';
 import MenuViewer from './pages/MenuViewer';
 import Login from './pages/Login';
+import StaffingMap from './pages/StaffingMap';
+import EventAttendance from './pages/EventAttendance';
+import StaffingReports from './pages/StaffingReports';
+import TipsDistribution from './pages/TipsDistribution';
+import StaffingSettings from './pages/StaffingSettings';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -84,6 +89,31 @@ const AuthenticatedApp = () => {
       <Route path="/MenuViewer" element={
         <LayoutWrapper currentPageName="MenuViewer">
           <MenuViewer />
+        </LayoutWrapper>
+      } />
+      <Route path="/StaffingMap" element={
+        <LayoutWrapper currentPageName="StaffingMap">
+          <StaffingMap />
+        </LayoutWrapper>
+      } />
+      <Route path="/EventAttendance" element={
+        <LayoutWrapper currentPageName="EventAttendance">
+          <EventAttendance />
+        </LayoutWrapper>
+      } />
+      <Route path="/StaffingReports" element={
+        <LayoutWrapper currentPageName="StaffingReports">
+          <StaffingReports />
+        </LayoutWrapper>
+      } />
+      <Route path="/TipsDistribution" element={
+        <LayoutWrapper currentPageName="TipsDistribution">
+          <TipsDistribution />
+        </LayoutWrapper>
+      } />
+      <Route path="/StaffingSettings" element={
+        <LayoutWrapper currentPageName="StaffingSettings">
+          <StaffingSettings />
         </LayoutWrapper>
       } />
       <Route path="*" element={<PageNotFound />} />

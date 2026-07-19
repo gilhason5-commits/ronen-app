@@ -16,7 +16,11 @@ import {
   AlertCircle,
   LogOut,
   ClipboardList,
-  ChefHat
+  ChefHat,
+  Map,
+  ClipboardCheck,
+  Coins,
+  BookOpen
 } from "lucide-react";
 import {
   Sidebar,
@@ -107,6 +111,36 @@ const navigationItems = [
     section: "tasks"
   },
   {
+    title: "מפת כוח אדם",
+    url: createPageUrl("StaffingMap"),
+    icon: Map,
+    section: "staffing"
+  },
+  {
+    title: "נוכחות אירוע",
+    url: createPageUrl("EventAttendance"),
+    icon: ClipboardCheck,
+    section: "staffing"
+  },
+  {
+    title: "סיכומים ודוחות",
+    url: createPageUrl("StaffingReports"),
+    icon: FileText,
+    section: "staffing"
+  },
+  {
+    title: "חלוקת טיפים",
+    url: createPageUrl("TipsDistribution"),
+    icon: Coins,
+    section: "staffing"
+  },
+  {
+    title: "ספר התקנים",
+    url: createPageUrl("StaffingSettings"),
+    icon: BookOpen,
+    section: "staffing"
+  },
+  {
     title: "סיכומי עובדים",
     url: createPageUrl("WorkSummaries"),
     icon: FileText,
@@ -181,7 +215,8 @@ export default function Layout({ children, currentPageName }) {
     main: [],
     operations: [],
     purchasing: [],
-    tasks: []
+    tasks: [],
+    staffing: []
   };
 
   filteredItems.forEach(item => {
@@ -289,6 +324,31 @@ export default function Layout({ children, currentPageName }) {
                   </SidebarGroupContent>
                 </SidebarGroup>
                 )}
+
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-xs font-semibold text-stone-500 uppercase tracking-wider px-3 py-2">
+                כוח אדם וטיפים
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {sections.staffing.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        className={`hover:bg-emerald-50 hover:text-emerald-700 transition-colors duration-200 rounded-lg mb-1 ${
+                          location.pathname === item.url ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-stone-700'
+                        }`}
+                        onClick={() => navigate(item.url, { replace: true })}
+                      >
+                        <div className="flex items-center gap-3 px-3 py-2.5">
+                          <item.icon className="w-4 h-4" />
+                          <span>{item.title}</span>
+                        </div>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
 
             <SidebarGroup>
               <SidebarGroupLabel className="text-xs font-semibold text-stone-500 uppercase tracking-wider px-3 py-2">
