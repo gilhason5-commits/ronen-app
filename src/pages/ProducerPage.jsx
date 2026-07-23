@@ -47,10 +47,10 @@ export default function ProducerPage() {
 
   const approveMutation = useMutation({
     mutationFn: async (event) => {
-      // Defensive: the button is disabled when too early, but the mutation
+      // Defensive: the button is disabled when too late, but the mutation
       // re-checks in case the card was rendered against a stale event_date.
-      if (daysUntilEvent(event.event_date) > APPROVAL_MAX_DAYS_BEFORE) {
-        throw new Error("ניתן לאשר את האירוע רק ב-4 הימים שלפניו");
+      if (daysUntilEvent(event.event_date) < APPROVAL_MAX_DAYS_BEFORE) {
+        throw new Error("ניתן לאשר את האירוע רק 4 ימים או יותר לפני תחילתו");
       }
       await base44.entities.Event.update(event.id, {
         producer_approved: true,
