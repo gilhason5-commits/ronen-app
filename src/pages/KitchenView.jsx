@@ -9,10 +9,11 @@ import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import KitchenEventDetail from "@/components/kitchen/KitchenEventDetail";
 import PurchasePlanning from "@/components/kitchen/PurchasePlanning";
+import ManualPurchaseOrder from "@/components/kitchen/ManualPurchaseOrder";
 
 export default function KitchenView() {
   const [expandedEventId, setExpandedEventId] = useState(null);
-  const [showPurchase, setShowPurchase] = useState(false);
+  const [mode, setMode] = useState("events"); // 'events' | 'planning' | 'manual'
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ['events'],
@@ -38,18 +39,35 @@ export default function KitchenView() {
           <p className="text-stone-500 mt-1">אירועים מאושרים ותכנון הזמנות רכש</p>
           <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2 text-sm font-bold">⚠️ יש לתכנן הזמנת רכש לכל האירועים של השבוע ביחד על מנת לקבל כמויות הכי מדויקות לתתי מנות ולמנוע הכנה מיותרת</p>
         </div>
-        <Button
-          onClick={() => setShowPurchase(!showPurchase)}
-          variant={showPurchase ? "default" : "outline"}
-          className={showPurchase ? "bg-emerald-600 hover:bg-emerald-700" : ""}
-        >
-          <ShoppingCart className="w-4 h-4 ml-2" />
-          {showPurchase ? 'חזרה לאירועים' : 'תכנון הזמנות רכש'}
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          {mode !== "events" && (
+            <Button variant="outline" onClick={() => setMode("events")}>
+              חזרה לאירועים
+            </Button>
+          )}
+          <Button
+            onClick={() => setMode(mode === "planning" ? "events" : "planning")}
+            variant={mode === "planning" ? "default" : "outline"}
+            className={mode === "planning" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+          >
+            <ShoppingCart className="w-4 h-4 ml-2" />
+            תכנון הזמנות רכש
+          </Button>
+          <Button
+            onClick={() => setMode(mode === "manual" ? "events" : "manual")}
+            variant={mode === "manual" ? "default" : "outline"}
+            className={mode === "manual" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+          >
+            <ShoppingCart className="w-4 h-4 ml-2" />
+            הזמנת רכש ידנית
+          </Button>
+        </div>
       </div>
 
-      {showPurchase ? (
+      {mode === "planning" ? (
         <PurchasePlanning events={approvedEvents} />
+      ) : mode === "manual" ? (
+        <ManualPurchaseOrder />
       ) : (
         <>
           {isLoading ? (
