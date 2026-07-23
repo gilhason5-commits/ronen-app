@@ -15,9 +15,9 @@ const eventTypeLabels = {
 export default function ProducerEventCard({ event, dishCount, onEdit, onApprove, onPrint, onDelete, onSavePdf }) {
   const isApproved = event.producer_approved;
   const days = daysUntilEvent(event.event_date);
-  // Too late to approve once the event is inside the final window — approval
+  // Too late to approve once fewer than the window's days remain — approval
   // must happen while there's still enough lead time to staff/kitchen-plan.
-  const tooLate = days <= APPROVAL_MAX_DAYS_BEFORE;
+  const tooLate = days < APPROVAL_MAX_DAYS_BEFORE;
 
   return (
     <Card className={`border-stone-200 ${isApproved ? "bg-emerald-50 border-emerald-200" : ""}`}>
@@ -79,7 +79,7 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
                     size="sm"
                     className={tooLate ? "bg-stone-300 hover:bg-stone-300 cursor-not-allowed text-stone-600" : "bg-emerald-600 hover:bg-emerald-700"}
                     disabled={tooLate}
-                    title={tooLate ? "ניתן לאשר את האירוע רק יותר מ-4 ימים לפני תחילתו" : ""}
+                    title={tooLate ? "ניתן לאשר את האירוע רק 4 ימים או יותר לפני תחילתו" : ""}
                     onClick={() => !tooLate && onApprove(event)}
                   >
                     <Send className="w-4 h-4 ml-1" />
@@ -90,7 +90,7 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
                   </p>
                   {tooLate && (
                     <p className="text-[11px] text-amber-700 leading-snug text-right">
-                      ניתן לאשר את האירוע רק יותר מ-4 ימים לפני תחילתו.
+                      ניתן לאשר את האירוע רק 4 ימים או יותר לפני תחילתו.
                     </p>
                   )}
                 </div>
