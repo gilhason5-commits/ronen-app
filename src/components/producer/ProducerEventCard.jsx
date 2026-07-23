@@ -15,8 +15,9 @@ const eventTypeLabels = {
 export default function ProducerEventCard({ event, dishCount, onEdit, onApprove, onPrint, onDelete, onSavePdf }) {
   const isApproved = event.producer_approved;
   const days = daysUntilEvent(event.event_date);
-  // Too early to approve while the event is still more than the window away.
-  const tooEarly = days > APPROVAL_MAX_DAYS_BEFORE;
+  // Too late to approve once the event is inside the final window — approval
+  // must happen while there's still enough lead time to staff/kitchen-plan.
+  const tooLate = days <= APPROVAL_MAX_DAYS_BEFORE;
 
   return (
     <Card className={`border-stone-200 ${isApproved ? "bg-emerald-50 border-emerald-200" : ""}`}>
@@ -76,10 +77,10 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
                 <div className="flex flex-col items-end gap-1 max-w-[280px]">
                   <Button
                     size="sm"
-                    className={tooEarly ? "bg-stone-300 hover:bg-stone-300 cursor-not-allowed text-stone-600" : "bg-emerald-600 hover:bg-emerald-700"}
-                    disabled={tooEarly}
-                    title={tooEarly ? "ניתן לאשר את האירוע רק ב-4 הימים שלפניו" : ""}
-                    onClick={() => !tooEarly && onApprove(event)}
+                    className={tooLate ? "bg-stone-300 hover:bg-stone-300 cursor-not-allowed text-stone-600" : "bg-emerald-600 hover:bg-emerald-700"}
+                    disabled={tooLate}
+                    title={tooLate ? "ניתן לאשר את האירוע רק יותר מ-4 ימים לפני תחילתו" : ""}
+                    onClick={() => !tooLate && onApprove(event)}
                   >
                     <Send className="w-4 h-4 ml-1" />
                     אושר - העבר להנהלה
@@ -87,9 +88,9 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
                   <p className="text-[11px] text-stone-500 leading-snug text-right">
                     לחיצה על אישור היא התחייבות סופית מבחינת כמות העובדים והמטבח. לאחר האישור הכמויות נחשבות סופיות לאירוע.
                   </p>
-                  {tooEarly && (
+                  {tooLate && (
                     <p className="text-[11px] text-amber-700 leading-snug text-right">
-                      ניתן לאשר את האירוע רק ב-4 הימים שלפניו.
+                      ניתן לאשר את האירוע רק יותר מ-4 ימים לפני תחילתו.
                     </p>
                   )}
                 </div>

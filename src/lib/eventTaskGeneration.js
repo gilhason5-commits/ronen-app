@@ -102,7 +102,8 @@ export function daysUntilEvent(eventDateStr) {
   return Math.floor((eventDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
 }
 
-// Approval is only allowed inside the final window before the event: you may
-// approve only when the event is at most this many days away. Events further
-// out are too early to approve (worker/kitchen quantities aren't locked yet).
+// Approval is only allowed outside the final window before the event: you may
+// approve only when the event is more than this many days away. Once inside
+// the window, it's too late to approve (worker/kitchen quantities must lock
+// in before the last-minute crunch).
 export const APPROVAL_MAX_DAYS_BEFORE = 4;
