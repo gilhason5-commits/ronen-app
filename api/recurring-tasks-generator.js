@@ -19,6 +19,35 @@ function israelTimeToISO(year, month, day, hours, minutes) {
   return new Date(Date.UTC(year, month, day, hours - offsetHours, minutes)).toISOString();
 }
 
+// Calendar facts (date string, y/m/d, day-of-week) for a UTC instant, read in
+// Israel local time. Recurrence is defined in Israel local terms (a task
+// recurs once per Israel calendar day at a fixed Israel local time), so every
+// place that decides "which day is this" — the dedup check, the weekend
+// filter, and the day fed into israelTimeToISO — must agree on the same
+// Israel calendar day. Previously the dedup/weekend checks read the UTC
+// calendar day (via toISOString) while row construction read the day via
+// current.getFullYear()/getMonth()/getDate() (the server process's local
+// time). For an early recurrence_time like "00:30", israelTimeToISO shifts
+// the stored start_time back into the *previous* UTC day, so the two checks
+// disagreed: the generator kept concluding "tomorrow is missing" and kept
+// writing a row that landed on today's already-existing date — recreating
+// the same duplicate on every single cron run.
+function israelCalendarInfo(date) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem',
+    year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short',
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(date).map((p) => [p.type, p.value]));
+  const dowMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    dateStr: `${parts.year}-${parts.month}-${parts.day}`,
+    year: Number(parts.year),
+    month: Number(parts.month) - 1,
+    day: Number(parts.day),
+    dow: dowMap[parts.weekday],
+  };
+}
+
 /**
  * GET/POST /api/recurring-tasks-generator
  * Ensures recurring TaskAssignment instances always exist for the next 30 days.
@@ -27,7 +56,8 @@ function israelTimeToISO(year, month, day, hours, minutes) {
 export default async function handler(req, res) {
   try {
     const now = new Date();
-    const cutoffDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + DAYS_AHEAD);
+    const nowCal = israelCalendarInfo(now);
+    const cutoffDate = new Date(Date.UTC(nowCal.year, nowCal.month, nowCal.day + DAYS_AHEAD));
     let totalCreated = 0;
 
     console.log(`Started recurring generator at ${now.toISOString()}, cutoff ${cutoffDate.toISOString()}`);
@@ -90,55 +120,53 @@ export default async function handler(req, res) {
       const durationMinutes = template?.duration_minutes || 60;
 
       const existingDates = new Set(
-        assignments.map((a) => new Date(a.start_time).toISOString().split('T')[0])
+        assignments.map((a) => israelCalendarInfo(new Date(a.start_time)).dateStr)
       );
 
       const [hours, minutes] = recurrenceTime.split(':').map(Number);
-      const startFrom = new Date(latestDate);
-      startFrom.setDate(startFrom.getDate() + 1);
+      const latestCal = israelCalendarInfo(latestDate);
+      // UTC-midnight anchor for "the Israel calendar day after latest". Using
+      // a UTC anchor (rather than current.setDate, which reads/writes the
+      // server process's local time) keeps day-stepping deterministic no
+      // matter what timezone the function happens to run in.
+      const startFrom = new Date(Date.UTC(latestCal.year, latestCal.month, latestCal.day + 1));
 
       if (recurrenceType === 'daily') {
         const current = new Date(startFrom);
         while (current <= cutoffDate) {
-          if (current.getDay() !== 5 && current.getDay() !== 6) {
-            const dateStr = current.toISOString().split('T')[0];
-            if (!existingDates.has(dateStr)) {
-              const startISO = israelTimeToISO(current.getFullYear(), current.getMonth(), current.getDate(), hours, minutes);
-              const endISO = new Date(new Date(startISO).getTime() + durationMinutes * 60000).toISOString();
-              allNewAssignments.push(buildAssignment(latest, startISO, endISO));
-            }
+          const cal = israelCalendarInfo(current);
+          if (cal.dow !== 5 && cal.dow !== 6 && !existingDates.has(cal.dateStr)) {
+            const startISO = israelTimeToISO(cal.year, cal.month, cal.day, hours, minutes);
+            const endISO = new Date(new Date(startISO).getTime() + durationMinutes * 60000).toISOString();
+            allNewAssignments.push(buildAssignment(latest, startISO, endISO));
           }
-          current.setDate(current.getDate() + 1);
+          current.setUTCDate(current.getUTCDate() + 1);
         }
       } else if (recurrenceType === 'weekly') {
         if (recurrenceDays.length === 0) continue;
 
         const current = new Date(startFrom);
         while (current <= cutoffDate) {
-          if (recurrenceDays.includes(current.getDay())) {
-            const dateStr = current.toISOString().split('T')[0];
-            if (!existingDates.has(dateStr)) {
-              const startISO = israelTimeToISO(current.getFullYear(), current.getMonth(), current.getDate(), hours, minutes);
-              const endISO = new Date(new Date(startISO).getTime() + durationMinutes * 60000).toISOString();
-              allNewAssignments.push(buildAssignment(latest, startISO, endISO));
-            }
+          const cal = israelCalendarInfo(current);
+          if (recurrenceDays.includes(cal.dow) && !existingDates.has(cal.dateStr)) {
+            const startISO = israelTimeToISO(cal.year, cal.month, cal.day, hours, minutes);
+            const endISO = new Date(new Date(startISO).getTime() + durationMinutes * 60000).toISOString();
+            allNewAssignments.push(buildAssignment(latest, startISO, endISO));
           }
-          current.setDate(current.getDate() + 1);
+          current.setUTCDate(current.getUTCDate() + 1);
         }
       } else if (recurrenceType === 'monthly') {
         const current = new Date(startFrom);
         while (current <= cutoffDate) {
-          const lastDay = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
+          const cal = israelCalendarInfo(current);
+          const lastDay = new Date(Date.UTC(cal.year, cal.month + 1, 0)).getUTCDate();
           const targetDay = Math.min(recurrenceDayOfMonth, lastDay);
-          if (current.getDate() === targetDay) {
-            const dateStr = current.toISOString().split('T')[0];
-            if (!existingDates.has(dateStr)) {
-              const startISO = israelTimeToISO(current.getFullYear(), current.getMonth(), current.getDate(), hours, minutes);
-              const endISO = new Date(new Date(startISO).getTime() + durationMinutes * 60000).toISOString();
-              allNewAssignments.push(buildAssignment(latest, startISO, endISO));
-            }
+          if (cal.day === targetDay && !existingDates.has(cal.dateStr)) {
+            const startISO = israelTimeToISO(cal.year, cal.month, cal.day, hours, minutes);
+            const endISO = new Date(new Date(startISO).getTime() + durationMinutes * 60000).toISOString();
+            allNewAssignments.push(buildAssignment(latest, startISO, endISO));
           }
-          current.setDate(current.getDate() + 1);
+          current.setUTCDate(current.getUTCDate() + 1);
         }
       }
     }
