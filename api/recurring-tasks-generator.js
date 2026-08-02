@@ -188,7 +188,13 @@ async function fetchAllRecurring() {
       .is('event_id', null)
       .not('recurrence_type', 'is', null)
       .neq('recurrence_type', 'once')
+      // Many rows can share the exact same start_time (e.g. duplicate
+      // instances of the same recurring series). Ordering by start_time
+      // alone makes range()-based pagination non-deterministic across ties,
+      // which caused this fetch to silently miss already-created rows and
+      // recreate duplicates on every cron run. `id` is a stable tiebreaker.
       .order('start_time', { ascending: false })
+      .order('id', { ascending: true })
       .range(skip, skip + pageSize - 1);
 
     if (error) throw error;

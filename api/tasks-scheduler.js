@@ -113,7 +113,7 @@ export default async function handler(req, res) {
         const reminderDeadline = new Date(reminderTime.getTime() + 60 * 60 * 1000);
 
         if (currentTime >= reminderTime && currentTime <= reminderDeadline) {
-          const templateData = buildTemplateData(task, eventById);
+          const templateData = buildTemplateData(task, eventById, employee);
 
           let reminderSent = false;
           const sent = await sendTaskReminder(phoneE164, templateData);
@@ -392,7 +392,7 @@ function buildEscalationTemplateData(task, employee, eventById) {
   };
 }
 
-function buildTemplateData(task, eventById) {
+function buildTemplateData(task, eventById, employee) {
   let eventName = task.event_name || '-';
   if (task.event_id && !task.event_name) {
     const event = eventById[task.event_id];
@@ -413,7 +413,10 @@ function buildTemplateData(task, eventById) {
     start_time: startStr,
     end_time: endStr,
     task_id: task.id || '-',
-    employee_name: task.assigned_to_name || '-',
+    // Use the employee's current name, not the stale snapshot stored on the
+    // task row at creation time — assigned_to_name can go stale if the
+    // employee record is renamed/reassigned after the row was generated.
+    employee_name: employee?.full_name || task.assigned_to_name || '-',
   };
 }
 
