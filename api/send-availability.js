@@ -7,6 +7,18 @@ const supabase = createClient(
 
 const CONCURRENCY = 8;
 
+// Some employee records have phone_e164 stored in local format ("0..."),
+// which Twilio rejects outright ("not a valid phone number") — the send
+// silently never happens for that person. Normalize defensively so a bad
+// stored format doesn't drop a real employee from every availability check.
+function normalizePhone(phone) {
+  if (!phone) return null;
+  let p = String(phone).replace(/[^\d+]/g, '');
+  if (p.startsWith('0')) p = `+972${p.substring(1)}`;
+  if (!p.startsWith('+')) p = `+${p}`;
+  return p;
+}
+
 async function mapWithConcurrency(items, limit, fn) {
   const results = new Array(items.length);
   let next = 0;
@@ -143,7 +155,7 @@ export default async function handler(req, res) {
             },
             body: new URLSearchParams({
               From: fromNumber,
-              To: `whatsapp:${emp.phone_e164}`,
+              To: `whatsapp:${normalizePhone(emp.phone_e164)}`,
               Body: message,
             }).toString(),
           }
