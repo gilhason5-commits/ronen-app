@@ -4,20 +4,23 @@ import { base44 } from "@/api/base44Client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
-import { Printer, Send, ShoppingCart } from "lucide-react";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Printer, Send, ShoppingCart, ChevronsUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
 export default function ManualPurchaseOrder() {
   const [supplierId, setSupplierId] = useState("");
   const [quantities, setQuantities] = useState({});
+  const [supplierPopoverOpen, setSupplierPopoverOpen] = useState(false);
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers"],
@@ -174,18 +177,44 @@ export default function ManualPurchaseOrder() {
       <Card>
         <CardContent className="p-6 space-y-4">
           <h2 className="text-lg font-bold text-stone-900">בחר ספק להזמנת רכש ידנית</h2>
-          <Select value={supplierId} onValueChange={setSupplierId}>
-            <SelectTrigger className="max-w-sm">
-              <SelectValue placeholder="בחר ספק..." />
-            </SelectTrigger>
-            <SelectContent>
-              {suppliers.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={supplierPopoverOpen} onOpenChange={setSupplierPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                role="combobox"
+                aria-expanded={supplierPopoverOpen}
+                className="max-w-sm w-full justify-between font-normal"
+              >
+                {suppliers.find((s) => s.id === supplierId)?.name || (
+                  <span className="text-muted-foreground">בחר ספק...</span>
+                )}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="חיפוש ספק..." />
+                <CommandList>
+                  <CommandEmpty>לא נמצאו ספקים</CommandEmpty>
+                  <CommandGroup>
+                    {suppliers.map((s) => (
+                      <CommandItem
+                        key={s.id}
+                        value={s.name}
+                        onSelect={() => {
+                          setSupplierId(s.id);
+                          setSupplierPopoverOpen(false);
+                        }}
+                      >
+                        {s.name}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </CardContent>
       </Card>
     );
