@@ -9,7 +9,6 @@ export default async function handler(req, res) {
   const endpoints = [
     '/api/arrive-today',
     '/api/peti-vor-availability',
-    '/api/send-availability',
     '/api/availability-no-response',
     '/api/ceo-escalation',
     '/api/tasks-scheduler',
