@@ -195,6 +195,13 @@ export default function Layout({ children, currentPageName }) {
     }
   }
 
+  // Event manager role: attendance screen only (iPad, day-of-event use).
+  if (userRole === 'event_manager') {
+    if (currentPageName !== "EventAttendance") {
+      return <Navigate to={createPageUrl("EventAttendance")} replace />;
+    }
+  }
+
   const filteredItems = navigationItems.filter(item => {
     if (userRole === 'purchase') {
       return item.url.includes("KitchenView");
@@ -204,6 +211,9 @@ export default function Layout({ children, currentPageName }) {
     }
     if (userRole === 'graphics') {
       return item.url.includes("MenuViewer");
+    }
+    if (userRole === 'event_manager') {
+      return item.url.includes("EventAttendance");
     }
     if (adminOnlyPages.some(p => item.url.includes(p)) && userRole !== 'admin') {
       return false;

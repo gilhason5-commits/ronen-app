@@ -18,6 +18,39 @@ function nowTime() {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
+
+// Explicit hour/minute dropdowns instead of the native <input type="time">.
+// The native picker's segment order (and which one gets focus first) depends
+// on the device's regional format, which is what was causing hours and
+// minutes to get entered into the wrong segment on the iPad — this makes the
+// two fields unambiguous regardless of device locale.
+function TimePicker({ value, onChange }) {
+  const [h, m] = (value || "").split(":");
+  return (
+    <div className="flex items-center gap-1" dir="ltr">
+      <select
+        value={h || ""}
+        onChange={(e) => onChange(`${e.target.value}:${m || "00"}`)}
+        className="h-9 rounded-md border border-input bg-white px-1.5 text-sm"
+      >
+        <option value="" disabled>שעה</option>
+        {HOURS.map((hh) => <option key={hh} value={hh}>{hh}</option>)}
+      </select>
+      <span className="text-slate-400">:</span>
+      <select
+        value={m || ""}
+        onChange={(e) => onChange(`${h || "00"}:${e.target.value}`)}
+        className="h-9 rounded-md border border-input bg-white px-1.5 text-sm"
+      >
+        <option value="" disabled>דקה</option>
+        {MINUTES.map((mm) => <option key={mm} value={mm}>{mm}</option>)}
+      </select>
+    </div>
+  );
+}
+
 function ShiftRow({ shift, onUpdate, onDelete }) {
   return (
     <div className="rounded-lg border bg-white p-3 space-y-2">
@@ -31,14 +64,14 @@ function ShiftRow({ shift, onUpdate, onDelete }) {
           <Trash2 className="w-4 h-4" />
         </Button>
       </div>
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1 flex-1">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5">
           <span className="text-xs text-slate-500">כניסה</span>
-          <Input type="time" className="h-9" value={shift.clock_in || ""} onChange={(e) => onUpdate({ clock_in: e.target.value })} />
+          <TimePicker value={shift.clock_in} onChange={(v) => onUpdate({ clock_in: v })} />
         </div>
-        <div className="flex items-center gap-1 flex-1">
+        <div className="flex items-center gap-1.5">
           <span className="text-xs text-slate-500">יציאה</span>
-          <Input type="time" className="h-9" value={shift.clock_out || ""} onChange={(e) => onUpdate({ clock_out: e.target.value })} />
+          <TimePicker value={shift.clock_out} onChange={(v) => onUpdate({ clock_out: v })} />
         </div>
         {!shift.clock_out && (
           <Button size="sm" variant="outline" className="h-9" onClick={() => onUpdate({ clock_out: nowTime() })}>
