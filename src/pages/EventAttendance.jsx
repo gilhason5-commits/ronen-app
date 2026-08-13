@@ -7,9 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardCheck, Plus, Trash2, Clock, UserPlus } from "lucide-react";
+import { ClipboardCheck, Plus, Trash2, Clock, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
-import { FORMAT_LABELS } from "@/lib/staffingEngine";
+import { FORMAT_LABELS, computeStaffing } from "@/lib/staffingEngine";
 
 const todayStr = () => new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD local
 
@@ -48,6 +48,100 @@ function TimePicker({ value, onChange }) {
         {MINUTES.map((mm) => <option key={mm} value={mm}>{mm}</option>)}
       </select>
     </div>
+  );
+}
+
+// Displayed label vs. the underlying StaffingRule role_name — the day-of
+// sheet Ronen's team reads uses slightly different wording (סגן/עמדת יין)
+// than the monthly staffing map (פלור/סומלייה) for the same positions, so
+// only the label differs here; the data stays on the same role_name key.
+const MANAGER_ROLES = [
+  { label: "מנהל אירוע", roleName: "מנהל אירוע" },
+  { label: "סגן 1", roleName: "פלור 1" },
+  { label: "סגן 2", roleName: "פלור 2" },
+  { label: "מרפסת", roleName: "מנהל מרפסת" },
+  { label: "מזנונים", roleName: "מנהל מזונונים" },
+  { label: "ניהול כניסה", roleName: "ניהול כניסה" },
+  { label: "עמדת יין", roleName: "סומלייה" },
+  { label: "משפחות", roleName: "מלצרית משפחה" },
+  { label: "מארחת", roleName: "מארחת" },
+];
+
+function ManagerAttendanceSection({ event, rules, agencies, allEvents }) {
+  const queryClient = useQueryClient();
+  const { data: plans = [] } = useQuery({
+    queryKey: ["eventStaffingPlans", event.id],
+    queryFn: () => base44.entities.EventStaffingPlan.filter({ event_id: event.id }),
+    enabled: !!event,
+    initialData: [],
+  });
+
+  const updatePlan = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.EventStaffingPlan.update(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["eventStaffingPlans", event.id] }),
+    onError: (e) => toast.error(e.message),
+  });
+
+  const waiterCount = useMemo(
+    () => computeStaffing(event, rules, agencies, allEvents).waiterCount,
+    [event, rules, agencies, allEvents]
+  );
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center justify-between flex-wrap gap-2">
+          <span className="flex items-center gap-1.5"><Users className="w-4 h-4" /> מנהלים נוכחים</span>
+          <Badge variant="outline" className="bg-white">סה"כ מלצרים: {waiterCount}</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0 overflow-x-auto">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="bg-slate-50">
+              <th className="border border-slate-200 px-1.5 py-1.5 text-center w-6">#</th>
+              <th className="border border-slate-200 px-1.5 py-1.5">עובד משובץ</th>
+              <th className="border border-slate-200 px-1.5 py-1.5">תפקיד</th>
+              <th className="border border-slate-200 px-1 py-1.5">התחלה</th>
+              <th className="border border-slate-200 px-1 py-1.5">סיום</th>
+              <th className="border border-slate-200 px-1.5 py-1.5">הערות</th>
+            </tr>
+          </thead>
+          <tbody>
+            {MANAGER_ROLES.map((role, i) => {
+              const plan = plans.find((p) => p.role_name === role.roleName && (p.slot || 1) === 1);
+              return (
+                <tr key={role.roleName}>
+                  <td className="border border-slate-200 px-1.5 py-1 text-center text-slate-400">{i + 1}</td>
+                  <td className="border border-slate-200 px-1.5 py-1 font-medium whitespace-nowrap">{plan?.assigned_name || "—"}</td>
+                  <td className="border border-slate-200 px-1.5 py-1 font-medium whitespace-nowrap">{role.label}</td>
+                  <td className="border border-slate-200 p-0.5">
+                    {plan ? (
+                      <TimePicker value={plan.clock_in} onChange={(v) => updatePlan.mutate({ id: plan.id, data: { clock_in: v } })} />
+                    ) : (
+                      <span className="text-slate-300 px-1">לא משובץ</span>
+                    )}
+                  </td>
+                  <td className="border border-slate-200 p-0.5">
+                    {plan && <TimePicker value={plan.clock_out} onChange={(v) => updatePlan.mutate({ id: plan.id, data: { clock_out: v } })} />}
+                  </td>
+                  <td className="border border-slate-200 p-0.5">
+                    {plan && (
+                      <Input
+                        placeholder="הערה…"
+                        className="h-8 text-xs border-0"
+                        defaultValue={plan.note || ""}
+                        onBlur={(e) => { if (e.target.value !== (plan.note || "")) updatePlan.mutate({ id: plan.id, data: { note: e.target.value } }); }}
+                      />
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -207,6 +301,7 @@ export default function EventAttendance() {
   });
   const { data: agencies = [] } = useQuery({ queryKey: ["staffingAgencies"], queryFn: () => base44.entities.StaffingAgency.list("sort_order"), initialData: [] });
   const { data: workers = [] } = useQuery({ queryKey: ["agencyWorkers"], queryFn: () => base44.entities.AgencyWorker.list("full_name"), initialData: [] });
+  const { data: rules = [] } = useQuery({ queryKey: ["staffingRules"], queryFn: () => base44.entities.StaffingRule.list("sort_order"), initialData: [] });
 
   const updateShift = useMutation({
     mutationFn: ({ id, data }) => base44.entities.EventShift.update(id, data),
@@ -265,6 +360,8 @@ export default function EventAttendance() {
               <Badge variant="outline" className="bg-white">{shifts.length} נוכחים</Badge>
             </CardContent>
           </Card>
+
+          <ManagerAttendanceSection event={event} rules={rules} agencies={agencies} allEvents={events} />
 
           <AddWorkerForm event={event} agencies={agencies} workers={workers} shifts={shifts} />
 
