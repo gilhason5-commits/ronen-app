@@ -10,14 +10,20 @@ import { toast } from "sonner";
 import DishesList from "../components/dishes/DishesList";
 import DishDialog from "../components/dishes/DishDialog";
 import CategoryDialog from "../components/dishes/CategoryDialog";
+import SubCategoryDialog from "../components/dishes/SubCategoryDialog";
 
 export default function Dishes() {
   const [showDishDialog, setShowDishDialog] = useState(false);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [showSubCategoryDialog, setShowSubCategoryDialog] = useState(false);
   const [selectedDish, setSelectedDish] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedSubCategory, setSelectedSubCategory] = useState(null);
+  const [subCategoryParentId, setSubCategoryParentId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [filterSubCategory, setFilterSubCategory] = useState("all");
+  const [expandedCategoryId, setExpandedCategoryId] = useState(null);
   const [eventTypeFilter, setEventTypeFilter] = useState("serving");
   const queryClient = useQueryClient();
   
@@ -99,6 +105,17 @@ export default function Dishes() {
     }
   });
 
+  const deleteSubCategoryMutation = useMutation({
+    mutationFn: (subCategoryId) => base44.entities.SubCategory.delete(subCategoryId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subCategories'] });
+      toast.success('תת הקטגוריה נמחקה');
+    },
+    onError: () => {
+      toast.error('מחיקת תת הקטגוריה נכשלה');
+    }
+  });
+
   const filteredDishes = dishes.filter(dish => {
     const matchesSearch = dish.name?.toLowerCase().includes(searchTerm.toLowerCase());
     let matchesCategory = false;
@@ -108,6 +125,9 @@ export default function Dishes() {
       matchesCategory = true;
     } else {
       matchesCategory = dish.categories?.includes(filterCategory);
+      if (matchesCategory && filterSubCategory !== "all") {
+        matchesCategory = dish.sub_category_id === filterSubCategory;
+      }
     }
     return matchesSearch && matchesCategory;
   });
@@ -135,6 +155,37 @@ export default function Dishes() {
   const handleDeleteCategory = (categoryId, categoryName) => {
     if (confirm(`למחוק קטגוריה "${categoryName}"? זה לא ימחק מנות, רק את הקטגוריה.`)) {
       deleteCategoryMutation.mutate(categoryId);
+    }
+  };
+
+  const handleSelectCategory = (categoryId) => {
+    setFilterCategory(categoryId);
+    setFilterSubCategory("all");
+    setExpandedCategoryId(categoryId);
+  };
+
+  const handleSelectBuiltIn = (filterValue) => {
+    setFilterCategory(filterValue);
+    setFilterSubCategory("all");
+    setExpandedCategoryId(null);
+  };
+
+  const handleCreateSubCategory = (categoryId) => {
+    setSelectedSubCategory(null);
+    setSubCategoryParentId(categoryId);
+    setShowSubCategoryDialog(true);
+  };
+
+  const handleEditSubCategory = (subCategory) => {
+    setSelectedSubCategory(subCategory);
+    setSubCategoryParentId(subCategory.category_id);
+    setShowSubCategoryDialog(true);
+  };
+
+  const handleDeleteSubCategory = (subCategoryId, subCategoryName) => {
+    if (confirm(`למחוק תת קטגוריה "${subCategoryName}"? זה לא ימחק מנות, רק את תת הקטגוריה.`)) {
+      if (filterSubCategory === subCategoryId) setFilterSubCategory("all");
+      deleteSubCategoryMutation.mutate(subCategoryId);
     }
   };
 
@@ -253,7 +304,7 @@ export default function Dishes() {
           <CardContent className="p-4">
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => setFilterCategory("all")}
+                onClick={() => handleSelectBuiltIn("all")}
                 className={`px-3 py-2 rounded-lg border transition-colors text-sm font-medium ${
                   filterCategory === "all"
                     ? "bg-emerald-600 text-white border-emerald-600"
@@ -263,7 +314,7 @@ export default function Dishes() {
                 הכל
               </button>
               <button
-                onClick={() => setFilterCategory("no_ingredients")}
+                onClick={() => handleSelectBuiltIn("no_ingredients")}
                 className={`px-3 py-2 rounded-lg border transition-colors text-sm font-medium ${
                   filterCategory === "no_ingredients"
                     ? "bg-emerald-600 text-white border-emerald-600"
@@ -275,7 +326,7 @@ export default function Dishes() {
               {categories.map(category => (
                 <div key={category.id} className="relative group">
                   <button
-                    onClick={() => setFilterCategory(category.id)}
+                    onClick={() => handleSelectCategory(category.id)}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       handleEditCategory(category);
@@ -306,6 +357,55 @@ export default function Dishes() {
                 קטגוריה חדשה
               </Button>
             </div>
+
+            {expandedCategoryId && (
+              <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-stone-100 pr-4">
+                <button
+                  onClick={() => setFilterSubCategory("all")}
+                  className={`px-2.5 py-1.5 rounded-lg border transition-colors text-xs font-medium ${
+                    filterSubCategory === "all"
+                      ? "bg-emerald-500 text-white border-emerald-500"
+                      : "bg-white border-stone-200 hover:bg-stone-100 text-stone-600"
+                  }`}
+                >
+                  כל תתי הקטגוריה
+                </button>
+                {subCategories.filter(sc => sc.category_id === expandedCategoryId).map(sub => (
+                  <div key={sub.id} className="relative group">
+                    <button
+                      onClick={() => setFilterSubCategory(sub.id)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        handleEditSubCategory(sub);
+                      }}
+                      onDoubleClick={() => handleEditSubCategory(sub)}
+                      className={`px-2.5 py-1.5 rounded-lg border transition-colors text-xs font-medium ${
+                        filterSubCategory === sub.id
+                          ? "bg-emerald-500 text-white border-emerald-500"
+                          : "bg-white border-stone-200 hover:bg-stone-100 text-stone-600"
+                      }`}
+                    >
+                      {sub.name}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteSubCategory(sub.id, sub.name)}
+                      className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px]"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => handleCreateSubCategory(expandedCategoryId)}
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  תת קטגוריה חדשה
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -350,6 +450,16 @@ export default function Dishes() {
           eventType={eventTypeFilter}
           open={showCategoryDialog}
           onClose={() => setShowCategoryDialog(false)}
+        />
+      )}
+
+      {showSubCategoryDialog && (
+        <SubCategoryDialog
+          subCategory={selectedSubCategory}
+          categoryId={subCategoryParentId}
+          eventType={eventTypeFilter}
+          open={showSubCategoryDialog}
+          onClose={() => setShowSubCategoryDialog(false)}
         />
       )}
     </div>
