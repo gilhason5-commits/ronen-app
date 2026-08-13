@@ -47,7 +47,7 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
             key={slot}
             value={assigned?.assigned_employee_id || "__none__"}
             onChange={(e) => onAssign({ role_name: roleName, slot, employee: e.target.value })}
-            className={`w-full min-w-[6rem] text-xs rounded border px-1 py-1 text-center focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+            className={`w-full max-w-full text-[11px] rounded border px-0.5 py-1 text-center focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
               filled
                 ? "bg-emerald-100 border-emerald-300 text-emerald-900"
                 : "bg-red-100 border-red-300 text-red-900"
@@ -132,34 +132,34 @@ function EventTableRow({ event, rules, agencies, roleColumns, allEvents, employe
     0
   );
 
-  const colSpan = 8 + roleColumns.length + agencies.length;
+  const colSpan = 9 + roleColumns.length + agencies.length;
 
   return (
     <>
       <tr className="hover:bg-stone-50/70">
-        <td className="sticky right-0 bg-white border border-stone-300 px-1 py-1 text-center">
-          <button onClick={() => setOpen((o) => !o)} className="p-1 hover:bg-stone-100 rounded">
-            <ChevronDown className={`w-4 h-4 transition-transform ${open ? "" : "-rotate-90"}`} />
+        <td className="border border-stone-300 px-0.5 py-1 text-center">
+          <button onClick={() => setOpen((o) => !o)} className="p-0.5 hover:bg-stone-100 rounded">
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
           </button>
         </td>
-        <td className="sticky right-8 bg-white border border-stone-300 px-3 py-1 font-medium text-stone-900 whitespace-nowrap">
+        <td className="border border-stone-300 px-1.5 py-1 font-medium text-stone-900 truncate text-xs" title={event.event_name}>
           {event.event_name}
         </td>
-        <td className="border border-stone-300 px-3 py-1 text-stone-600 whitespace-nowrap text-center">
+        <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center">
           {date.getDate()}.{date.getMonth() + 1}
         </td>
-        <td className="border border-stone-300 px-3 py-1 text-stone-600 whitespace-nowrap text-center">
+        <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center truncate">
           {DAY_NAMES[date.getDay()]}
         </td>
-        <td className="border border-stone-300 px-3 py-1 text-stone-600 whitespace-nowrap text-center">
+        <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center">
           {event.event_time || "-"}
         </td>
-        <td className="border border-stone-300 px-3 py-1 text-stone-600 whitespace-nowrap text-center">
+        <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center">
           {event.guest_count || 0}
         </td>
         <td className="border border-stone-300 p-0.5">
           <Select value={event.staffing_format || "serving"} onValueChange={(v) => setFormat.mutate(v)}>
-            <SelectTrigger className="h-8 text-xs bg-white"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-[11px] px-1.5 bg-white w-full"><SelectValue /></SelectTrigger>
             <SelectContent>{FORMAT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
           </Select>
         </td>
@@ -174,11 +174,11 @@ function EventTableRow({ event, rules, agencies, roleColumns, allEvents, employe
             />
           </td>
         ))}
-        <td className="border border-stone-300 px-2 py-1 text-center whitespace-nowrap">
+        <td className="border border-stone-300 px-1 py-1 text-center text-xs whitespace-nowrap">
           <span className={plannedWaiters === staffing.waiterCount ? "text-emerald-700 font-semibold" : "text-red-700 font-semibold"}>
             {plannedWaiters}
           </span>
-          <span className="text-stone-400"> / {staffing.waiterCount}</span>
+          <span className="text-stone-400">/{staffing.waiterCount}</span>
         </td>
         {agencies.map((agency) => {
           const value = plannedByAgency.has(agency.id) ? plannedByAgency.get(agency.id) : (computedByAgency.get(agency.id) ?? 0);
@@ -187,7 +187,7 @@ function EventTableRow({ event, rules, agencies, roleColumns, allEvents, employe
             <td key={agency.id} className="border border-stone-300 p-0.5">
               <input
                 type="number"
-                className={`w-full min-w-[3.5rem] h-8 text-xs text-center rounded border focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                className={`w-full h-8 text-[11px] text-center rounded border px-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
                   isOverride ? "bg-amber-50 border-amber-300" : "bg-white border-stone-200"
                 }`}
                 value={value}
@@ -196,11 +196,11 @@ function EventTableRow({ event, rules, agencies, roleColumns, allEvents, employe
             </td>
           );
         })}
-        <td className="border border-stone-300 px-2 py-1 text-center whitespace-nowrap">
-          <div className="flex items-center justify-center gap-1" title={flags.map((f) => f.message).join("\n")}>
-            {redCount > 0 && <Badge className="bg-red-600 gap-1 text-xs">{redCount}</Badge>}
-            {yellowCount > 0 && <Badge className="bg-amber-500 gap-1 text-xs">{yellowCount}</Badge>}
-            {flags.length === 0 && <Badge variant="outline" className="text-xs text-emerald-700 border-emerald-300">תקין</Badge>}
+        <td className="border border-stone-300 px-1 py-1 text-center">
+          <div className="flex items-center justify-center gap-1 flex-wrap" title={flags.map((f) => f.message).join("\n")}>
+            {redCount > 0 && <Badge className="bg-red-600 gap-1 text-[10px] px-1.5">{redCount}</Badge>}
+            {yellowCount > 0 && <Badge className="bg-amber-500 gap-1 text-[10px] px-1.5">{yellowCount}</Badge>}
+            {flags.length === 0 && <Badge variant="outline" className="text-[10px] px-1.5 text-emerald-700 border-emerald-300">תקין</Badge>}
           </div>
         </td>
       </tr>
@@ -271,6 +271,13 @@ export default function StaffingMap() {
     () => agencies.filter((a) => a.is_active).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
     [agencies]
   );
+  // Fixed columns (name/date/day/time/count/format/waiters/flags) eat a known
+  // % budget; whatever's left is split evenly across role + agency columns so
+  // the table always spans exactly 100% of its container, however many rules
+  // or agencies exist — no horizontal scroll needed on a normal screen.
+  const FIXED_PCT_BUDGET = 9 + 3.5 * 3 + 3 + 5.5 + 4.5 + 4;
+  const dynamicCount = roleColumns.length + activeAgencies.length;
+  const dynamicColPct = dynamicCount > 0 ? (100 - FIXED_PCT_BUDGET) / dynamicCount : 0;
 
   const shift = (dir) => { const d = new Date(month); d.setMonth(d.getMonth() + dir); setMonth(d); };
 
@@ -302,28 +309,45 @@ export default function StaffingMap() {
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-stone-100 border border-stone-300 inline-block" /> לא נדרש</span>
           </div>
           <div className="bg-white border border-stone-300 overflow-x-auto">
-            <table className="min-w-full text-sm border-collapse">
+            <table className="w-full table-fixed text-sm border-collapse">
+              <colgroup>
+                <col style={{ width: "24px" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "3.5%" }} />
+                <col style={{ width: "3.5%" }} />
+                <col style={{ width: "3.5%" }} />
+                <col style={{ width: "3%" }} />
+                <col style={{ width: "5.5%" }} />
+                {roleColumns.map((roleName) => (
+                  <col key={roleName} style={{ width: `${dynamicColPct}%` }} />
+                ))}
+                <col style={{ width: "4.5%" }} />
+                {activeAgencies.map((agency) => (
+                  <col key={agency.id} style={{ width: `${dynamicColPct}%` }} />
+                ))}
+                <col style={{ width: "4%" }} />
+              </colgroup>
               <thead>
                 <tr className="bg-stone-200">
-                  <th className="sticky right-0 bg-stone-200 border border-stone-300 px-1 py-2 z-10" />
-                  <th className="sticky right-8 bg-stone-200 border border-stone-300 px-3 py-2 text-center font-bold text-stone-800 whitespace-nowrap z-10">שם האירוע</th>
-                  <th className="border border-stone-300 px-3 py-2 text-center font-bold text-stone-800 whitespace-nowrap">תאריך</th>
-                  <th className="border border-stone-300 px-3 py-2 text-center font-bold text-stone-800 whitespace-nowrap">יום</th>
-                  <th className="border border-stone-300 px-3 py-2 text-center font-bold text-stone-800 whitespace-nowrap">שעה</th>
-                  <th className="border border-stone-300 px-3 py-2 text-center font-bold text-stone-800 whitespace-nowrap">כמות</th>
-                  <th className="border border-stone-300 px-3 py-2 text-center font-bold text-stone-800 whitespace-nowrap">פורמט</th>
+                  <th className="border border-stone-300 px-0.5 py-2" />
+                  <th className="border border-stone-300 px-1.5 py-2 text-center font-bold text-stone-800 text-xs">שם האירוע</th>
+                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">תאריך</th>
+                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">יום</th>
+                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">שעה</th>
+                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">כמות</th>
+                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">פורמט</th>
                   {roleColumns.map((roleName) => (
-                    <th key={roleName} className="border border-stone-300 px-2 py-2 text-center font-bold text-stone-800 whitespace-nowrap">
+                    <th key={roleName} className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px] leading-tight break-words">
                       {roleName}
                     </th>
                   ))}
-                  <th className="border border-stone-300 px-2 py-2 text-center font-bold text-stone-800 whitespace-nowrap">מלצרים</th>
+                  <th className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px] leading-tight break-words">מלצרים</th>
                   {activeAgencies.map((agency) => (
-                    <th key={agency.id} className="border border-stone-300 px-2 py-2 text-center font-bold text-stone-800 whitespace-nowrap">
+                    <th key={agency.id} className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px] leading-tight break-words">
                       {agency.name}
                     </th>
                   ))}
-                  <th className="border border-stone-300 px-2 py-2 text-center font-bold text-stone-800 whitespace-nowrap">פערים</th>
+                  <th className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px]">פערים</th>
                 </tr>
               </thead>
               <tbody>
