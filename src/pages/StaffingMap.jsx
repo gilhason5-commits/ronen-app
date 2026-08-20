@@ -13,6 +13,7 @@ import {
   FORMAT_OPTIONS,
 } from "@/lib/staffingEngine";
 import { exportConstraintsPdf, exportSupplierOrdersPdf, exportFloorReportPdf } from "@/lib/staffingPdf";
+import { getStaffColor } from "@/lib/staffColors";
 
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
@@ -75,6 +76,7 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
       {slots.map((slot) => {
         const assigned = planRows.find((p) => p.role_name === roleName && (p.slot || 1) === slot);
         const filled = !!(assigned?.assigned_employee_id || assigned?.assigned_name);
+        const color = filled ? getStaffColor(assigned?.assigned_name) : null;
         return (
           <select
             key={slot}
@@ -82,7 +84,7 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
             onChange={(e) => onAssign({ role_name: roleName, slot, employee: e.target.value })}
             className={`w-full max-w-full text-[11px] rounded border px-0.5 py-1 text-center focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
               filled
-                ? "bg-emerald-100 border-emerald-300 text-emerald-900"
+                ? `${color.bg} ${color.border} ${color.text} font-medium`
                 : "bg-red-100 border-red-300 text-red-900"
             }`}
           >
@@ -411,7 +413,10 @@ export default function StaffingMap() {
       {!isLoading && events.length > 0 && (
         <>
           <div className="flex items-center gap-4 text-xs text-stone-600">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-100 border border-emerald-300 inline-block" /> מאויש</span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-gradient-to-br from-orange-200 via-blue-200 to-pink-200 border border-stone-300 inline-block" />
+              מאויש (צבע קבוע לכל איש צוות)
+            </span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-100 border border-red-300 inline-block" /> חסר</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-stone-100 border border-stone-300 inline-block" /> לא נדרש</span>
           </div>
