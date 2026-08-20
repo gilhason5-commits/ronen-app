@@ -343,7 +343,21 @@ export default function StaffingMap() {
   });
   const { data: rules = [] } = useQuery({ queryKey: ["staffingRules"], queryFn: () => base44.entities.StaffingRule.list("sort_order"), initialData: [] });
   const { data: agencies = [] } = useQuery({ queryKey: ["staffingAgencies"], queryFn: () => base44.entities.StaffingAgency.list("sort_order"), initialData: [] });
-  const { data: employees = [] } = useQuery({ queryKey: ["taskEmployees"], queryFn: () => base44.entities.TaskEmployee.list(), initialData: [] });
+  const { data: rawEmployees = [] } = useQuery({ queryKey: ["taskEmployees"], queryFn: () => base44.entities.TaskEmployee.list(), initialData: [] });
+  // TaskEmployee has duplicate/blank rows from data entry; drop empty names and
+  // collapse repeated names to the first record so the assignment dropdown
+  // shows each person once.
+  const employees = useMemo(() => {
+    const seen = new Set();
+    const deduped = [];
+    for (const e of rawEmployees) {
+      const name = (e.full_name || "").trim();
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      deduped.push(e);
+    }
+    return deduped;
+  }, [rawEmployees]);
   const { data: allPlans = [] } = useQuery({ queryKey: ["staffingPlans"], queryFn: () => base44.entities.EventStaffingPlan.list("created_date", 5000), initialData: [] });
   const { data: allSplits = [] } = useQuery({ queryKey: ["agencySplits"], queryFn: () => base44.entities.EventAgencySplit.list("created_date", 5000), initialData: [] });
 
