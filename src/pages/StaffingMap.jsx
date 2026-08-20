@@ -82,9 +82,10 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
             key={slot}
             value={assigned?.assigned_employee_id || "__none__"}
             onChange={(e) => onAssign({ role_name: roleName, slot, employee: e.target.value })}
+            style={filled ? color.style : undefined}
             className={`w-full max-w-full h-8 text-[11px] border-0 px-1 text-center focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 ${
               filled
-                ? `${color.bg} ${color.text} font-semibold`
+                ? `${color.className} font-semibold`
                 : "bg-red-100 text-red-900"
             }`}
           >
@@ -162,6 +163,8 @@ function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleCol
   });
 
   const date = new Date(`${event.event_date}T00:00:00`);
+  const bigEvent = (event.guest_count || 0) > 300;
+  const bigEventCellClass = bigEvent ? "bg-yellow-200" : "";
   const redCount = flags.filter((f) => f.severity === "red").length;
   const yellowCount = flags.length - redCount;
 
@@ -182,22 +185,22 @@ function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleCol
             <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
           </button>
         </td>
-        <td className="border border-stone-300 px-1.5 py-1 font-medium text-stone-900 truncate text-xs" title={event.event_name}>
+        <td className={`border border-stone-300 px-1.5 py-1 font-medium text-stone-900 truncate text-xs ${bigEventCellClass}`} title={event.event_name}>
           {event.event_name}
         </td>
-        <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center">
+        <td className={`border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center ${bigEventCellClass}`}>
           {date.getDate()}.{date.getMonth() + 1}
         </td>
-        <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center truncate">
+        <td className={`border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center truncate ${bigEventCellClass}`}>
           {DAY_NAMES[date.getDay()]}
         </td>
         <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center">
           {event.event_time || "-"}
         </td>
-        <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center font-mono">
+        <td className={`border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center font-mono ${bigEventCellClass}`}>
           {staffing.briefTime || "-"}
         </td>
-        <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center">
+        <td className={`border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center ${bigEventCellClass}`}>
           {event.guest_count || 0}
         </td>
         <td className="border border-stone-300 p-0.5">
