@@ -72,7 +72,7 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
   }
   const slots = Array.from({ length: req.count }, (_, i) => i + 1);
   return (
-    <div className="flex flex-col gap-0.5 p-0.5">
+    <div className="flex flex-col h-full divide-y divide-white">
       {slots.map((slot) => {
         const assigned = planRows.find((p) => p.role_name === roleName && (p.slot || 1) === slot);
         const filled = !!(assigned?.assigned_employee_id || assigned?.assigned_name);
@@ -82,10 +82,10 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
             key={slot}
             value={assigned?.assigned_employee_id || "__none__"}
             onChange={(e) => onAssign({ role_name: roleName, slot, employee: e.target.value })}
-            className={`w-full max-w-full text-[11px] rounded border px-0.5 py-1 text-center focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+            className={`w-full max-w-full h-8 text-[11px] border-0 px-1 text-center focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 ${
               filled
-                ? `${color.bg} ${color.border} ${color.text} font-medium`
-                : "bg-red-100 border-red-300 text-red-900"
+                ? `${color.bg} ${color.text} font-semibold`
+                : "bg-red-100 text-red-900"
             }`}
           >
             <option value="__none__">— לא משובץ —</option>
