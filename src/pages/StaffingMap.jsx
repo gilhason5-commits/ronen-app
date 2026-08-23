@@ -166,7 +166,7 @@ function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleCol
   // "כמות" shows total guests (סה״כ אורחים), not the derived adult-commitment
   // count (סה״כ מבוגרים להתחייבות) that staffing.requiredRoles is computed from.
   const displayGuestCount = event.total_guests ?? event.guest_count ?? 0;
-  const bigEvent = displayGuestCount > 300;
+  const bigEvent = displayGuestCount >= 300;
   const bigEventCellClass = bigEvent ? "bg-yellow-200" : "";
   const redCount = flags.filter((f) => f.severity === "red").length;
   const yellowCount = flags.length - redCount;
