@@ -86,7 +86,7 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
             className={`w-full max-w-full h-8 text-[11px] border-0 px-1 text-center focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 ${
               filled
                 ? `${color.className} font-semibold`
-                : "bg-red-100 text-red-900"
+                : "bg-red-800 text-white font-semibold"
             }`}
           >
             <option value="__none__">— לא משובץ —</option>
@@ -437,7 +437,7 @@ export default function StaffingMap() {
               <span className="w-3 h-3 rounded-sm bg-gradient-to-br from-orange-200 via-blue-200 to-pink-200 border border-stone-300 inline-block" />
               מאויש (צבע קבוע לכל איש צוות)
             </span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-100 border border-red-300 inline-block" /> חסר</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-800 inline-block" /> חסר</span>
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-stone-100 border border-stone-300 inline-block" /> לא נדרש</span>
           </div>
           <div className="bg-white border border-stone-300 overflow-x-auto">
