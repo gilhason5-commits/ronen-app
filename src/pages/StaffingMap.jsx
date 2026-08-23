@@ -163,7 +163,10 @@ function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleCol
   });
 
   const date = new Date(`${event.event_date}T00:00:00`);
-  const bigEvent = (event.guest_count || 0) > 300;
+  // "כמות" shows total guests (סה״כ אורחים), not the derived adult-commitment
+  // count (סה״כ מבוגרים להתחייבות) that staffing.requiredRoles is computed from.
+  const displayGuestCount = event.total_guests ?? event.guest_count ?? 0;
+  const bigEvent = displayGuestCount > 300;
   const bigEventCellClass = bigEvent ? "bg-yellow-200" : "";
   const redCount = flags.filter((f) => f.severity === "red").length;
   const yellowCount = flags.length - redCount;
@@ -201,7 +204,7 @@ function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleCol
           {staffing.briefTime || "-"}
         </td>
         <td className={`border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center ${bigEventCellClass}`}>
-          {event.guest_count || 0}
+          {displayGuestCount}
         </td>
         <td className="border border-stone-300 p-0.5">
           <Select value={event.staffing_format || "serving"} onValueChange={(v) => setFormat.mutate(v)}>

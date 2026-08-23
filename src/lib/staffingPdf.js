@@ -182,7 +182,7 @@ export function exportFloorReportPdf({ events, rules, roleColumns, monthLabel, a
         day: dayName(event.event_date),
         time: event.event_time || "-",
         brief: staffing.briefTime || "-",
-        guests: event.guest_count || 0,
+        guests: event.total_guests ?? event.guest_count ?? 0,
         format: FORMAT_LABELS[event.staffing_format] || "-",
       };
       roleColumns.forEach((roleName) => {
