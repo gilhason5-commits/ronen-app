@@ -18,6 +18,13 @@ function inRange(rule, guests) {
   return true;
 }
 
+// Staffing formulas key off total guests (סה״כ אורחים), not the derived
+// adult-commitment count (סה״כ מבוגרים להתחייבות) that food-cost/waste math
+// uses — fall back to guest_count only for older records missing total_guests.
+function guestsOf(event) {
+  return Number(event.total_guests ?? event.guest_count) || 0;
+}
+
 // Roles that count as "managers" for the flipped-format waiter formula
 function countedManagers(requiredRoles, excludeRoles) {
   return requiredRoles
@@ -30,7 +37,7 @@ function countedManagers(requiredRoles, excludeRoles) {
  * whose guest range matches. Returns [{role_name, count, arrival_offset_minutes, explanation}]
  */
 export function computeRequiredRoles(event, rules) {
-  const guests = Number(event.guest_count) || 0;
+  const guests = guestsOf(event);
   return rules
     .filter((r) => r.is_active && r.rule_type === 'REQUIRED_ROLE' && inRange(r, guests))
     .map((r) => ({
@@ -45,7 +52,7 @@ export function computeRequiredRoles(event, rules) {
  * Waiter count for an event by its staffing format.
  */
 export function computeWaiters(event, rules, requiredRoles) {
-  const guests = Number(event.guest_count) || 0;
+  const guests = guestsOf(event);
   const format = event.staffing_format || 'serving';
   const rule = rules.find(
     (r) => r.is_active && r.rule_type === 'WAITER_FORMULA' && r.event_format === format
@@ -82,7 +89,7 @@ export function computeWaiters(event, rules, requiredRoles) {
  * events: all events that month (needed for "event tomorrow" conditions).
  */
 export function computeOps(event, rules, allEvents = []) {
-  const guests = Number(event.guest_count) || 0;
+  const guests = guestsOf(event);
   const byRole = new Map();
   for (const r of rules) {
     if (!r.is_active || r.rule_type !== 'OPS' || !inRange(r, guests)) continue;
@@ -170,7 +177,7 @@ export function computeStaffing(event, rules, agencies, allEvents = []) {
  */
 export function computeFlags(event, staffing, planRows, splitRows) {
   const flags = [];
-  const guests = Number(event.guest_count) || 0;
+  const guests = guestsOf(event);
 
   for (const req of staffing.requiredRoles) {
     const assigned = planRows.filter((p) => p.role_name === req.role_name && (p.assigned_name || p.assigned_employee_id));
