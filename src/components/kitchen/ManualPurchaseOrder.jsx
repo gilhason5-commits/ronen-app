@@ -117,26 +117,22 @@ export default function ManualPurchaseOrder() {
   const handlePrint = () => {
     if (!supplier) return;
     const printWindow = window.open("", "_blank");
-    const columnsHtml = columns
+    const categoriesHtml = columns
       .map(
         (col) => `
-        <table>
-          <thead>
-            <tr><th colspan="2">${col.name}</th></tr>
-            <tr><th>מוצר</th><th>כמות</th></tr>
-          </thead>
-          <tbody>
-            ${col.items
-              .map(
-                (ing) => `
-              <tr>
-                <td>${ing.name}${ing.purchase_unit || ing.system_unit ? `<div class="unit">${ing.purchase_unit || ""} ${ing.system_unit || ing.unit || ""}</div>` : ""}</td>
-                <td class="qty">${quantities[ing.id] || ""}</td>
-              </tr>`
-              )
-              .join("")}
-          </tbody>
-        </table>`
+        <div class="category">
+          <div class="category-title">${col.name}</div>
+          ${col.items
+            .map((ing) => {
+              const unit = [ing.purchase_unit, ing.system_unit || ing.unit].filter(Boolean).join(" ");
+              return `
+              <div class="item-row">
+                <span class="item-name">${ing.name}${unit ? `<span class="item-unit"> (${unit})</span>` : ""}</span>
+                <span class="item-qty">${quantities[ing.id] || ""}</span>
+              </div>`;
+            })
+            .join("")}
+        </div>`
       )
       .join("");
 
@@ -145,22 +141,35 @@ export default function ManualPurchaseOrder() {
       <head>
         <title>הזמנת רכש - ${supplier.name}</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 24px; color: #1c1917; }
-          h1 { font-size: 20px; margin-bottom: 2px; }
-          .meta { color: #78716c; font-size: 13px; margin-bottom: 16px; }
-          .columns { display: flex; flex-wrap: wrap; gap: 16px; }
-          table { border-collapse: collapse; width: 260px; font-size: 13px; }
-          th { background: #f5f5f4; text-align: right; padding: 6px 8px; border: 1px solid #d6d3d1; }
-          td { padding: 6px 8px; border: 1px solid #e7e5e4; }
-          td.qty { text-align: center; width: 60px; }
-          .unit { font-size: 11px; color: #a8a29e; }
-          @media print { body { padding: 8px; } }
+          body { font-family: Arial, sans-serif; padding: 12px; color: #1c1917; }
+          h1 { font-size: 18px; margin: 0 0 2px; }
+          .meta { color: #78716c; font-size: 12px; margin-bottom: 10px; }
+          .columns-wrap { column-count: 2; column-gap: 20px; column-rule: 1px solid #e7e5e4; }
+          .category { margin-bottom: 4px; }
+          .category-title {
+            background: #f5f5f4; font-weight: bold; font-size: 12px;
+            padding: 3px 6px; border: 1px solid #d6d3d1;
+            break-after: avoid;
+          }
+          .item-row {
+            display: flex; align-items: baseline; justify-content: space-between; gap: 6px;
+            font-size: 11px; padding: 2px 6px; border-bottom: 1px solid #e7e5e4;
+            break-inside: avoid;
+          }
+          .item-name {
+            flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+          }
+          .item-unit { font-size: 9px; color: #a8a29e; }
+          .item-qty {
+            flex-shrink: 0; width: 30px; text-align: center; border-bottom: 1px solid #78716c;
+          }
+          @media print { body { padding: 6px; } }
         </style>
       </head>
       <body>
         <h1>הזמנת רכש - ${supplier.name}</h1>
         <div class="meta">תאריך: ${format(new Date(), "dd/MM/yyyy")}</div>
-        <div class="columns">${columnsHtml}</div>
+        <div class="columns-wrap">${categoriesHtml}</div>
       </body>
       </html>
     `);
