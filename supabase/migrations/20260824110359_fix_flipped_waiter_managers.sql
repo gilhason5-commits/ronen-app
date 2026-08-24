@@ -12,3 +12,10 @@ set params = jsonb_set(
     ),
     explanation = 'הפוכה: כמות סופית ÷ 10 פחות 5 מנהלים (מנהל אירוע, פלור 1, מנהל מרפסת, ראנר, סומלייה); מעל 300 סועדים מתווסף פלור 2 ל-6'
 where rule_type = 'WAITER_FORMULA' and event_format = 'flipped';
+
+-- Confirmed correct: שטיפת סירים is a single fixed role above 200 guests
+-- (no further tiers like מדיח). Clears the "לברר" note left from the
+-- original transcription of the standards document.
+update "StaffingRule"
+set explanation = 'שטיפת סירים — מעל 200 סועדים, איש אחד קבוע'
+where rule_type = 'OPS' and role_name = 'שטיפת סירים';
