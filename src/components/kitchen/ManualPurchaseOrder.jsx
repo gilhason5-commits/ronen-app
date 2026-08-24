@@ -146,14 +146,14 @@ export default function ManualPurchaseOrder() {
         <title>הזמנת רכש - ${supplier.name}</title>
         <style>
           body { font-family: Arial, sans-serif; padding: 24px; color: #1c1917; }
-          h1 { font-size: 20px; margin-bottom: 2px; }
-          .meta { color: #78716c; font-size: 13px; margin-bottom: 16px; }
+          h1 { font-size: 30px; margin-bottom: 2px; }
+          .meta { color: #78716c; font-size: 19.5px; margin-bottom: 16px; }
           .columns { display: flex; flex-wrap: wrap; gap: 16px; }
-          table { border-collapse: collapse; width: 260px; font-size: 13px; }
+          table { border-collapse: collapse; width: 390px; font-size: 19.5px; }
           th { background: #f5f5f4; text-align: right; padding: 6px 8px; border: 1px solid #d6d3d1; }
           td { padding: 6px 8px; border: 1px solid #e7e5e4; }
-          td.qty { text-align: center; width: 60px; }
-          .unit { font-size: 11px; color: #a8a29e; }
+          td.qty { text-align: center; width: 90px; }
+          .unit { font-size: 16.5px; color: #a8a29e; }
           @media print { body { padding: 8px; } }
         </style>
       </head>

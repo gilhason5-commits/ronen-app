@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, ChevronDown, Map, AlertTriangle, Clock, Users, UtensilsCrossed } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ChevronLeft, ChevronRight, ChevronDown, Map, AlertTriangle, Clock, Users, UtensilsCrossed, Printer } from "lucide-react";
 import { toast } from "sonner";
 import {
   computeStaffing,
@@ -240,6 +241,89 @@ export default function StaffingMap() {
 
   const shift = (dir) => { const d = new Date(month); d.setMonth(d.getMonth() + dir); setMonth(d); };
 
+  // effective (override-aware) agency split per event, for the order printout
+  const orderRows = useMemo(() => {
+    return events.map((event) => {
+      const staffing = computeStaffing(event, rules, agencies, events);
+      const splitRows = allSplits.filter((s) => s.event_id === event.id);
+      const effectiveSplit = staffing.split.map((s) => {
+        const ov = splitRows.find((r) => r.agency_id === s.agency_id);
+        return ov ? { ...s, planned_count: ov.planned_count } : s;
+      });
+      return { event, effectiveSplit };
+    });
+  }, [events, rules, agencies, allSplits]);
+
+  const handlePrintOrder = (agency) => {
+    const rows = orderRows
+      .map(({ event, effectiveSplit }) => ({
+        event,
+        count: effectiveSplit.find((s) => s.agency_id === agency.id)?.planned_count || 0,
+      }))
+      .filter((r) => r.count > 0)
+      .sort((a, b) => a.event.event_date.localeCompare(b.event.event_date));
+
+    if (rows.length === 0) {
+      toast.error(`אין מלצרים מתוכננים מ${agency.name} בחודש זה`);
+      return;
+    }
+
+    const monthLabel = month.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+    const total = rows.reduce((s, r) => s + r.count, 0);
+    const rowsHtml = rows
+      .map(({ event, count }) => {
+        const date = new Date(`${event.event_date}T00:00:00`);
+        return `
+          <tr>
+            <td>${date.getDate()}.${date.getMonth() + 1}</td>
+            <td>${DAY_NAMES[date.getDay()]}</td>
+            <td>${event.event_name || ""}</td>
+            <td>${event.event_time || "—"}</td>
+            <td class="qty">${count}</td>
+          </tr>`;
+      })
+      .join("");
+
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(`
+      <html dir="rtl">
+      <head>
+        <title>הזמנת רכש - ${agency.name}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 24px; color: #1c1917; }
+          h1 { font-size: 20px; margin-bottom: 2px; }
+          .meta { color: #78716c; font-size: 13px; margin-bottom: 16px; }
+          table { border-collapse: collapse; width: 100%; max-width: 560px; font-size: 13px; }
+          th { background: #f5f5f4; text-align: right; padding: 6px 10px; border: 1px solid #d6d3d1; }
+          td { padding: 6px 10px; border: 1px solid #e7e5e4; text-align: right; }
+          td.qty { text-align: center; width: 80px; font-weight: 700; }
+          tfoot td { font-weight: 700; background: #f5f5f4; }
+          @media print { body { padding: 8px; } }
+        </style>
+      </head>
+      <body>
+        <h1>הזמנת רכש - ${agency.name}</h1>
+        <div class="meta">חודש: ${monthLabel}</div>
+        <table>
+          <thead>
+            <tr><th>תאריך</th><th>יום</th><th>אירוע</th><th>שעה</th><th>מלצרים</th></tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+          <tfoot>
+            <tr><td colspan="4">סה"כ</td><td class="qty">${total}</td></tr>
+          </tfoot>
+        </table>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 300);
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-4" dir="rtl">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -247,6 +331,20 @@ export default function StaffingMap() {
           <Map className="w-6 h-6 text-emerald-700" /> מפת כוח אדם
         </h1>
         <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={agencies.length === 0}>
+                <Printer className="w-4 h-4 ml-1" /> הזמנת רכש
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {agencies.map((agency) => (
+                <DropdownMenuItem key={agency.id} onClick={() => handlePrintOrder(agency)}>
+                  {agency.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="outline" size="icon" onClick={() => shift(1)}><ChevronRight className="w-4 h-4" /></Button>
           <span className="font-medium w-32 text-center">
             {month.toLocaleDateString("he-IL", { month: "long", year: "numeric" })}
