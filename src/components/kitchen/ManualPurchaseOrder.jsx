@@ -117,50 +117,77 @@ export default function ManualPurchaseOrder() {
   const handlePrint = () => {
     if (!supplier) return;
     const printWindow = window.open("", "_blank");
-    const columnsHtml = columns
-      .map(
-        (col) => `
-        <table>
-          <thead>
-            <tr><th colspan="2">${col.name}</th></tr>
-            <tr><th>מוצר</th><th>כמות</th></tr>
-          </thead>
-          <tbody>
-            ${col.items
-              .map(
-                (ing) => `
-              <tr>
-                <td>${ing.name}${ing.purchase_unit || ing.system_unit ? `<div class="unit">${ing.purchase_unit || ""} ${ing.system_unit || ing.unit || ""}</div>` : ""}</td>
-                <td class="qty">${quantities[ing.id] || ""}</td>
-              </tr>`
-              )
-              .join("")}
-          </tbody>
-        </table>`
-      )
-      .join("");
+
+    // CSS column-count doesn't reliably split across print page boundaries
+    // once content runs past one page (columns silently collapse back to
+    // one, and the rest overflows to extra pages instead of filling the
+    // second column) — so split the flat row list into two halves ourselves
+    // and lay them out as two explicit side-by-side columns.
+    const rows = [];
+    columns.forEach((col) => {
+      rows.push({ type: "title", text: col.name });
+      col.items.forEach((ing) => {
+        const unit = [ing.purchase_unit, ing.system_unit || ing.unit].filter(Boolean).join(" ");
+        rows.push({ type: "item", categoryName: col.name, name: ing.name, unit, qty: quantities[ing.id] || "" });
+      });
+    });
+
+    let mid = Math.ceil(rows.length / 2);
+    while (mid > 0 && rows[mid - 1]?.type === "title") mid--; // no dangling header at column bottom
+    const left = rows.slice(0, mid);
+    const right = rows.slice(mid);
+    // If the split lands mid-category, repeat that category's header at the
+    // top of the right column so it doesn't start with orphaned items.
+    if (right.length && right[0].type === "item") {
+      right.unshift({ type: "title", text: `${right[0].categoryName} (המשך)` });
+    }
+
+    const rowHtml = (row) =>
+      row.type === "title"
+        ? `<div class="category-title">${row.text}</div>`
+        : `<div class="item-row">
+             <span class="item-name">${row.name}${row.unit ? `<span class="item-unit"> (${row.unit})</span>` : ""}</span>
+             <span class="item-qty">${row.qty}</span>
+           </div>`;
+
+    const columnsHtml = `
+      <div class="col">${left.map(rowHtml).join("")}</div>
+      <div class="col">${right.map(rowHtml).join("")}</div>
+    `;
 
     printWindow.document.write(`
       <html dir="rtl">
       <head>
         <title>הזמנת רכש - ${supplier.name}</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 24px; color: #1c1917; }
-          h1 { font-size: 30px; margin-bottom: 2px; }
-          .meta { color: #78716c; font-size: 19.5px; margin-bottom: 16px; }
-          .columns { display: flex; flex-wrap: wrap; gap: 16px; }
-          table { border-collapse: collapse; width: 390px; font-size: 19.5px; }
-          th { background: #f5f5f4; text-align: right; padding: 6px 8px; border: 1px solid #d6d3d1; }
-          td { padding: 6px 8px; border: 1px solid #e7e5e4; }
-          td.qty { text-align: center; width: 90px; }
-          .unit { font-size: 16.5px; color: #a8a29e; }
-          @media print { body { padding: 8px; } }
+          body { font-family: Arial, sans-serif; padding: 12px; color: #1c1917; }
+          h1 { font-size: 27px; margin: 0 0 2px; }
+          .meta { color: #78716c; font-size: 18px; margin-bottom: 10px; }
+          .columns-wrap { display: flex; gap: 20px; align-items: flex-start; }
+          .col { flex: 1; min-width: 0; border-right: 1px solid #e7e5e4; padding-right: 20px; }
+          .col:last-child { border-right: none; padding-right: 0; }
+          .category-title {
+            background: #f5f5f4; font-weight: bold; font-size: 18px;
+            padding: 3px 6px; border: 1px solid #d6d3d1; margin-top: 4px;
+          }
+          .item-row {
+            display: flex; align-items: baseline; justify-content: space-between; gap: 6px;
+            font-size: 16.5px; padding: 2px 6px; border-bottom: 1px solid #e7e5e4;
+          }
+          .item-name {
+            flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+          }
+          .item-unit { font-size: 13.5px; color: #a8a29e; }
+          .item-qty {
+            flex-shrink: 0; width: 45px; text-align: center; border-bottom: 1px solid #78716c;
+          }
+          @media print { body { padding: 6px; } }
         </style>
       </head>
       <body>
         <h1>הזמנת רכש - ${supplier.name}</h1>
         <div class="meta">תאריך: ${format(new Date(), "dd/MM/yyyy")}</div>
-        <div class="columns">${columnsHtml}</div>
+        <div class="columns-wrap">${columnsHtml}</div>
       </body>
       </html>
     `);

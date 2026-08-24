@@ -2,11 +2,9 @@ import React, { useMemo, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ChevronLeft, ChevronRight, ChevronDown, Map, AlertTriangle, Clock, Users, UtensilsCrossed, Printer } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Map as MapIcon, AlertTriangle, Clock, UtensilsCrossed, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import {
   computeStaffing,
@@ -14,11 +12,95 @@ import {
   FORMAT_LABELS,
   FORMAT_OPTIONS,
 } from "@/lib/staffingEngine";
+import { exportConstraintsPdf, exportSupplierOrdersPdf, exportFloorReportPdf } from "@/lib/staffingPdf";
+import { getStaffColor } from "@/lib/staffColors";
 
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
-function EventRow({ event, rules, agencies, allEvents, planRows, splitRows, employees }) {
+// Fixed display order for the flat table's role columns — matches the paper
+// sheet Ronen's team reads. Roles that exist in the rule book but aren't in
+// this list (e.g. future additions) just fall in at the end, still visible.
+const ROLE_DISPLAY_ORDER = [
+  "מנהל אירוע",
+  "פלור 1",
+  "פלור 2",
+  "מלצרית משפחה",
+  "מנהל מרפסת",
+  "מנהל מזונונים",
+  "ניהול כניסה",
+  "מארחת",
+  "סומלייה",
+  "תאורנים",
+];
+function orderRoleColumns(roleColumns) {
+  const known = ROLE_DISPLAY_ORDER.filter((r) => roleColumns.includes(r));
+  const rest = roleColumns.filter((r) => !ROLE_DISPLAY_ORDER.includes(r));
+  return [...known, ...rest];
+}
+
+// Agency display order (קירה, עמי, איגור) is independent from the fill
+// priority order used by computeAgencySplit (which stays עמי → איגור →
+// קירה-as-overflow) — reordering display must never change who absorbs
+// the remainder.
+const AGENCY_DISPLAY_ORDER = ["קירה", "עמי", "איגור"];
+function orderAgenciesForDisplay(agencies) {
+  const known = AGENCY_DISPLAY_ORDER.map((name) => agencies.find((a) => a.name === name)).filter(Boolean);
+  const rest = agencies.filter((a) => !AGENCY_DISPLAY_ORDER.includes(a.name));
+  return [...known, ...rest];
+}
+
+// One column per role in the rule book (ordered by sort_order), stable across
+// every row — a role a given event doesn't need just renders as a disabled
+// "—" cell instead of a red gap.
+function useRoleColumns(rules) {
+  return useMemo(() => {
+    const order = new Map();
+    rules
+      .filter((r) => r.is_active && r.rule_type === "REQUIRED_ROLE")
+      .forEach((r) => {
+        if (!order.has(r.role_name)) order.set(r.role_name, r.sort_order ?? 0);
+      });
+    return [...order.entries()].sort((a, b) => a[1] - b[1]).map(([name]) => name);
+  }, [rules]);
+}
+
+function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
+  const req = requiredRoles.find((r) => r.role_name === roleName);
+  if (!req) {
+    return <div className="h-8 flex items-center justify-center text-stone-300 text-xs">—</div>;
+  }
+  const slots = Array.from({ length: req.count }, (_, i) => i + 1);
+  return (
+    <div className="flex flex-col h-full divide-y divide-white">
+      {slots.map((slot) => {
+        const assigned = planRows.find((p) => p.role_name === roleName && (p.slot || 1) === slot);
+        const filled = !!(assigned?.assigned_employee_id || assigned?.assigned_name);
+        const color = filled ? getStaffColor(assigned?.assigned_name) : null;
+        return (
+          <select
+            key={slot}
+            value={assigned?.assigned_employee_id || "__none__"}
+            onChange={(e) => onAssign({ role_name: roleName, slot, employee: e.target.value })}
+            style={filled ? color.style : undefined}
+            className={`w-full max-w-full h-8 text-[11px] border-0 px-1 text-center focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 ${
+              filled
+                ? `${color.className} font-semibold`
+                : "bg-red-800 text-white font-semibold"
+            }`}
+          >
+            <option value="__none__">— לא משובץ —</option>
+            {employees.filter((e) => e.is_active).map((e) => (
+              <option key={e.id} value={e.id}>{e.full_name}</option>
+            ))}
+          </select>
+        );
+      })}
+    </div>
+  );
+}
+
+function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleColumns, allEvents, employees, planRows, splitRows, onChange }) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
   const invalidate = () => {
@@ -27,14 +109,8 @@ function EventRow({ event, rules, agencies, allEvents, planRows, splitRows, empl
     queryClient.invalidateQueries({ queryKey: ["staffingEvents"] });
   };
 
-  const staffing = useMemo(
-    () => computeStaffing(event, rules, agencies, allEvents),
-    [event, rules, agencies, allEvents]
-  );
-  const flags = useMemo(
-    () => computeFlags(event, staffing, planRows, splitRows),
-    [event, staffing, planRows, splitRows]
-  );
+  const staffing = useMemo(() => computeStaffing(event, rules, agencies, allEvents), [event, rules, agencies, allEvents]);
+  const flags = useMemo(() => computeFlags(event, staffing, planRows, splitRows), [event, staffing, planRows, splitRows]);
 
   const setFormat = useMutation({
     mutationFn: (staffing_format) => base44.entities.Event.update(event.id, { staffing_format }),
@@ -45,11 +121,13 @@ function EventRow({ event, rules, agencies, allEvents, planRows, splitRows, empl
   const assignRole = useMutation({
     mutationFn: async ({ role_name, slot, employee }) => {
       const existing = planRows.find((p) => p.role_name === role_name && (p.slot || 1) === slot);
+      const emp = employees.find((e) => e.id === employee);
+      const prevName = existing?.assigned_name || null;
       if (employee === "__none__") {
         if (existing) await base44.entities.EventStaffingPlan.delete(existing.id);
+        onChange?.({ event, role_name, from: prevName, to: null });
         return;
       }
-      const emp = employees.find((e) => e.id === employee);
       const data = {
         event_id: event.id,
         role_name,
@@ -59,6 +137,7 @@ function EventRow({ event, rules, agencies, allEvents, planRows, splitRows, empl
       };
       if (existing) await base44.entities.EventStaffingPlan.update(existing.id, data);
       else await base44.entities.EventStaffingPlan.create(data);
+      onChange?.({ event, role_name, from: prevName, to: data.assigned_name });
     },
     onSuccess: invalidate,
     onError: (e) => toast.error(e.message),
@@ -66,129 +145,117 @@ function EventRow({ event, rules, agencies, allEvents, planRows, splitRows, empl
 
   const setSplit = useMutation({
     mutationFn: async ({ agency, count }) => {
-      const existing = splitRows.find((s) => s.agency_id === agency.agency_id);
+      const existing = splitRows.find((s) => s.agency_id === agency.id);
+      const prevCount = existing ? existing.planned_count : null;
       const data = {
         event_id: event.id,
-        agency_id: agency.agency_id,
-        agency_name: agency.agency_name,
+        agency_id: agency.id,
+        agency_name: agency.name,
         planned_count: count,
         is_override: true,
       };
       if (existing) await base44.entities.EventAgencySplit.update(existing.id, data);
       else await base44.entities.EventAgencySplit.create(data);
+      onChange?.({ event, role_name: `כמות מלצרים — ${agency.name}`, from: prevCount, to: count, agency_name: agency.name });
     },
     onSuccess: invalidate,
     onError: (e) => toast.error(e.message),
   });
 
   const date = new Date(`${event.event_date}T00:00:00`);
+  // "כמות" shows total guests (סה״כ אורחים), not the derived adult-commitment
+  // count (סה״כ מבוגרים להתחייבות) that staffing.requiredRoles is computed from.
+  const displayGuestCount = event.total_guests ?? event.guest_count ?? 0;
+  const bigEvent = displayGuestCount >= 300;
+  const bigEventCellClass = bigEvent ? "bg-yellow-200" : "";
   const redCount = flags.filter((f) => f.severity === "red").length;
   const yellowCount = flags.length - redCount;
 
-  // planned split: overrides if exist, else computed
-  const effectiveSplit = staffing.split.map((s) => {
-    const ov = splitRows.find((r) => r.agency_id === s.agency_id);
-    return ov ? { ...s, planned_count: ov.planned_count, is_override: ov.is_override } : s;
-  });
-  const plannedWaiters = effectiveSplit.reduce((sum, s) => sum + (Number(s.planned_count) || 0), 0);
+  const plannedByAgency = new Map(splitRows.map((s) => [s.agency_id, s.planned_count]));
+  const computedByAgency = new Map(staffing.split.map((s) => [s.agency_id, s.planned_count]));
+  const plannedWaiters = agencies.reduce(
+    (sum, a) => sum + (plannedByAgency.has(a.id) ? Number(plannedByAgency.get(a.id)) || 0 : Number(computedByAgency.get(a.id)) || 0),
+    0
+  );
+
+  const colSpan = 10 + displayRoleColumns.length + displayAgencies.length;
 
   return (
-    <Card className={redCount ? "border-red-300" : ""}>
-      <CardContent className="p-0">
-        <button className="w-full flex items-center gap-3 p-3 text-right" onClick={() => setOpen(!open)}>
-          <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} />
-          <div className="w-24 shrink-0">
-            <div className="font-bold">{date.getDate()}.{date.getMonth() + 1}</div>
-            <div className="text-xs text-slate-500">{DAY_NAMES[date.getDay()]}{event.event_time ? ` · ${event.event_time}` : ""}</div>
+    <>
+      <tr className="hover:bg-stone-50/70">
+        <td className="border border-stone-300 px-0.5 py-1 text-center">
+          <button onClick={() => setOpen((o) => !o)} className="p-0.5 hover:bg-stone-100 rounded">
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "" : "-rotate-90"}`} />
+          </button>
+        </td>
+        <td className={`border border-stone-300 px-1.5 py-1 font-medium text-stone-900 truncate text-xs ${bigEventCellClass}`} title={event.event_name}>
+          {event.event_name}
+        </td>
+        <td className={`border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center ${bigEventCellClass}`}>
+          {date.getDate()}.{date.getMonth() + 1}
+        </td>
+        <td className={`border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center truncate ${bigEventCellClass}`}>
+          {DAY_NAMES[date.getDay()]}
+        </td>
+        <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center">
+          {event.event_time || "-"}
+        </td>
+        <td className={`border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center font-mono ${bigEventCellClass}`}>
+          {staffing.briefTime || "-"}
+        </td>
+        <td className={`border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center ${bigEventCellClass}`}>
+          {displayGuestCount}
+        </td>
+        <td className="border border-stone-300 p-0.5">
+          <Select value={event.staffing_format || "serving"} onValueChange={(v) => setFormat.mutate(v)}>
+            <SelectTrigger className="h-8 text-[11px] px-1.5 bg-white w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>{FORMAT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </td>
+        {displayAgencies.map((agency) => {
+          const value = plannedByAgency.has(agency.id) ? plannedByAgency.get(agency.id) : (computedByAgency.get(agency.id) ?? 0);
+          const isOverride = splitRows.find((s) => s.agency_id === agency.id)?.is_override;
+          return (
+            <td key={agency.id} className="border border-stone-300 p-0.5">
+              <input
+                type="number"
+                className={`w-full h-8 text-[11px] text-center rounded border px-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                  isOverride ? "bg-amber-50 border-amber-300" : "bg-white border-stone-200"
+                }`}
+                value={value}
+                onChange={(e) => setSplit.mutate({ agency, count: Number(e.target.value) || 0 })}
+              />
+            </td>
+          );
+        })}
+        <td className="border border-stone-300 px-1 py-1 text-center text-xs whitespace-nowrap">
+          <span className={plannedWaiters === staffing.waiterCount ? "text-emerald-700 font-semibold" : "text-red-700 font-semibold"}>
+            {plannedWaiters}
+          </span>
+          <span className="text-stone-400">/{staffing.waiterCount}</span>
+        </td>
+        {displayRoleColumns.map((roleName) => (
+          <td key={roleName} className="border border-stone-300 p-0">
+            <RoleCell
+              roleName={roleName}
+              requiredRoles={staffing.requiredRoles}
+              planRows={planRows}
+              employees={employees}
+              onAssign={(payload) => assignRole.mutate(payload)}
+            />
+          </td>
+        ))}
+        <td className="border border-stone-300 px-1 py-1 text-center">
+          <div className="flex items-center justify-center gap-1 flex-wrap" title={flags.map((f) => f.message).join("\n")}>
+            {redCount > 0 && <Badge className="bg-red-600 gap-1 text-[10px] px-1.5">{redCount}</Badge>}
+            {yellowCount > 0 && <Badge className="bg-amber-500 gap-1 text-[10px] px-1.5">{yellowCount}</Badge>}
+            {flags.length === 0 && <Badge variant="outline" className="text-[10px] px-1.5 text-emerald-700 border-emerald-300">תקין</Badge>}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-medium truncate">{event.event_name}</div>
-            <div className="text-xs text-slate-500">{event.guest_count || 0} סועדים · {FORMAT_LABELS[event.staffing_format] || "—"}</div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Badge variant="outline" className="gap-1"><Users className="w-3 h-3" />{staffing.waiterCount} מלצרים</Badge>
-            {staffing.briefTime && <Badge variant="outline" className="gap-1 hidden md:inline-flex"><Clock className="w-3 h-3" />בריף {staffing.briefTime}</Badge>}
-            {redCount > 0 && <Badge className="bg-red-600 gap-1"><AlertTriangle className="w-3 h-3" />{redCount}</Badge>}
-            {yellowCount > 0 && <Badge className="bg-amber-500 gap-1">{yellowCount}</Badge>}
-          </div>
-        </button>
-
-        {open && (
-          <div className="border-t p-4 space-y-4 bg-slate-50/50">
-            {flags.length > 0 && (
-              <div className="space-y-1">
-                {flags.map((f, i) => (
-                  <div key={i} className={`text-sm rounded px-3 py-1.5 flex items-center gap-2 ${f.severity === "red" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
-                    <AlertTriangle className="w-4 h-4 shrink-0" /> {f.message}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-sm font-medium">פורמט האירוע:</span>
-              <Select value={event.staffing_format || "serving"} onValueChange={(v) => setFormat.mutate(v)}>
-                <SelectTrigger className="h-8 w-32 bg-white"><SelectValue /></SelectTrigger>
-                <SelectContent>{FORMAT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-              </Select>
-              {staffing.waitersRule?.explanation && <span className="text-xs text-slate-500">{staffing.waitersRule.explanation}</span>}
-            </div>
-
-            {/* role assignments */}
-            <div>
-              <h4 className="text-sm font-semibold mb-2">בעלי תפקידים ({staffing.requiredRoles.length})</h4>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {staffing.requiredRoles.flatMap((req) =>
-                  Array.from({ length: req.count }, (_, i) => {
-                    const slot = i + 1;
-                    const assigned = planRows.find((p) => p.role_name === req.role_name && (p.slot || 1) === slot);
-                    return (
-                      <div key={`${req.role_name}-${slot}`} className={`rounded border p-2 bg-white ${!assigned ? "border-red-300" : ""}`}>
-                        <div className="text-xs text-slate-500 flex justify-between">
-                          <span>{req.role_name}{req.count > 1 ? ` #${slot}` : ""}</span>
-                          {req.arrival_offset_minutes != null && <span>הגעה {-req.arrival_offset_minutes / 60} ש' לפני</span>}
-                        </div>
-                        <Select
-                          value={assigned?.assigned_employee_id || "__none__"}
-                          onValueChange={(v) => assignRole.mutate({ role_name: req.role_name, slot, employee: v })}
-                        >
-                          <SelectTrigger className="h-8 mt-1"><SelectValue placeholder="לא משובץ" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">— לא משובץ —</SelectItem>
-                            {employees.filter((e) => e.is_active).map((e) => (
-                              <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* waiter split */}
-            <div>
-              <h4 className="text-sm font-semibold mb-2">
-                מלצרים — נדרש {staffing.waiterCount}, מתוכנן {plannedWaiters}
-              </h4>
-              <div className="flex gap-3 flex-wrap">
-                {effectiveSplit.map((s) => (
-                  <div key={s.agency_id} className="flex items-center gap-2 rounded border bg-white px-3 py-1.5">
-                    <span className="text-sm">{s.agency_name}</span>
-                    <input
-                      type="number"
-                      className="w-14 h-7 border rounded text-center text-sm"
-                      value={s.planned_count}
-                      onChange={(e) => setSplit.mutate({ agency: s, count: Number(e.target.value) || 0 })}
-                    />
-                    {s.is_override && <Badge variant="outline" className="text-[10px]">ידני</Badge>}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* arrivals + ops */}
+        </td>
+      </tr>
+      {open && (
+        <tr>
+          <td colSpan={colSpan} className="border border-stone-300 bg-slate-50/60 p-4">
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <h4 className="text-sm font-semibold mb-2 flex items-center gap-1"><Clock className="w-4 h-4" /> לוח הגעה</h4>
@@ -213,10 +280,56 @@ function EventRow({ event, rules, agencies, allEvents, planRows, splitRows, empl
                 </div>
               </div>
             </div>
+            {flags.length > 0 && (
+              <div className="space-y-1 mt-4">
+                {flags.map((f, i) => (
+                  <div key={i} className={`text-sm rounded px-3 py-1.5 flex items-center gap-2 ${f.severity === "red" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>
+                    <AlertTriangle className="w-4 h-4 shrink-0" /> {f.message}
+                  </div>
+                ))}
+              </div>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function ChangeLog({ month }) {
+  const mKey = monthKey(month);
+  const { data: logs = [], isLoading } = useQuery({
+    queryKey: ["staffingChangeLog", mKey],
+    queryFn: () => base44.entities.StaffingChangeLog.filter({ month: mKey }),
+    initialData: [],
+  });
+  const sorted = [...logs].sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
+
+  return (
+    <div className="bg-white border border-stone-300 rounded-lg">
+      <div className="px-4 py-3 border-b border-stone-200">
+        <h2 className="text-sm font-bold text-stone-800">רשימת שינויי כוח אדם</h2>
+      </div>
+      <div className="max-h-80 overflow-y-auto divide-y divide-stone-100">
+        {isLoading && <div className="p-4 text-sm text-slate-400">טוען…</div>}
+        {!isLoading && sorted.length === 0 && <div className="p-4 text-sm text-slate-400">אין שינויים החודש</div>}
+        {sorted.map((log) => (
+          <div key={log.id} className="px-4 py-2 text-xs flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="text-stone-400 font-mono">
+              {log.created_date ? new Date(log.created_date).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
+            </span>
+            <span className="font-medium text-stone-800">{log.event_name}</span>
+            <span className="text-stone-500">·</span>
+            <span className="text-stone-700">{log.role_name}</span>
+            {log.agency_name && <span className="text-stone-500">({log.agency_name})</span>}
+            <span className="text-stone-500">:</span>
+            <span className="text-red-600">{log.from_value || "ריק"}</span>
+            <span className="text-stone-400">←</span>
+            <span className="text-emerald-700 font-medium">{log.to_value || "ריק"}</span>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -225,6 +338,7 @@ export default function StaffingMap() {
   const mKey = monthKey(month);
   const monthStart = `${mKey}-01`;
   const monthEnd = `${mKey}-31`;
+  const queryClient = useQueryClient();
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["staffingEvents", mKey],
@@ -235,121 +349,79 @@ export default function StaffingMap() {
   });
   const { data: rules = [] } = useQuery({ queryKey: ["staffingRules"], queryFn: () => base44.entities.StaffingRule.list("sort_order"), initialData: [] });
   const { data: agencies = [] } = useQuery({ queryKey: ["staffingAgencies"], queryFn: () => base44.entities.StaffingAgency.list("sort_order"), initialData: [] });
-  const { data: employees = [] } = useQuery({ queryKey: ["taskEmployees"], queryFn: () => base44.entities.TaskEmployee.list(), initialData: [] });
+  const { data: rawEmployees = [] } = useQuery({ queryKey: ["taskEmployees"], queryFn: () => base44.entities.TaskEmployee.list(), initialData: [] });
+  // TaskEmployee has duplicate/blank rows from data entry; drop empty names and
+  // collapse repeated names to the first record so the assignment dropdown
+  // shows each person once.
+  const employees = useMemo(() => {
+    const seen = new Set();
+    const deduped = [];
+    for (const e of rawEmployees) {
+      const name = (e.full_name || "").trim();
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      deduped.push(e);
+    }
+    return deduped;
+  }, [rawEmployees]);
   const { data: allPlans = [] } = useQuery({ queryKey: ["staffingPlans"], queryFn: () => base44.entities.EventStaffingPlan.list("created_date", 5000), initialData: [] });
   const { data: allSplits = [] } = useQuery({ queryKey: ["agencySplits"], queryFn: () => base44.entities.EventAgencySplit.list("created_date", 5000), initialData: [] });
 
+  const roleColumns = useRoleColumns(rules);
+  const displayRoleColumns = useMemo(() => orderRoleColumns(roleColumns), [roleColumns]);
+  const activeAgencies = useMemo(
+    () => agencies.filter((a) => a.is_active).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+    [agencies]
+  );
+  const displayAgencies = useMemo(() => orderAgenciesForDisplay(activeAgencies), [activeAgencies]);
+
+  // Fixed columns eat a known % budget; whatever's left is split evenly
+  // across role + agency columns so the table always spans exactly 100% of
+  // its container, however many rules or agencies exist — no horizontal
+  // scroll on a normal screen.
+  const FIXED_PCT_BUDGET = 9 + 3.5 + 3.5 + 3.5 + 3.5 + 3 + 5.5 + 4.5 + 4; // name,date,day,event-time,brief-time,count,format,waiters,flags
+  const dynamicCount = displayRoleColumns.length + displayAgencies.length;
+  const dynamicColPct = dynamicCount > 0 ? (100 - FIXED_PCT_BUDGET) / dynamicCount : 0;
+
   const shift = (dir) => { const d = new Date(month); d.setMonth(d.getMonth() + dir); setMonth(d); };
 
-  // effective (override-aware) agency split per event, for the order printout
-  const orderRows = useMemo(() => {
-    return events.map((event) => {
-      const staffing = computeStaffing(event, rules, agencies, events);
-      const splitRows = allSplits.filter((s) => s.event_id === event.id);
-      const effectiveSplit = staffing.split.map((s) => {
-        const ov = splitRows.find((r) => r.agency_id === s.agency_id);
-        return ov ? { ...s, planned_count: ov.planned_count } : s;
-      });
-      return { event, effectiveSplit };
-    });
-  }, [events, rules, agencies, allSplits]);
+  const logChange = useMutation({
+    mutationFn: ({ event, role_name, from, to, agency_name }) =>
+      base44.entities.StaffingChangeLog.create({
+        month: mKey,
+        event_id: event.id,
+        event_name: event.event_name,
+        role_name,
+        agency_name: agency_name || null,
+        from_value: from ? String(from) : null,
+        to_value: to !== null && to !== undefined ? String(to) : null,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staffingChangeLog", mKey] }),
+  });
 
-  const handlePrintOrder = (agency) => {
-    const rows = orderRows
-      .map(({ event, effectiveSplit }) => ({
-        event,
-        count: effectiveSplit.find((s) => s.agency_id === agency.id)?.planned_count || 0,
-      }))
-      .filter((r) => r.count > 0)
-      .sort((a, b) => a.event.event_date.localeCompare(b.event.event_date));
-
-    if (rows.length === 0) {
-      toast.error(`אין מלצרים מתוכננים מ${agency.name} בחודש זה`);
-      return;
-    }
-
-    const monthLabel = month.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
-    const total = rows.reduce((s, r) => s + r.count, 0);
-    const rowsHtml = rows
-      .map(({ event, count }) => {
-        const date = new Date(`${event.event_date}T00:00:00`);
-        return `
-          <tr>
-            <td>${date.getDate()}.${date.getMonth() + 1}</td>
-            <td>${DAY_NAMES[date.getDay()]}</td>
-            <td>${event.event_name || ""}</td>
-            <td>${event.event_time || "—"}</td>
-            <td class="qty">${count}</td>
-          </tr>`;
-      })
-      .join("");
-
-    const printWindow = window.open("", "_blank");
-    printWindow.document.write(`
-      <html dir="rtl">
-      <head>
-        <title>הזמנת רכש - ${agency.name}</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 24px; color: #1c1917; }
-          h1 { font-size: 20px; margin-bottom: 2px; }
-          .meta { color: #78716c; font-size: 13px; margin-bottom: 16px; }
-          table { border-collapse: collapse; width: 100%; max-width: 560px; font-size: 13px; }
-          th { background: #f5f5f4; text-align: right; padding: 6px 10px; border: 1px solid #d6d3d1; }
-          td { padding: 6px 10px; border: 1px solid #e7e5e4; text-align: right; }
-          td.qty { text-align: center; width: 80px; font-weight: 700; }
-          tfoot td { font-weight: 700; background: #f5f5f4; }
-          @media print { body { padding: 8px; } }
-        </style>
-      </head>
-      <body>
-        <h1>הזמנת רכש - ${agency.name}</h1>
-        <div class="meta">חודש: ${monthLabel}</div>
-        <table>
-          <thead>
-            <tr><th>תאריך</th><th>יום</th><th>אירוע</th><th>שעה</th><th>מלצרים</th></tr>
-          </thead>
-          <tbody>${rowsHtml}</tbody>
-          <tfoot>
-            <tr><td colspan="4">סה"כ</td><td class="qty">${total}</td></tr>
-          </tfoot>
-        </table>
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 300);
-  };
+  const monthLabel = month.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
 
   return (
     <div className="p-4 md:p-6 space-y-4" dir="rtl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <Map className="w-6 h-6 text-emerald-700" /> מפת כוח אדם
+          <MapIcon className="w-6 h-6 text-emerald-700" /> מפת כוח אדם
         </h1>
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" disabled={agencies.length === 0}>
-                <Printer className="w-4 h-4 ml-1" /> הזמנת רכש
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              {agencies.map((agency) => (
-                <DropdownMenuItem key={agency.id} onClick={() => handlePrintOrder(agency)}>
-                  {agency.name}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button variant="outline" size="icon" onClick={() => shift(1)}><ChevronRight className="w-4 h-4" /></Button>
-          <span className="font-medium w-32 text-center">
-            {month.toLocaleDateString("he-IL", { month: "long", year: "numeric" })}
-          </span>
-          <Button variant="outline" size="icon" onClick={() => shift(-1)}><ChevronLeft className="w-4 h-4" /></Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => exportConstraintsPdf({ events, rules, roleColumns: displayRoleColumns, monthLabel, allPlans })}>
+            <FileDown className="w-3.5 h-3.5 ml-1.5" /> אילוצים
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => exportSupplierOrdersPdf({ events, rules, agencies: activeAgencies, monthLabel, allSplits })}>
+            <FileDown className="w-3.5 h-3.5 ml-1.5" /> הזמנת רכש
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => exportFloorReportPdf({ events, rules, roleColumns: displayRoleColumns, monthLabel, allPlans })}>
+            <FileDown className="w-3.5 h-3.5 ml-1.5" /> דוח לפרסום פלור
+          </Button>
+          <div className="flex items-center gap-2 bg-white border border-stone-200 rounded-lg p-1">
+            <Button variant="ghost" size="icon" onClick={() => shift(1)}><ChevronRight className="w-4 h-4" /></Button>
+            <span className="font-medium w-32 text-center">{monthLabel}</span>
+            <Button variant="ghost" size="icon" onClick={() => shift(-1)}><ChevronLeft className="w-4 h-4" /></Button>
+          </div>
         </div>
       </div>
 
@@ -358,20 +430,83 @@ export default function StaffingMap() {
         <div className="text-slate-400 py-12 text-center">אין אירועים בחודש הזה</div>
       )}
 
-      <div className="space-y-2">
-        {events.map((event) => (
-          <EventRow
-            key={event.id}
-            event={event}
-            rules={rules}
-            agencies={agencies}
-            allEvents={events}
-            employees={employees}
-            planRows={allPlans.filter((p) => p.event_id === event.id)}
-            splitRows={allSplits.filter((s) => s.event_id === event.id)}
-          />
-        ))}
-      </div>
+      {!isLoading && events.length > 0 && (
+        <>
+          <div className="flex items-center gap-4 text-xs text-stone-600">
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-gradient-to-br from-orange-200 via-blue-200 to-pink-200 border border-stone-300 inline-block" />
+              מאויש (צבע קבוע לכל איש צוות)
+            </span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-800 inline-block" /> חסר</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-stone-100 border border-stone-300 inline-block" /> לא נדרש</span>
+          </div>
+          <div className="bg-white border border-stone-300 overflow-x-auto">
+            <table className="w-full table-fixed text-sm border-collapse">
+              <colgroup>
+                <col style={{ width: "24px" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "3.5%" }} />
+                <col style={{ width: "3.5%" }} />
+                <col style={{ width: "3.5%" }} />
+                <col style={{ width: "3.5%" }} />
+                <col style={{ width: "3%" }} />
+                <col style={{ width: "5.5%" }} />
+                {displayAgencies.map((agency) => (
+                  <col key={agency.id} style={{ width: `${dynamicColPct}%` }} />
+                ))}
+                <col style={{ width: "4.5%" }} />
+                {displayRoleColumns.map((roleName) => (
+                  <col key={roleName} style={{ width: `${dynamicColPct}%` }} />
+                ))}
+                <col style={{ width: "4%" }} />
+              </colgroup>
+              <thead>
+                <tr className="bg-stone-200">
+                  <th className="border border-stone-300 px-0.5 py-2" />
+                  <th className="border border-stone-300 px-1.5 py-2 text-center font-bold text-stone-800 text-xs">שם האירוע</th>
+                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">תאריך</th>
+                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">יום</th>
+                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">שעת אירוע</th>
+                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">שעת בריף</th>
+                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">כמות</th>
+                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">פורמט</th>
+                  {displayAgencies.map((agency) => (
+                    <th key={agency.id} className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px] leading-tight break-words">
+                      {agency.name}
+                    </th>
+                  ))}
+                  <th className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px] leading-tight break-words">מלצרים</th>
+                  {displayRoleColumns.map((roleName) => (
+                    <th key={roleName} className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px] leading-tight break-words">
+                      {roleName}
+                    </th>
+                  ))}
+                  <th className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px]">פערים</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((event) => (
+                  <EventTableRow
+                    key={event.id}
+                    event={event}
+                    rules={rules}
+                    agencies={activeAgencies}
+                    displayAgencies={displayAgencies}
+                    displayRoleColumns={displayRoleColumns}
+                    allEvents={events}
+                    employees={employees}
+                    planRows={allPlans.filter((p) => p.event_id === event.id)}
+                    splitRows={allSplits.filter((s) => s.event_id === event.id)}
+                    onChange={(change) => logChange.mutate(change)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <ChangeLog month={month} />
+        </>
+      )}
     </div>
   );
 }

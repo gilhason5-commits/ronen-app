@@ -14,9 +14,12 @@ export default function Login() {
     'chef': 'chef@ray.local',
     'producer': 'producer@ray.local',
     'graphics': 'graphics@ray.local',
+    'eventmanager': 'eventmanager@ray.local',
     'טבח': 'chef@ray.local',
     'מפיק': 'producer@ray.local',
     'גרפיקה': 'graphics@ray.local',
+    'מנהלת אירוע': 'eventmanager@ray.local',
+    'מנהל אירוע': 'eventmanager@ray.local',
   };
 
   const handleLogin = async (e) => {
