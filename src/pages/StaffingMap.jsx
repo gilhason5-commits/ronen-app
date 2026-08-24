@@ -65,6 +65,34 @@ function useRoleColumns(rules) {
   }, [rules]);
 }
 
+// Kitchen role columns (טבח, מדיח, שף...) — the OPS rule_type, kept separate
+// from the floor's REQUIRED_ROLE columns since it's its own table.
+function useOpsRoleColumns(rules) {
+  return useMemo(() => {
+    const order = new Map();
+    rules
+      .filter((r) => r.is_active && r.rule_type === "OPS")
+      .forEach((r) => {
+        if (!order.has(r.role_name)) order.set(r.role_name, r.sort_order ?? 0);
+      });
+    return [...order.entries()].sort((a, b) => a[1] - b[1]).map(([name]) => name);
+  }, [rules]);
+}
+
+// Slot count per kitchen role for one event: OPS base count plus any
+// SPECIAL_DAY addition for that same role_name (e.g. an extra טבח on
+// Thursdays). SPECIAL_DAY extras for roles with no OPS column (מלצרים
+// מוקדמים) are a floor concern, not kitchen — skipped here.
+function computeKitchenRoles(staffing) {
+  const map = new Map();
+  for (const o of staffing.ops) map.set(o.role_name, (map.get(o.role_name) || 0) + (o.count || 0));
+  for (const o of staffing.extras) {
+    if (!map.has(o.role_name)) continue;
+    map.set(o.role_name, (map.get(o.role_name) || 0) + (o.count || 0));
+  }
+  return [...map.entries()].map(([role_name, count]) => ({ role_name, count }));
+}
+
 function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
   const req = requiredRoles.find((r) => r.role_name === roleName);
   if (!req) {
@@ -296,6 +324,78 @@ function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleCol
   );
 }
 
+function KitchenEventRow({ event, rules, agencies, allEvents, opsRoleColumns, employees, planRows, onChange }) {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["staffingPlans"] });
+    queryClient.invalidateQueries({ queryKey: ["staffingEvents"] });
+  };
+
+  const staffing = useMemo(() => computeStaffing(event, rules, agencies, allEvents), [event, rules, agencies, allEvents]);
+  const kitchenRoles = useMemo(() => computeKitchenRoles(staffing), [staffing]);
+
+  const assignRole = useMutation({
+    mutationFn: async ({ role_name, slot, employee }) => {
+      const existing = planRows.find((p) => p.role_name === role_name && (p.slot || 1) === slot);
+      const emp = employees.find((e) => e.id === employee);
+      const prevName = existing?.assigned_name || null;
+      if (employee === "__none__") {
+        if (existing) await base44.entities.EventStaffingPlan.delete(existing.id);
+        onChange?.({ event, role_name, from: prevName, to: null });
+        return;
+      }
+      const data = {
+        event_id: event.id,
+        role_name,
+        slot,
+        assigned_employee_id: emp?.id || null,
+        assigned_name: emp?.full_name || employee,
+      };
+      if (existing) await base44.entities.EventStaffingPlan.update(existing.id, data);
+      else await base44.entities.EventStaffingPlan.create(data);
+      onChange?.({ event, role_name, from: prevName, to: data.assigned_name });
+    },
+    onSuccess: invalidate,
+    onError: (e) => toast.error(e.message),
+  });
+
+  const date = new Date(`${event.event_date}T00:00:00`);
+  const missing = kitchenRoles.reduce((sum, r) => {
+    const assigned = planRows.filter((p) => p.role_name === r.role_name && (p.assigned_name || p.assigned_employee_id)).length;
+    return sum + Math.max(0, r.count - assigned);
+  }, 0);
+
+  return (
+    <tr className="hover:bg-stone-50/70">
+      <td className="border border-stone-300 px-1.5 py-1 font-medium text-stone-900 truncate text-xs" title={event.event_name}>
+        {event.event_name}
+      </td>
+      <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center">
+        {date.getDate()}.{date.getMonth() + 1}
+      </td>
+      <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center truncate">
+        {DAY_NAMES[date.getDay()]}
+      </td>
+      {opsRoleColumns.map((roleName) => (
+        <td key={roleName} className="border border-stone-300 p-0">
+          <RoleCell
+            roleName={roleName}
+            requiredRoles={kitchenRoles}
+            planRows={planRows}
+            employees={employees}
+            onAssign={(payload) => assignRole.mutate(payload)}
+          />
+        </td>
+      ))}
+      <td className="border border-stone-300 px-1 py-1 text-center">
+        {missing > 0
+          ? <Badge className="bg-red-600 text-[10px] px-1.5">{missing}</Badge>
+          : <Badge variant="outline" className="text-[10px] px-1.5 text-emerald-700 border-emerald-300">תקין</Badge>}
+      </td>
+    </tr>
+  );
+}
+
 function ChangeLog({ month }) {
   const mKey = monthKey(month);
   const { data: logs = [], isLoading } = useQuery({
@@ -369,6 +469,7 @@ export default function StaffingMap() {
 
   const roleColumns = useRoleColumns(rules);
   const displayRoleColumns = useMemo(() => orderRoleColumns(roleColumns), [roleColumns]);
+  const opsRoleColumns = useOpsRoleColumns(rules);
   const activeAgencies = useMemo(
     () => agencies.filter((a) => a.is_active).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
     [agencies]
@@ -497,6 +598,53 @@ export default function StaffingMap() {
                     employees={employees}
                     planRows={allPlans.filter((p) => p.event_id === event.id)}
                     splitRows={allSplits.filter((s) => s.event_id === event.id)}
+                    onChange={(change) => logChange.mutate(change)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="bg-white border border-stone-300 overflow-x-auto">
+            <div className="px-3 py-2 border-b border-stone-200">
+              <h2 className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
+                <UtensilsCrossed className="w-4 h-4 text-emerald-700" /> צוות מטבח
+              </h2>
+            </div>
+            <table className="w-full table-fixed text-sm border-collapse">
+              <colgroup>
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "5%" }} />
+                <col style={{ width: "5%" }} />
+                {opsRoleColumns.map((roleName) => (
+                  <col key={roleName} style={{ width: `${64 / (opsRoleColumns.length || 1)}%` }} />
+                ))}
+                <col style={{ width: "8%" }} />
+              </colgroup>
+              <thead>
+                <tr className="bg-stone-200">
+                  <th className="border border-stone-300 px-1.5 py-2 text-center font-bold text-stone-800 text-xs">שם האירוע</th>
+                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">תאריך</th>
+                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">יום</th>
+                  {opsRoleColumns.map((roleName) => (
+                    <th key={roleName} className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px] leading-tight break-words">
+                      {roleName}
+                    </th>
+                  ))}
+                  <th className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px]">פערים</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map((event) => (
+                  <KitchenEventRow
+                    key={event.id}
+                    event={event}
+                    rules={rules}
+                    agencies={activeAgencies}
+                    allEvents={events}
+                    opsRoleColumns={opsRoleColumns}
+                    employees={employees}
+                    planRows={allPlans.filter((p) => p.event_id === event.id)}
                     onChange={(change) => logChange.mutate(change)}
                   />
                 ))}
