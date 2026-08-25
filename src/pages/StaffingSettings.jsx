@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, Users, Coins, Plus, Trash2, Check, X, Pencil } from "lucide-react";
+import { BookOpen, Users, Coins, Plus, Trash2, Check, X, Pencil, UtensilsCrossed, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { FORMAT_LABELS } from "@/lib/staffingEngine";
 
@@ -340,6 +340,97 @@ function TipRulesTab() {
   );
 }
 
+// ---------- kitchen roster tab ----------
+function KitchenRosterTab() {
+  const { data: members = [] } = useQuery({
+    queryKey: ["kitchenRoster"],
+    queryFn: () => base44.entities.KitchenRosterMember.list("sort_order"),
+    initialData: [],
+  });
+  const crud = useEntityCrud("KitchenRosterMember", "kitchenRoster", "איש צוות");
+  const [newName, setNewName] = useState({});
+  const [newStationName, setNewStationName] = useState("");
+
+  const stations = useMemo(() => {
+    const seen = [];
+    for (const m of members) if (!seen.includes(m.station)) seen.push(m.station);
+    return seen;
+  }, [members]);
+
+  const move = (member, dir) => {
+    const stationMembers = members.filter((m) => m.station === member.station).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    const idx = stationMembers.findIndex((m) => m.id === member.id);
+    const other = stationMembers[idx + dir];
+    if (!other) return;
+    crud.update.mutate({ id: member.id, data: { sort_order: other.sort_order } });
+    crud.update.mutate({ id: other.id, data: { sort_order: member.sort_order } });
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-slate-500">
+        לוח המשמרות השבועי של צוות המטבח והניקיון (במפת כוח אדם) לא מחושב מהתקנים — כל אדם שומר בערך על אותן שעות כל שבוע, וכאן קובעים מי קיים, לאיזו עמדה הוא שייך ומה השעות הרגילות שלו (ניתן לשנות שעות לכל יום בנפרד ישירות בלוח).
+      </p>
+      <div className="grid md:grid-cols-2 gap-4 items-start">
+        {stations.map((station) => {
+          const stationMembers = members.filter((m) => m.station === station).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+          return (
+            <Card key={station}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">{station}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1">
+                  {stationMembers.map((m, i) => (
+                    <div key={m.id} className={`flex items-center gap-1.5 rounded px-1 py-1 hover:bg-slate-50 ${!m.is_active ? "opacity-50" : ""}`}>
+                      <div className="flex flex-col shrink-0">
+                        <Button size="icon" variant="ghost" className="h-4 w-5" disabled={i === 0} onClick={() => move(m, -1)}><ChevronUp className="w-3 h-3" /></Button>
+                        <Button size="icon" variant="ghost" className="h-4 w-5" disabled={i === stationMembers.length - 1} onClick={() => move(m, 1)}><ChevronDown className="w-3 h-3" /></Button>
+                      </div>
+                      <Input className="h-8 flex-1 min-w-0" value={m.full_name} onChange={(e) => crud.update.mutate({ id: m.id, data: { full_name: e.target.value } })} />
+                      <Input className="h-8 w-20 shrink-0" value={m.station} onChange={(e) => crud.update.mutate({ id: m.id, data: { station: e.target.value } })} />
+                      <Input className="h-8 w-16 shrink-0" placeholder="כניסה" value={m.default_clock_in || ""} onChange={(e) => crud.update.mutate({ id: m.id, data: { default_clock_in: e.target.value } })} />
+                      <Input className="h-8 w-16 shrink-0" placeholder="יציאה" value={m.default_clock_out || ""} onChange={(e) => crud.update.mutate({ id: m.id, data: { default_clock_out: e.target.value } })} />
+                      <Switch checked={m.is_active} onCheckedChange={(v) => crud.update.mutate({ id: m.id, data: { is_active: v } })} />
+                      <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500 shrink-0" onClick={() => { if (confirm(`למחוק את ${m.full_name}?`)) crud.remove.mutate(m.id); }}><Trash2 className="w-3 h-3" /></Button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <Input placeholder="שם עובד חדש" className="h-8" value={newName[station] || ""} onChange={(e) => setNewName({ ...newName, [station]: e.target.value })} />
+                  <Button size="sm" onClick={() => {
+                    const name = (newName[station] || "").trim();
+                    if (!name) return;
+                    const maxOrder = Math.max(0, ...stationMembers.map((m) => m.sort_order || 0));
+                    crud.create.mutate({ full_name: name, station, sort_order: maxOrder + 1 });
+                    setNewName({ ...newName, [station]: "" });
+                  }}><Plus className="w-4 h-4" /></Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+        <Card className="border-dashed">
+          <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-medium text-stone-700">הוספת עמדה חדשה</p>
+            <div className="flex gap-2">
+              <Input placeholder="שם העמדה (למשל בר)" className="h-8" value={newStationName} onChange={(e) => setNewStationName(e.target.value)} />
+              <Button variant="outline" size="sm" onClick={() => {
+                const station = newStationName.trim();
+                if (!station) return;
+                const name = prompt("שם העובד הראשון בעמדה:");
+                if (!name) return;
+                crud.create.mutate({ full_name: name.trim(), station, sort_order: members.length + 1 });
+                setNewStationName("");
+              }}><Plus className="w-4 h-4" /></Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 export default function StaffingSettings() {
   return (
     <div className="p-4 md:p-6 space-y-4" dir="rtl">
@@ -353,10 +444,12 @@ export default function StaffingSettings() {
         <TabsList>
           <TabsTrigger value="rules"><BookOpen className="w-4 h-4 ml-1" /> תקנים</TabsTrigger>
           <TabsTrigger value="agencies"><Users className="w-4 h-4 ml-1" /> חברות כוח אדם</TabsTrigger>
+          <TabsTrigger value="kitchen"><UtensilsCrossed className="w-4 h-4 ml-1" /> צוות מטבח</TabsTrigger>
           <TabsTrigger value="tips"><Coins className="w-4 h-4 ml-1" /> חוקי טיפים</TabsTrigger>
         </TabsList>
         <TabsContent value="rules"><StaffingRulesTab /></TabsContent>
         <TabsContent value="agencies"><AgenciesTab /></TabsContent>
+        <TabsContent value="kitchen"><KitchenRosterTab /></TabsContent>
         <TabsContent value="tips"><TipRulesTab /></TabsContent>
       </Tabs>
     </div>

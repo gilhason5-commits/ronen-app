@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
 } from "@/lib/staffingEngine";
 import { exportConstraintsPdf, exportSupplierOrdersPdf, exportFloorReportPdf } from "@/lib/staffingPdf";
 import { getStaffColor } from "@/lib/staffColors";
+import { getStationColor, startOfWeek, weekDates, toDateStr } from "@/lib/kitchenSchedule";
 
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
@@ -63,34 +64,6 @@ function useRoleColumns(rules) {
       });
     return [...order.entries()].sort((a, b) => a[1] - b[1]).map(([name]) => name);
   }, [rules]);
-}
-
-// Kitchen role columns (טבח, מדיח, שף...) — the OPS rule_type, kept separate
-// from the floor's REQUIRED_ROLE columns since it's its own table.
-function useOpsRoleColumns(rules) {
-  return useMemo(() => {
-    const order = new Map();
-    rules
-      .filter((r) => r.is_active && r.rule_type === "OPS")
-      .forEach((r) => {
-        if (!order.has(r.role_name)) order.set(r.role_name, r.sort_order ?? 0);
-      });
-    return [...order.entries()].sort((a, b) => a[1] - b[1]).map(([name]) => name);
-  }, [rules]);
-}
-
-// Slot count per kitchen role for one event: OPS base count plus any
-// SPECIAL_DAY addition for that same role_name (e.g. an extra טבח on
-// Thursdays). SPECIAL_DAY extras for roles with no OPS column (מלצרים
-// מוקדמים) are a floor concern, not kitchen — skipped here.
-function computeKitchenRoles(staffing) {
-  const map = new Map();
-  for (const o of staffing.ops) map.set(o.role_name, (map.get(o.role_name) || 0) + (o.count || 0));
-  for (const o of staffing.extras) {
-    if (!map.has(o.role_name)) continue;
-    map.set(o.role_name, (map.get(o.role_name) || 0) + (o.count || 0));
-  }
-  return [...map.entries()].map(([role_name, count]) => ({ role_name, count }));
 }
 
 function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
@@ -324,75 +297,198 @@ function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleCol
   );
 }
 
-function KitchenEventRow({ event, rules, agencies, allEvents, opsRoleColumns, employees, planRows, onChange }) {
-  const queryClient = useQueryClient();
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["staffingPlans"] });
-    queryClient.invalidateQueries({ queryKey: ["staffingEvents"] });
+// One cell in the kitchen weekly grid: free-text clock-in/out for one person
+// on one day, defaulting to their usual hours but always overridable — days
+// off are just left blank (shown as a faint "X" placeholder).
+function KitchenShiftCell({ member, shift, onSave }) {
+  const [clockIn, setClockIn] = useState(shift?.clock_in ?? member.default_clock_in ?? "");
+  const [clockOut, setClockOut] = useState(shift?.clock_out ?? member.default_clock_out ?? "");
+
+  useEffect(() => {
+    setClockIn(shift?.clock_in ?? member.default_clock_in ?? "");
+    setClockOut(shift?.clock_out ?? member.default_clock_out ?? "");
+  }, [shift?.id, shift?.clock_in, shift?.clock_out, member.default_clock_in, member.default_clock_out]);
+
+  const commit = () => {
+    const savedIn = shift?.clock_in ?? "";
+    const savedOut = shift?.clock_out ?? "";
+    if (clockIn === savedIn && clockOut === savedOut) return;
+    onSave({ clock_in: clockIn, clock_out: clockOut });
   };
 
-  const staffing = useMemo(() => computeStaffing(event, rules, agencies, allEvents), [event, rules, agencies, allEvents]);
-  const kitchenRoles = useMemo(() => computeKitchenRoles(staffing), [staffing]);
+  const isOff = !clockIn.trim() && !clockOut.trim();
+  const inputClass = `w-full h-5 text-[10px] text-center border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-inset focus:ring-emerald-500 ${isOff ? "text-stone-300" : "font-medium"}`;
 
-  const assignRole = useMutation({
-    mutationFn: async ({ role_name, slot, employee }) => {
-      const existing = planRows.find((p) => p.role_name === role_name && (p.slot || 1) === slot);
-      const emp = employees.find((e) => e.id === employee);
-      const prevName = existing?.assigned_name || null;
-      if (employee === "__none__") {
-        if (existing) await base44.entities.EventStaffingPlan.delete(existing.id);
-        onChange?.({ event, role_name, from: prevName, to: null });
+  return (
+    <div className="flex flex-col items-center justify-center h-full py-0.5">
+      <input type="text" value={clockIn} placeholder="X" className={inputClass} onChange={(e) => setClockIn(e.target.value)} onBlur={commit} />
+      <input type="text" value={clockOut} placeholder="X" className={inputClass} onChange={(e) => setClockOut(e.target.value)} onBlur={commit} />
+    </div>
+  );
+}
+
+// Fixed weekly roster grid for kitchen/cleaning staff — unlike the floor
+// table above, these shifts aren't derived from an event's guest count or
+// any StaffingRule formula. Each person keeps roughly the same hours every
+// week (managed in ספר התקנים ← צוות מטבח); this just lets the manager
+// override a specific day when someone comes in earlier/later or is off.
+function KitchenScheduleTable() {
+  const queryClient = useQueryClient();
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  const days = useMemo(() => weekDates(weekStart), [weekStart]);
+  const dayStrs = useMemo(() => days.map(toDateStr), [days]);
+
+  const { data: members = [] } = useQuery({
+    queryKey: ["kitchenRoster"],
+    queryFn: () => base44.entities.KitchenRosterMember.list("sort_order"),
+    initialData: [],
+  });
+  const activeMembers = useMemo(() => members.filter((m) => m.is_active), [members]);
+  const stations = useMemo(() => {
+    const seen = [];
+    for (const m of activeMembers) if (!seen.includes(m.station)) seen.push(m.station);
+    return seen;
+  }, [activeMembers]);
+
+  const { data: shifts = [] } = useQuery({
+    queryKey: ["kitchenShifts"],
+    queryFn: () => base44.entities.KitchenShift.list("shift_date", 5000),
+    initialData: [],
+  });
+  const weekShifts = useMemo(() => shifts.filter((s) => dayStrs.includes(s.shift_date)), [shifts, dayStrs]);
+
+  const { data: allEvents = [] } = useQuery({
+    queryKey: ["kitchenScheduleEvents"],
+    queryFn: () => base44.entities.Event.list("event_date", 3000),
+    initialData: [],
+  });
+  const guestsByDay = useMemo(() => {
+    const map = new Map();
+    for (const e of allEvents) {
+      if (e.status === "cancelled" || !dayStrs.includes(e.event_date)) continue;
+      const g = e.total_guests ?? e.guest_count ?? 0;
+      map.set(e.event_date, (map.get(e.event_date) || 0) + g);
+    }
+    return map;
+  }, [allEvents, dayStrs]);
+
+  const saveShift = useMutation({
+    mutationFn: async ({ member, dateStr, clock_in, clock_out }) => {
+      const existing = shifts.find((s) => s.member_id === member.id && s.shift_date === dateStr);
+      const bothEmpty = !clock_in.trim() && !clock_out.trim();
+      if (bothEmpty) {
+        if (existing) await base44.entities.KitchenShift.delete(existing.id);
         return;
       }
       const data = {
-        event_id: event.id,
-        role_name,
-        slot,
-        assigned_employee_id: emp?.id || null,
-        assigned_name: emp?.full_name || employee,
+        member_id: member.id,
+        member_name: member.full_name,
+        station: member.station,
+        shift_date: dateStr,
+        clock_in: clock_in.trim(),
+        clock_out: clock_out.trim(),
       };
-      if (existing) await base44.entities.EventStaffingPlan.update(existing.id, data);
-      else await base44.entities.EventStaffingPlan.create(data);
-      onChange?.({ event, role_name, from: prevName, to: data.assigned_name });
+      if (existing) await base44.entities.KitchenShift.update(existing.id, data);
+      else await base44.entities.KitchenShift.create(data);
     },
-    onSuccess: invalidate,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["kitchenShifts"] }),
     onError: (e) => toast.error(e.message),
   });
 
-  const date = new Date(`${event.event_date}T00:00:00`);
-  const missing = kitchenRoles.reduce((sum, r) => {
-    const assigned = planRows.filter((p) => p.role_name === r.role_name && (p.assigned_name || p.assigned_employee_id)).length;
-    return sum + Math.max(0, r.count - assigned);
-  }, 0);
+  const shiftWeek = (dir) => setWeekStart((w) => new Date(w.getTime() + dir * 7 * 24 * 60 * 60 * 1000));
+  const weekLabel = `${days[0].toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit" })} – ${days[6].toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit" })}`;
 
   return (
-    <tr className="hover:bg-stone-50/70">
-      <td className="border border-stone-300 px-1.5 py-1 font-medium text-stone-900 truncate text-xs" title={event.event_name}>
-        {event.event_name}
-      </td>
-      <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center">
-        {date.getDate()}.{date.getMonth() + 1}
-      </td>
-      <td className="border border-stone-300 px-1 py-1 text-stone-600 text-xs text-center truncate">
-        {DAY_NAMES[date.getDay()]}
-      </td>
-      {opsRoleColumns.map((roleName) => (
-        <td key={roleName} className="border border-stone-300 p-0">
-          <RoleCell
-            roleName={roleName}
-            requiredRoles={kitchenRoles}
-            planRows={planRows}
-            employees={employees}
-            onAssign={(payload) => assignRole.mutate(payload)}
-          />
-        </td>
-      ))}
-      <td className="border border-stone-300 px-1 py-1 text-center">
-        {missing > 0
-          ? <Badge className="bg-red-600 text-[10px] px-1.5">{missing}</Badge>
-          : <Badge variant="outline" className="text-[10px] px-1.5 text-emerald-700 border-emerald-300">תקין</Badge>}
-      </td>
-    </tr>
+    <div className="bg-white border border-stone-300 overflow-x-auto">
+      <div className="px-3 py-2 border-b border-stone-200 flex items-center justify-between flex-wrap gap-2">
+        <h2 className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
+          <UtensilsCrossed className="w-4 h-4 text-emerald-700" /> צוות מטבח וניקיון
+        </h2>
+        <div className="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-lg p-1">
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => shiftWeek(1)}><ChevronRight className="w-3.5 h-3.5" /></Button>
+          <span className="text-xs font-medium w-28 text-center">{weekLabel}</span>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => shiftWeek(-1)}><ChevronLeft className="w-3.5 h-3.5" /></Button>
+        </div>
+      </div>
+      <table className="w-full table-fixed text-sm border-collapse">
+        <colgroup>
+          <col style={{ width: "5%" }} />
+          <col style={{ width: "13%" }} />
+          {days.map((d) => <col key={toDateStr(d)} style={{ width: `${82 / 7}%` }} />)}
+        </colgroup>
+        <thead>
+          <tr className="bg-stone-200">
+            <th className="border border-stone-300" colSpan={2} />
+            {days.map((d) => (
+              <th key={toDateStr(d)} className="border border-stone-300 px-1 py-1 text-center font-bold text-stone-800 text-[10px]">
+                {d.getDate()}.{d.getMonth() + 1}
+              </th>
+            ))}
+          </tr>
+          <tr className="bg-stone-100">
+            <th className="border border-stone-300" colSpan={2} />
+            {days.map((d) => (
+              <th key={toDateStr(d)} className="border border-stone-300 px-1 py-1 text-center font-medium text-stone-600 text-[10px]">
+                {DAY_NAMES[d.getDay()]}
+              </th>
+            ))}
+          </tr>
+          <tr className="bg-stone-50">
+            <th className="border border-stone-300 text-[10px] font-bold text-stone-700" colSpan={2}>סועדים</th>
+            {days.map((d) => {
+              const ds = toDateStr(d);
+              const g = guestsByDay.get(ds) || 0;
+              return (
+                <th key={ds} className="border border-stone-300 px-1 py-1 text-center font-semibold text-stone-700 text-[10px]">
+                  {g > 0 ? g : "X"}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {stations.map((station) => {
+            const color = getStationColor(station);
+            const stationMembers = activeMembers.filter((m) => m.station === station);
+            return stationMembers.map((member, i) => (
+              <tr key={member.id}>
+                {i === 0 && (
+                  <td
+                    rowSpan={stationMembers.length}
+                    className={`border border-stone-300 px-0.5 text-center text-[10px] font-bold align-middle ${color.header}`}
+                  >
+                    {station}
+                  </td>
+                )}
+                <td className={`border border-stone-300 px-1.5 py-0.5 text-xs font-medium truncate ${color.row}`} title={member.full_name}>
+                  {member.full_name}
+                </td>
+                {days.map((d) => {
+                  const ds = toDateStr(d);
+                  const shift = weekShifts.find((s) => s.member_id === member.id && s.shift_date === ds);
+                  return (
+                    <td key={ds} className="border border-stone-300 p-0">
+                      <KitchenShiftCell
+                        member={member}
+                        shift={shift}
+                        onSave={(payload) => saveShift.mutate({ member, dateStr: ds, ...payload })}
+                      />
+                    </td>
+                  );
+                })}
+              </tr>
+            ));
+          })}
+          {stations.length === 0 && (
+            <tr>
+              <td colSpan={9} className="text-center text-stone-400 py-6 text-sm">
+                אין אנשי צוות מוגדרים — ניתן להוסיף ב"ספר התקנים" ← "צוות מטבח"
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -469,7 +565,6 @@ export default function StaffingMap() {
 
   const roleColumns = useRoleColumns(rules);
   const displayRoleColumns = useMemo(() => orderRoleColumns(roleColumns), [roleColumns]);
-  const opsRoleColumns = useOpsRoleColumns(rules);
   const activeAgencies = useMemo(
     () => agencies.filter((a) => a.is_active).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
     [agencies]
@@ -605,52 +700,7 @@ export default function StaffingMap() {
             </table>
           </div>
 
-          <div className="bg-white border border-stone-300 overflow-x-auto">
-            <div className="px-3 py-2 border-b border-stone-200">
-              <h2 className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
-                <UtensilsCrossed className="w-4 h-4 text-emerald-700" /> צוות מטבח
-              </h2>
-            </div>
-            <table className="w-full table-fixed text-sm border-collapse">
-              <colgroup>
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "5%" }} />
-                <col style={{ width: "5%" }} />
-                {opsRoleColumns.map((roleName) => (
-                  <col key={roleName} style={{ width: `${64 / (opsRoleColumns.length || 1)}%` }} />
-                ))}
-                <col style={{ width: "8%" }} />
-              </colgroup>
-              <thead>
-                <tr className="bg-stone-200">
-                  <th className="border border-stone-300 px-1.5 py-2 text-center font-bold text-stone-800 text-xs">שם האירוע</th>
-                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">תאריך</th>
-                  <th className="border border-stone-300 px-1 py-2 text-center font-bold text-stone-800 text-[10px]">יום</th>
-                  {opsRoleColumns.map((roleName) => (
-                    <th key={roleName} className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px] leading-tight break-words">
-                      {roleName}
-                    </th>
-                  ))}
-                  <th className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px]">פערים</th>
-                </tr>
-              </thead>
-              <tbody>
-                {events.map((event) => (
-                  <KitchenEventRow
-                    key={event.id}
-                    event={event}
-                    rules={rules}
-                    agencies={activeAgencies}
-                    allEvents={events}
-                    opsRoleColumns={opsRoleColumns}
-                    employees={employees}
-                    planRows={allPlans.filter((p) => p.event_id === event.id)}
-                    onChange={(change) => logChange.mutate(change)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <KitchenScheduleTable />
 
           <ChangeLog month={month} />
         </>
