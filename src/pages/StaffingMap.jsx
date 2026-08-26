@@ -489,8 +489,7 @@ function KitchenScheduleTable() {
                   <div className={shortfall ? "text-red-700" : "text-stone-700"}>{g > 0 ? g : "X"}</div>
                   {shortfall && (
                     <div className="flex items-center justify-center gap-0.5 text-red-600 font-bold leading-tight">
-                      <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
-                      {shortfall.available.length ? shortfall.available.join(", ") : "טבח נוסף"}
+                      <AlertTriangle className="w-2.5 h-2.5 shrink-0" /> טבח נוסף
                     </div>
                   )}
                 </th>
