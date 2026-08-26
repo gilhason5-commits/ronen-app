@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import {
   computeStaffing,
   computeFlags,
+  computeOps,
   FORMAT_LABELS,
   FORMAT_OPTIONS,
 } from "@/lib/staffingEngine";
@@ -372,6 +373,36 @@ function KitchenScheduleTable() {
     return map;
   }, [allEvents, dayStrs]);
 
+  // The "מטבח חם" station is the one OPS-standard role (טבח) whose headcount
+  // the roster actually tracks 1:1 (4 up to 250 guests, 5 above — see the
+  // OPS rules in ספר התקנים). Flag days where the standard now requires more
+  // chefs than are scheduled, so a guest-count crossing 251+ doesn't silently
+  // sit unfilled on the manual weekly grid.
+  const { data: rules = [] } = useQuery({
+    queryKey: ["staffingRules"],
+    queryFn: () => base44.entities.StaffingRule.list("sort_order"),
+    initialData: [],
+  });
+  const chefShortfallByDay = useMemo(() => {
+    const map = new Map();
+    const hotKitchenMembers = activeMembers.filter((m) => m.station === "מטבח חם");
+    if (hotKitchenMembers.length === 0) return map;
+    for (const ds of dayStrs) {
+      const guests = guestsByDay.get(ds) || 0;
+      if (guests <= 0) continue;
+      const { ops } = computeOps({ total_guests: guests, event_date: ds }, rules, []);
+      const required = ops.find((o) => o.role_name === "טבח")?.count || 0;
+      const scheduled = hotKitchenMembers.filter((m) => {
+        const shift = weekShifts.find((s) => s.member_id === m.id && s.shift_date === ds);
+        const clockIn = shift ? shift.clock_in : m.default_clock_in;
+        const clockOut = shift ? shift.clock_out : m.default_clock_out;
+        return Boolean((clockIn || "").trim() || (clockOut || "").trim());
+      }).length;
+      if (required > scheduled) map.set(ds, { required, scheduled });
+    }
+    return map;
+  }, [rules, dayStrs, guestsByDay, weekShifts, activeMembers]);
+
   const saveShift = useMutation({
     mutationFn: async ({ member, dateStr, clock_in, clock_out }) => {
       const existing = shifts.find((s) => s.member_id === member.id && s.shift_date === dateStr);
@@ -438,9 +469,19 @@ function KitchenScheduleTable() {
             {days.map((d) => {
               const ds = toDateStr(d);
               const g = guestsByDay.get(ds) || 0;
+              const shortfall = chefShortfallByDay.get(ds);
               return (
-                <th key={ds} className="border border-stone-300 px-1 py-1 text-center font-semibold text-stone-700 text-[10px]">
-                  {g > 0 ? g : "X"}
+                <th
+                  key={ds}
+                  className={`border border-stone-300 px-1 py-1 text-center font-semibold text-[10px] ${shortfall ? "bg-red-50" : ""}`}
+                  title={shortfall ? `נדרש ${shortfall.required} טבחים לפי התקן (${g} סועדים), מתוכננים ${shortfall.scheduled} במטבח חם` : undefined}
+                >
+                  <div className={shortfall ? "text-red-700" : "text-stone-700"}>{g > 0 ? g : "X"}</div>
+                  {shortfall && (
+                    <div className="flex items-center justify-center gap-0.5 text-red-600 font-bold leading-tight">
+                      <AlertTriangle className="w-2.5 h-2.5 shrink-0" /> טבח נוסף
+                    </div>
+                  )}
                 </th>
               );
             })}

@@ -32,3 +32,4 @@ dist-ssr
 
 # Local browser-automation scratch scripts
 .cdp-*.mjs
+.env*
