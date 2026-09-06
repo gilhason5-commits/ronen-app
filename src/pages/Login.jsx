@@ -20,6 +20,7 @@ export default function Login() {
     'גרפיקה': 'graphics@ray.local',
     'מנהלת אירוע': 'eventmanager@ray.local',
     'מנהל אירוע': 'eventmanager@ray.local',
+    'גליה': 'eventmanager@ray.local',
   };
 
   const handleLogin = async (e) => {

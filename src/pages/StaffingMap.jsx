@@ -12,6 +12,7 @@ import {
   computeOps,
   FORMAT_LABELS,
   FORMAT_OPTIONS,
+  orderAgenciesForDisplay,
 } from "@/lib/staffingEngine";
 import { exportConstraintsPdf, exportSupplierOrdersPdf, exportFloorReportPdf } from "@/lib/staffingPdf";
 import { getStaffColor } from "@/lib/staffColors";
@@ -41,17 +42,6 @@ function orderRoleColumns(roleColumns) {
   return [...known, ...rest];
 }
 
-// Agency display order (קירה, עמי, איגור) is independent from the fill
-// priority order used by computeAgencySplit (which stays עמי → איגור →
-// קירה-as-overflow) — reordering display must never change who absorbs
-// the remainder.
-const AGENCY_DISPLAY_ORDER = ["קירה", "עמי", "איגור"];
-function orderAgenciesForDisplay(agencies) {
-  const known = AGENCY_DISPLAY_ORDER.map((name) => agencies.find((a) => a.name === name)).filter(Boolean);
-  const rest = agencies.filter((a) => !AGENCY_DISPLAY_ORDER.includes(a.name));
-  return [...known, ...rest];
-}
-
 // One column per role in the rule book (ordered by sort_order), stable across
 // every row — a role a given event doesn't need just renders as a disabled
 // "—" cell instead of a red gap.
@@ -66,6 +56,11 @@ function useRoleColumns(rules) {
     return [...order.entries()].sort((a, b) => a[1] - b[1]).map(([name]) => name);
   }, [rules]);
 }
+
+// The role columns are too narrow to fit a full "First Last" name — showing
+// the full string just clips mid-surname into illegible fragments. First
+// name alone is enough to identify who's assigned on the floor sheet.
+const firstName = (fullName) => (fullName || "").trim().split(/\s+/)[0] || "";
 
 function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
   const req = requiredRoles.find((r) => r.role_name === roleName);
@@ -93,7 +88,7 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
           >
             <option value="__none__">— לא משובץ —</option>
             {employees.filter((e) => e.is_active).map((e) => (
-              <option key={e.id} value={e.id}>{e.full_name}</option>
+              <option key={e.id} value={e.id}>{firstName(e.full_name)}</option>
             ))}
           </select>
         );

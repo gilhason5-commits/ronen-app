@@ -7,9 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ClipboardCheck, Plus, Trash2, Clock, UserPlus, Users } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ClipboardCheck, Plus, Trash2, Clock, UserPlus, Users, Database, X, ChevronDown, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { FORMAT_LABELS, computeStaffing } from "@/lib/staffingEngine";
+import { FORMAT_LABELS, computeStaffing, orderAgenciesForDisplay } from "@/lib/staffingEngine";
 
 const todayStr = () => new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD local
 
@@ -33,7 +34,7 @@ function TimePicker({ value, onChange }) {
       <select
         value={h || ""}
         onChange={(e) => onChange(`${e.target.value}:${m || "00"}`)}
-        className="h-9 rounded-md border border-input bg-white px-1.5 text-sm"
+        className="h-7 rounded-md border border-input bg-white px-1.5 text-sm"
       >
         <option value="" disabled>שעה</option>
         {HOURS.map((hh) => <option key={hh} value={hh}>{hh}</option>)}
@@ -42,7 +43,7 @@ function TimePicker({ value, onChange }) {
       <select
         value={m || ""}
         onChange={(e) => onChange(`${h || "00"}:${e.target.value}`)}
-        className="h-9 rounded-md border border-input bg-white px-1.5 text-sm"
+        className="h-7 rounded-md border border-input bg-white px-1.5 text-sm"
       >
         <option value="" disabled>דקה</option>
         {MINUTES.map((mm) => <option key={mm} value={mm}>{mm}</option>)}
@@ -99,45 +100,41 @@ function ManagerAttendanceSection({ event, rules, agencies, allEvents }) {
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="bg-slate-50">
-              <th className="border border-slate-200 px-1.5 py-1.5 text-center w-6">#</th>
-              <th className="border border-slate-200 px-1.5 py-1.5">עובד משובץ</th>
-              <th className="border border-slate-200 px-1.5 py-1.5">תפקיד</th>
-              <th className="border border-slate-200 px-1 py-1.5">התחלה</th>
-              <th className="border border-slate-200 px-1 py-1.5">סיום</th>
-              <th className="border border-slate-200 px-1.5 py-1.5">הערות</th>
+              <th className="border border-slate-200 px-1.5 py-0.5 text-center w-6">#</th>
+              <th className="border border-slate-200 px-1.5 py-0.5">עובד משובץ</th>
+              <th className="border border-slate-200 px-1.5 py-0.5">תפקיד</th>
+              <th className="border border-slate-200 px-1 py-0.5">התחלה</th>
+              <th className="border border-slate-200 px-1 py-0.5">סיום</th>
+              <th className="border border-slate-200 px-1.5 py-0.5">הערות</th>
             </tr>
           </thead>
           <tbody>
-            {MANAGER_ROLES.map((role, i) => {
-              const plan = plans.find((p) => p.role_name === role.roleName && (p.slot || 1) === 1);
-              return (
+            {MANAGER_ROLES.map((role) => ({
+              role,
+              plan: plans.find((p) => p.role_name === role.roleName && (p.slot || 1) === 1),
+            }))
+              .filter(({ plan }) => !!plan)
+              .map(({ role, plan }, i) => (
                 <tr key={role.roleName}>
-                  <td className="border border-slate-200 px-1.5 py-1 text-center text-slate-400">{i + 1}</td>
-                  <td className="border border-slate-200 px-1.5 py-1 font-medium whitespace-nowrap">{plan?.assigned_name || "—"}</td>
-                  <td className="border border-slate-200 px-1.5 py-1 font-medium whitespace-nowrap">{role.label}</td>
+                  <td className="border border-slate-200 px-1.5 py-0.5 text-center text-slate-400">{i + 1}</td>
+                  <td className="border border-slate-200 px-1.5 py-0.5 font-medium whitespace-nowrap">{plan.assigned_name || "—"}</td>
+                  <td className="border border-slate-200 px-1.5 py-0.5 font-medium whitespace-nowrap">{role.label}</td>
                   <td className="border border-slate-200 p-0.5">
-                    {plan ? (
-                      <TimePicker value={plan.clock_in} onChange={(v) => updatePlan.mutate({ id: plan.id, data: { clock_in: v } })} />
-                    ) : (
-                      <span className="text-slate-300 px-1">לא משובץ</span>
-                    )}
+                    <TimePicker value={plan.clock_in} onChange={(v) => updatePlan.mutate({ id: plan.id, data: { clock_in: v } })} />
                   </td>
                   <td className="border border-slate-200 p-0.5">
-                    {plan && <TimePicker value={plan.clock_out} onChange={(v) => updatePlan.mutate({ id: plan.id, data: { clock_out: v } })} />}
+                    <TimePicker value={plan.clock_out} onChange={(v) => updatePlan.mutate({ id: plan.id, data: { clock_out: v } })} />
                   </td>
                   <td className="border border-slate-200 p-0.5">
-                    {plan && (
-                      <Input
-                        placeholder="הערה…"
-                        className="h-8 text-xs border-0"
-                        defaultValue={plan.note || ""}
-                        onBlur={(e) => { if (e.target.value !== (plan.note || "")) updatePlan.mutate({ id: plan.id, data: { note: e.target.value } }); }}
-                      />
-                    )}
+                    <Input
+                      placeholder="הערה…"
+                      className="h-7 text-xs border-0"
+                      defaultValue={plan.note || ""}
+                      onBlur={(e) => { if (e.target.value !== (plan.note || "")) updatePlan.mutate({ id: plan.id, data: { note: e.target.value } }); }}
+                    />
                   </td>
                 </tr>
-              );
-            })}
+              ))}
           </tbody>
         </table>
       </CardContent>
@@ -194,25 +191,25 @@ function ShiftRow({ shift, onUpdate, onDelete }) {
   );
 }
 
-function AddWorkerForm({ event, agencies, workers, shifts, onAdded }) {
-  const [agencyId, setAgencyId] = useState(agencies[0]?.id);
+// Popup opened from an agency section's "הוספת עובד" button — quick-pick from
+// that agency's worker pool (מאגר עובדים), or type a name that isn't in the
+// pool yet (which then also gets remembered there for next time).
+function AddWorkerDialog({ event, agency, workers, shifts, open, onOpenChange }) {
   const [name, setName] = useState("");
   const [isSubstitute, setIsSubstitute] = useState(false);
   const queryClient = useQueryClient();
 
-  const agency = agencies.find((a) => a.id === agencyId);
-  const existingNames = new Set(shifts.map((s) => (s.worker_id || `name:${s.worker_name}`)));
-  const knownWorkers = workers.filter((w) => w.agency_id === agencyId && w.is_active && !existingNames.has(w.id));
+  const existingIds = new Set(shifts.map((s) => s.worker_id).filter(Boolean));
+  const knownWorkers = workers.filter((w) => w.agency_id === agency.id && w.is_active && !existingIds.has(w.id));
 
   const addShift = useMutation({
     mutationFn: async ({ worker, freeName }) => {
       let workerId = worker?.id || null;
-      let workerName = worker?.full_name || freeName.trim();
+      let workerName = worker?.full_name || freeName?.trim();
       if (!workerName) throw new Error("חסר שם עובד");
-      // Remember new names for next events
       if (!worker && workerName) {
         const created = await base44.entities.AgencyWorker.create({
-          agency_id: agencyId, agency_name: agency?.name, full_name: workerName,
+          agency_id: agency.id, agency_name: agency.name, full_name: workerName,
         });
         workerId = created.id;
       }
@@ -221,8 +218,8 @@ function AddWorkerForm({ event, agencies, workers, shifts, onAdded }) {
         event_date: event.event_date,
         worker_id: workerId,
         worker_name: workerName,
-        agency_id: agencyId,
-        agency_name: agency?.name,
+        agency_id: agency.id,
+        agency_name: agency.name,
         clock_in: nowTime(),
         is_substitute: isSubstitute,
       });
@@ -232,49 +229,166 @@ function AddWorkerForm({ event, agencies, workers, shifts, onAdded }) {
       queryClient.invalidateQueries({ queryKey: ["agencyWorkers"] });
       setName("");
       setIsSubstitute(false);
-      onAdded?.();
+      onOpenChange(false);
     },
     onError: (e) => toast.error(e.message),
   });
 
   return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent dir="rtl" className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><UserPlus className="w-4 h-4" /> הוספת עובד — {agency.name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          {knownWorkers.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {knownWorkers.map((w) => (
+                <button
+                  key={w.id}
+                  className="rounded-full border px-3 py-1.5 text-sm bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 active:scale-95 transition"
+                  disabled={addShift.isPending}
+                  onClick={() => addShift.mutate({ worker: w })}
+                >
+                  {w.full_name}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-slate-400">כל עובדי {agency.name} מהמאגר כבר משובצים</div>
+          )}
+
+          <div className="flex gap-2">
+            <Input placeholder="או שם חדש…" className="h-10" value={name} onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) addShift.mutate({ freeName: name }); }} />
+            <Button className="h-10" disabled={!name.trim() || addShift.isPending} onClick={() => addShift.mutate({ freeName: name })}>
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+          <label className="flex items-center gap-1.5 text-sm text-slate-600">
+            <Checkbox checked={isSubstitute} onCheckedChange={(v) => setIsSubstitute(!!v)} /> מחליף (מישהו לא הגיע)
+          </label>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// One fixed section per staffing agency (קירה / עמי / איגור) — replaces the
+// single cross-agency "add worker" form + grouped list with a dedicated list
+// per supplier, each with its own add-worker popup.
+function AgencySection({ event, agency, workers, shifts, plannedCount, updateShift, deleteShift }) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const agencyShifts = shifts.filter((s) => s.agency_id === agency.id);
+  const missing = Math.max(0, plannedCount - agencyShifts.length);
+
+  return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base flex items-center gap-2"><UserPlus className="w-4 h-4" /> הוספת עובד</CardTitle>
+        {missing > 0 && (
+          <Badge className="bg-red-600 hover:bg-red-600 gap-1 mb-1 self-start">
+            <AlertTriangle className="w-3.5 h-3.5" /> חסרים {missing} מלצרים ({agencyShifts.length}/{plannedCount})
+          </Badge>
+        )}
+        <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
+          <span>{agency.name} ({agencyShifts.length})</span>
+          <Button size="sm" onClick={() => setDialogOpen(true)}>
+            <UserPlus className="w-4 h-4 ml-1" /> הוספת עובד
+          </Button>
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        <Select value={agencyId} onValueChange={setAgencyId}>
-          <SelectTrigger className="h-10"><SelectValue placeholder="חברת כוח אדם" /></SelectTrigger>
-          <SelectContent>
-            {agencies.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-
-        {knownWorkers.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {knownWorkers.map((w) => (
-              <button
-                key={w.id}
-                className="rounded-full border px-3 py-1.5 text-sm bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 active:scale-95 transition"
-                onClick={() => addShift.mutate({ worker: w })}
-              >
-                {w.full_name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="flex gap-2">
-          <Input placeholder="או שם חדש…" className="h-10" value={name} onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) addShift.mutate({ freeName: name }); }} />
-          <Button className="h-10" disabled={!name.trim() || addShift.isPending} onClick={() => addShift.mutate({ freeName: name })}>
-            <Plus className="w-4 h-4" />
-          </Button>
-        </div>
-        <label className="flex items-center gap-1.5 text-sm text-slate-600">
-          <Checkbox checked={isSubstitute} onCheckedChange={(v) => setIsSubstitute(!!v)} /> מחליף (מישהו לא הגיע)
-        </label>
+        {agencyShifts.length === 0 && <div className="text-sm text-slate-400 text-center py-4">אין עובדים משובצים</div>}
+        {agencyShifts.map((s) => (
+          <ShiftRow
+            key={s.id}
+            shift={s}
+            onUpdate={(data) => updateShift.mutate({ id: s.id, data })}
+            onDelete={() => { if (confirm(`להסיר את ${s.worker_name}?`)) deleteShift.mutate(s.id); }}
+          />
+        ))}
       </CardContent>
+      <AddWorkerDialog event={event} agency={agency} workers={workers} shifts={shifts} open={dialogOpen} onOpenChange={setDialogOpen} />
+    </Card>
+  );
+}
+
+// Standalone worker-roster manager (מאגר עובדים) — registers people into
+// AgencyWorker ahead of time so they show up as quick-pick chips in each
+// agency's add-worker popup during the event, instead of being typed fresh
+// every time. Collapsed by default so it stays out of the way of the
+// on-the-day flow the event manager actually uses on their iPad.
+function WorkerPoolSection({ agencies, workers }) {
+  const [expanded, setExpanded] = useState(false);
+  const [agencyId, setAgencyId] = useState(null);
+  const [name, setName] = useState("");
+  const queryClient = useQueryClient();
+
+  const activeAgencyId = agencyId || agencies[0]?.id;
+  const agency = agencies.find((a) => a.id === activeAgencyId);
+  const agencyWorkers = workers.filter((w) => w.agency_id === activeAgencyId);
+
+  const addWorker = useMutation({
+    mutationFn: async () => {
+      const full_name = name.trim();
+      if (!full_name) throw new Error("חסר שם עובד");
+      await base44.entities.AgencyWorker.create({ agency_id: activeAgencyId, agency_name: agency?.name, full_name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agencyWorkers"] });
+      setName("");
+      toast.success("העובד נוסף למאגר");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const removeWorker = useMutation({
+    mutationFn: (id) => base44.entities.AgencyWorker.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agencyWorkers"] }),
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-2 cursor-pointer select-none" onClick={() => setExpanded((v) => !v)}>
+        <CardTitle className="text-base flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1.5"><Database className="w-4 h-4" /> מאגר עובדים</span>
+          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${expanded ? "" : "-rotate-90"}`} />
+        </CardTitle>
+      </CardHeader>
+      {expanded && (
+        <CardContent className="space-y-2">
+          <Select value={activeAgencyId} onValueChange={setAgencyId}>
+            <SelectTrigger className="h-10"><SelectValue placeholder="חברת כוח אדם" /></SelectTrigger>
+            <SelectContent>
+              {agencies.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <div className="flex flex-wrap gap-1.5">
+            {agencyWorkers.map((w) => (
+              <span key={w.id} className="flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm bg-slate-50">
+                {w.full_name}
+                <button
+                  className="text-slate-400 hover:text-red-500"
+                  onClick={() => { if (confirm(`להסיר את ${w.full_name} מהמאגר?`)) removeWorker.mutate(w.id); }}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            ))}
+            {agencyWorkers.length === 0 && <span className="text-sm text-slate-400">אין עובדים במאגר לחברה זו</span>}
+          </div>
+
+          <div className="flex gap-2">
+            <Input placeholder="שם עובד חדש…" className="h-10" value={name} onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) addWorker.mutate(); }} />
+            <Button className="h-10" disabled={!name.trim() || addWorker.isPending} onClick={() => addWorker.mutate()}>
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+        </CardContent>
+      )}
     </Card>
   );
 }
@@ -302,6 +416,12 @@ export default function EventAttendance() {
   const { data: agencies = [] } = useQuery({ queryKey: ["staffingAgencies"], queryFn: () => base44.entities.StaffingAgency.list("sort_order"), initialData: [] });
   const { data: workers = [] } = useQuery({ queryKey: ["agencyWorkers"], queryFn: () => base44.entities.AgencyWorker.list("full_name"), initialData: [] });
   const { data: rules = [] } = useQuery({ queryKey: ["staffingRules"], queryFn: () => base44.entities.StaffingRule.list("sort_order"), initialData: [] });
+  const { data: agencySplits = [] } = useQuery({
+    queryKey: ["eventAgencySplits", event?.id],
+    queryFn: () => base44.entities.EventAgencySplit.filter({ event_id: event.id }),
+    enabled: !!event,
+    initialData: [],
+  });
 
   const updateShift = useMutation({
     mutationFn: ({ id, data }) => base44.entities.EventShift.update(id, data),
@@ -314,18 +434,29 @@ export default function EventAttendance() {
     onError: (e) => toast.error(e.message),
   });
 
-  const byAgency = useMemo(() => {
-    const groups = new Map();
-    for (const s of shifts) {
-      const key = s.agency_name || "ללא חברה";
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(s);
-    }
-    return [...groups.entries()];
-  }, [shifts]);
+  const displayAgencies = useMemo(
+    () => orderAgenciesForDisplay(agencies.filter((a) => a.is_active)),
+    [agencies]
+  );
+  const displayAgencyIds = useMemo(() => new Set(displayAgencies.map((a) => a.id)), [displayAgencies]);
+  const orphanShifts = useMemo(() => shifts.filter((s) => !displayAgencyIds.has(s.agency_id)), [shifts, displayAgencyIds]);
+
+  // Planned waiter count per agency — an explicit EventAgencySplit override
+  // if the office set one, otherwise the standards-book default split — same
+  // source of truth the staffing map uses, so a shortage flag here matches
+  // what was actually planned for this event, not just today's headcount.
+  const plannedByAgencyId = useMemo(() => {
+    if (!event) return new Map();
+    const computed = computeStaffing(event, rules, agencies, events).split;
+    const map = new Map(computed.map((s) => [s.agency_id, s.planned_count]));
+    for (const s of agencySplits) map.set(s.agency_id, s.planned_count);
+    return map;
+  }, [event, rules, agencies, events, agencySplits]);
 
   return (
-    <div className="p-3 md:p-6 space-y-3 max-w-xl mx-auto" dir="rtl">
+    <div className="p-3 md:p-6 space-y-3 max-w-6xl mx-auto" dir="rtl">
+      <WorkerPoolSection agencies={displayAgencies} workers={workers} />
+
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2">
           <ClipboardCheck className="w-6 h-6 text-emerald-700" /> נוכחות אירוע
@@ -363,12 +494,25 @@ export default function EventAttendance() {
 
           <ManagerAttendanceSection event={event} rules={rules} agencies={agencies} allEvents={events} />
 
-          <AddWorkerForm event={event} agencies={agencies} workers={workers} shifts={shifts} />
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 items-start">
+            {displayAgencies.map((agency) => (
+              <AgencySection
+                key={agency.id}
+                event={event}
+                agency={agency}
+                workers={workers}
+                shifts={shifts}
+                plannedCount={plannedByAgencyId.get(agency.id) || 0}
+                updateShift={updateShift}
+                deleteShift={deleteShift}
+              />
+            ))}
+          </div>
 
-          {byAgency.map(([agencyName, agencyShifts]) => (
-            <div key={agencyName} className="space-y-2">
-              <h3 className="text-sm font-semibold text-slate-600 mt-2">{agencyName} ({agencyShifts.length})</h3>
-              {agencyShifts.map((s) => (
+          {orphanShifts.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-slate-600 mt-2">ללא חברה ({orphanShifts.length})</h3>
+              {orphanShifts.map((s) => (
                 <ShiftRow
                   key={s.id}
                   shift={s}
@@ -377,7 +521,7 @@ export default function EventAttendance() {
                 />
               ))}
             </div>
-          ))}
+          )}
         </>
       )}
     </div>

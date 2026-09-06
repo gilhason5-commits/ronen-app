@@ -12,6 +12,18 @@ export const FORMAT_LABELS = {
 
 export const FORMAT_OPTIONS = Object.entries(FORMAT_LABELS).map(([value, label]) => ({ value, label }));
 
+// Agency display order (קירה, עמי, איגור) is independent from the fill
+// priority order used by computeAgencySplit (which stays עמי → איגור →
+// קירה-as-overflow) — reordering display must never change who absorbs
+// the remainder. Shared by the staffing map and the day-of attendance page
+// so both list agencies in the same order.
+export const AGENCY_DISPLAY_ORDER = ['קירה', 'עמי', 'איגור'];
+export function orderAgenciesForDisplay(agencies) {
+  const known = AGENCY_DISPLAY_ORDER.map((name) => agencies.find((a) => a.name === name)).filter(Boolean);
+  const rest = agencies.filter((a) => !AGENCY_DISPLAY_ORDER.includes(a.name));
+  return [...known, ...rest];
+}
+
 function inRange(rule, guests) {
   if (rule.min_guests != null && guests < rule.min_guests) return false;
   if (rule.max_guests != null && guests > rule.max_guests) return false;
@@ -88,11 +100,18 @@ export function computeWaiters(event, rules, requiredRoles) {
  * Ops/cleaning crew: OPS rules matched by range, plus SPECIAL_DAY additions.
  * events: all events that month (needed for "event tomorrow" conditions).
  */
+// שף/סו-שף are permanent kitchen staff, not part of the per-event variable
+// headcount this function computes from guest count — they stay listed in
+// the standards book (ספר התקנים) for reference but must never feed into
+// per-event ops totals, shortfall checks, or anything downstream of here.
+const OPS_EXCLUDED_ROLES = ['שף', 'סו-שף'];
+
 export function computeOps(event, rules, allEvents = []) {
   const guests = guestsOf(event);
   const byRole = new Map();
   for (const r of rules) {
     if (!r.is_active || r.rule_type !== 'OPS' || !inRange(r, guests)) continue;
+    if (OPS_EXCLUDED_ROLES.includes(r.role_name)) continue;
     // Later (higher min) matching rule for the same role wins
     const prev = byRole.get(r.role_name);
     if (!prev || (r.min_guests || 0) >= (prev.min_guests || 0)) byRole.set(r.role_name, r);
