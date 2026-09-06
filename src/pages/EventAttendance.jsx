@@ -142,7 +142,18 @@ function ManagerAttendanceSection({ event, rules, agencies, allEvents }) {
   );
 }
 
+// Clock-in/out are held as local draft state and only pushed to the server
+// when "עדכון שעות" is pressed. They used to call onUpdate() directly on every
+// hour/minute selection — since the row re-renders from the query cache (not
+// local state) and each save is a separate async round trip, picking the hour
+// then quickly picking the minute would fire two overlapping mutations, the
+// second one reading a stale hour from props and reverting the first. Batching
+// both fields into a single explicit save removes that race entirely.
 function ShiftRow({ shift, onUpdate, onDelete }) {
+  const [draftClockIn, setDraftClockIn] = useState(shift.clock_in || "");
+  const [draftClockOut, setDraftClockOut] = useState(shift.clock_out || "");
+  const dirty = draftClockIn !== (shift.clock_in || "") || draftClockOut !== (shift.clock_out || "");
+
   return (
     <div className="rounded-lg border bg-white p-3 space-y-2">
       <div className="flex items-center justify-between">
@@ -158,17 +169,25 @@ function ShiftRow({ shift, onUpdate, onDelete }) {
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-slate-500">כניסה</span>
-          <TimePicker value={shift.clock_in} onChange={(v) => onUpdate({ clock_in: v })} />
+          <TimePicker value={draftClockIn} onChange={setDraftClockIn} />
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-slate-500">יציאה</span>
-          <TimePicker value={shift.clock_out} onChange={(v) => onUpdate({ clock_out: v })} />
+          <TimePicker value={draftClockOut} onChange={setDraftClockOut} />
         </div>
-        {!shift.clock_out && (
-          <Button size="sm" variant="outline" className="h-9" onClick={() => onUpdate({ clock_out: nowTime() })}>
+        {!draftClockOut && (
+          <Button size="sm" variant="outline" className="h-9" onClick={() => setDraftClockOut(nowTime())}>
             <Clock className="w-3.5 h-3.5 ml-1" /> עכשיו
           </Button>
         )}
+        <Button
+          size="sm"
+          className="h-9"
+          disabled={!dirty}
+          onClick={() => onUpdate({ clock_in: draftClockIn || null, clock_out: draftClockOut || null })}
+        >
+          עדכון שעות
+        </Button>
       </div>
       <div className="flex items-center gap-4 text-sm">
         <label className="flex items-center gap-1.5">
@@ -407,9 +426,20 @@ export default function EventAttendance() {
   const [selectedEventId, setSelectedEventId] = useState(null);
   const event = events.find((e) => e.id === selectedEventId) || events[0];
 
+  // EventShift.filter() has no ORDER BY, so Postgres is free to return rows
+  // in whatever order the scan finds them — which can change after an
+  // UPDATE, since a modified row gets a new physical version. Sorting here
+  // by creation time (a value that never changes) keeps a worker pinned to
+  // the position they were added in, regardless of later edits.
   const { data: shifts = [] } = useQuery({
     queryKey: ["eventShifts", event?.id],
-    queryFn: () => base44.entities.EventShift.filter({ event_id: event.id }),
+    queryFn: async () => {
+      const rows = await base44.entities.EventShift.filter({ event_id: event.id });
+      return [...rows].sort((a, b) => {
+        const byDate = (a.created_date || "").localeCompare(b.created_date || "");
+        return byDate !== 0 ? byDate : String(a.id).localeCompare(String(b.id));
+      });
+    },
     enabled: !!event,
     initialData: [],
   });
