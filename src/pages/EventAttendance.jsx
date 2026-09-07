@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ClipboardCheck, Plus, Trash2, Clock, UserPlus, Users, Database, X, ChevronDown, AlertTriangle } from "lucide-react";
+import { ClipboardCheck, Plus, Trash2, Clock, UserPlus, Users, Database, X, ChevronDown, AlertTriangle, Pencil, Check } from "lucide-react";
 import { toast } from "sonner";
 import { FORMAT_LABELS, computeStaffing, orderAgenciesForDisplay } from "@/lib/staffingEngine";
 
@@ -332,6 +332,50 @@ function AgencySection({ event, agency, workers, shifts, plannedCount, updateShi
   );
 }
 
+function WorkerChip({ worker, onRename, onRemove }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(worker.full_name);
+
+  const commit = () => {
+    setEditing(false);
+    if (value.trim() && value.trim() !== worker.full_name) onRename(value);
+    else setValue(worker.full_name);
+  };
+
+  if (editing) {
+    return (
+      <span className="flex items-center gap-1 rounded-full border px-2 py-1 text-sm bg-white">
+        <Input
+          autoFocus
+          className="h-7 w-32 text-sm"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") { setValue(worker.full_name); setEditing(false); }
+          }}
+        />
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm bg-slate-50">
+      {worker.full_name}
+      <button
+        className="text-slate-400 hover:text-emerald-600"
+        onClick={() => { setValue(worker.full_name); setEditing(true); }}
+      >
+        <Pencil className="w-3.5 h-3.5" />
+      </button>
+      <button className="text-slate-400 hover:text-red-500" onClick={onRemove}>
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </span>
+  );
+}
+
 // Standalone worker-roster manager (מאגר עובדים) — registers people into
 // AgencyWorker ahead of time so they show up as quick-pick chips in each
 // agency's add-worker popup during the event, instead of being typed fresh
@@ -367,6 +411,42 @@ function WorkerPoolSection({ agencies, workers }) {
     onError: (e) => toast.error(e.message),
   });
 
+  // Attendance rows carry their own copy of the worker's name (worker_name),
+  // separate from AgencyWorker.full_name — EventShift groups by worker_id
+  // when it's set, so a rename alone doesn't break which tip totals belong
+  // to whom, but every already-recorded shift would still *display* the old
+  // name. Locked TipAllocation snapshots go a step further: they only ever
+  // stored a name, never a worker_id, so they're re-matched by the old name
+  // text (best effort — two different workers who once shared an exact
+  // name would both get renamed). Updating both keeps every screen, past
+  // and future, showing this employee under one consistent name.
+  const renameWorker = useMutation({
+    mutationFn: async ({ worker, newName }) => {
+      const trimmed = newName.trim();
+      if (!trimmed || trimmed === worker.full_name) return;
+
+      await base44.entities.AgencyWorker.update(worker.id, { full_name: trimmed });
+
+      const relatedShifts = await base44.entities.EventShift.filter({ worker_id: worker.id });
+      await Promise.all(relatedShifts.map((s) => base44.entities.EventShift.update(s.id, { worker_name: trimmed })));
+
+      const relatedAllocations = await base44.entities.TipAllocation.filter({ worker_name: worker.full_name });
+      await Promise.all(
+        relatedAllocations
+          .filter((a) => (a.agency_name || "") === (worker.agency_name || agency?.name || ""))
+          .map((a) => base44.entities.TipAllocation.update(a.id, { worker_name: trimmed }))
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agencyWorkers"] });
+      queryClient.invalidateQueries({ queryKey: ["eventShifts"] });
+      queryClient.invalidateQueries({ queryKey: ["monthShifts"] });
+      queryClient.invalidateQueries({ queryKey: ["tipAllocations"] });
+      toast.success("שם העובד עודכן בכל המקומות, כולל טיפים קודמים");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   return (
     <Card>
       <CardHeader className="pb-2 cursor-pointer select-none" onClick={() => setExpanded((v) => !v)}>
@@ -386,15 +466,12 @@ function WorkerPoolSection({ agencies, workers }) {
 
           <div className="flex flex-wrap gap-1.5">
             {agencyWorkers.map((w) => (
-              <span key={w.id} className="flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm bg-slate-50">
-                {w.full_name}
-                <button
-                  className="text-slate-400 hover:text-red-500"
-                  onClick={() => { if (confirm(`להסיר את ${w.full_name} מהמאגר?`)) removeWorker.mutate(w.id); }}
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </span>
+              <WorkerChip
+                key={w.id}
+                worker={w}
+                onRename={(newName) => renameWorker.mutate({ worker: w, newName })}
+                onRemove={() => { if (confirm(`להסיר את ${w.full_name} מהמאגר?`)) removeWorker.mutate(w.id); }}
+              />
             ))}
             {agencyWorkers.length === 0 && <span className="text-sm text-slate-400">אין עובדים במאגר לחברה זו</span>}
           </div>
