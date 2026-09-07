@@ -296,6 +296,9 @@ function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleCol
 // One cell in the kitchen weekly grid: free-text clock-in/out for one person
 // on one day, defaulting to their usual hours but always overridable — days
 // off are just left blank (shown as a faint "X" placeholder).
+// Two boxes side by side per day (clock-out on the right, clock-in on the
+// left, matching how the paper sheet reads right-to-left) instead of
+// stacked lines — same underlying fields, same on-blur save.
 function KitchenShiftCell({ member, shift, onSave }) {
   const [clockIn, setClockIn] = useState(shift?.clock_in ?? member.default_clock_in ?? "");
   const [clockOut, setClockOut] = useState(shift?.clock_out ?? member.default_clock_out ?? "");
@@ -313,12 +316,12 @@ function KitchenShiftCell({ member, shift, onSave }) {
   };
 
   const isOff = !clockIn.trim() && !clockOut.trim();
-  const inputClass = `w-full h-5 text-[10px] text-center border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-inset focus:ring-emerald-500 ${isOff ? "text-stone-300" : "font-medium"}`;
+  const inputClass = `w-1/2 h-full min-w-0 text-[10px] text-center border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-inset focus:ring-emerald-700 ${isOff ? "opacity-40" : "font-semibold"}`;
 
   return (
-    <div className="flex flex-col items-center justify-center h-full py-0.5">
-      <input type="text" value={clockIn} placeholder="X" className={inputClass} onChange={(e) => setClockIn(e.target.value)} onBlur={commit} />
+    <div dir="rtl" className="flex items-stretch h-full divide-x divide-x-reverse divide-black/10">
       <input type="text" value={clockOut} placeholder="X" className={inputClass} onChange={(e) => setClockOut(e.target.value)} onBlur={commit} />
+      <input type="text" value={clockIn} placeholder="X" className={inputClass} onChange={(e) => setClockIn(e.target.value)} onBlur={commit} />
     </div>
   );
 }
@@ -493,27 +496,34 @@ function KitchenScheduleTable() {
           </tr>
         </thead>
         <tbody>
-          {stations.map((station) => {
+          {stations.map((station, si) => {
             const color = getStationColor(station);
             const stationMembers = activeMembers.filter((m) => m.station === station);
+            // A heavier top border on every group's first row (skipping the
+            // very first group) marks where one station's block ends and
+            // the next begins, matching the paper sheet's divider lines.
+            const groupBorder = si > 0 ? "border-t-2 border-t-stone-900" : "";
             return stationMembers.map((member, i) => (
               <tr key={member.id}>
                 {i === 0 && (
                   <td
                     rowSpan={stationMembers.length}
-                    className={`border border-stone-300 px-0.5 text-center text-[10px] font-bold align-middle ${color.header}`}
+                    className={`border border-stone-300 px-0.5 text-center text-[10px] font-bold align-middle bg-white text-stone-800 ${groupBorder}`}
                   >
                     {station}
                   </td>
                 )}
-                <td className={`border border-stone-300 px-1.5 py-0.5 text-xs font-medium truncate ${color.row}`} title={member.full_name}>
+                <td
+                  className={`border border-stone-300 px-1.5 py-0.5 text-xs font-medium truncate ${color} ${i === 0 ? groupBorder : ""}`}
+                  title={member.full_name}
+                >
                   {member.full_name}
                 </td>
                 {days.map((d) => {
                   const ds = toDateStr(d);
                   const shift = weekShifts.find((s) => s.member_id === member.id && s.shift_date === ds);
                   return (
-                    <td key={ds} className="border border-stone-300 p-0">
+                    <td key={ds} className={`border border-stone-300 p-0 ${color} ${i === 0 ? groupBorder : ""}`}>
                       <KitchenShiftCell
                         member={member}
                         shift={shift}
