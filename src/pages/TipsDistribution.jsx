@@ -5,7 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Coins, Lock, Unlock, History, Loader2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Coins, Lock, Unlock, History, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { computeTipAllocation, formatShekel } from "@/lib/tipsEngine";
 
@@ -96,10 +100,26 @@ export default function TipsDistribution() {
     onError: (e) => toast.error(e.message),
   });
 
+  // Deleting only makes sense once a row is a real, persisted allocation
+  // (a locked snapshot) — before locking, the table is just a live preview
+  // recomputed from attendance, so there's nothing "allocated" yet to
+  // remove. Deleting here never touches the pool amount or anyone else's
+  // total — it only removes this row from the record, which is exactly why
+  // the confirmation warns that any money already reflected here has to be
+  // sorted out by hand.
+  const deleteAllocation = useMutation({
+    mutationFn: (id) => base44.entities.TipAllocation.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tipAllocations"] });
+      toast.success("השורה נמחקה מהחלוקה");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   // When locked — show the snapshot; otherwise the live computation
   const rows = isLocked && allocations.length
     ? allocations.map((a) => ({
-        worker_name: a.worker_name, agency_name: a.agency_name, shifts: a.shifts,
+        id: a.id, worker_name: a.worker_name, agency_name: a.agency_name, shifts: a.shifts,
         runners: a.runners, closings: a.closings, total: Number(a.total),
         shiftPay: a.breakdown?.shift_pay ?? 0, runnerPay: a.breakdown?.runner_pay ?? 0, closingPay: a.breakdown?.closing_pay ?? 0,
       }))
@@ -196,6 +216,7 @@ export default function TipsDistribution() {
                 <th className="p-2">משמרות</th><th className="p-2">שכר משמרות</th>
                 <th className="p-2">ראנרים</th><th className="p-2">סגירות</th>
                 <th className="p-2">סה"כ</th>
+                {isLocked && <th className="p-2 w-10"></th>}
               </tr>
             </thead>
             <tbody>
@@ -208,10 +229,37 @@ export default function TipsDistribution() {
                   <td className="p-2">{w.runners > 0 ? `${w.runners} · ${formatShekel(w.runnerPay)}` : "—"}</td>
                   <td className="p-2">{w.closings > 0 ? `${w.closings} · ${formatShekel(w.closingPay)}` : "—"}</td>
                   <td className="p-2 font-bold">{formatShekel(w.total)}</td>
+                  {isLocked && (
+                    <td className="p-2">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent dir="rtl">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>למחוק את {w.worker_name} מהחלוקה?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {w.total > 0
+                                ? `לעובד זה מוקצים כרגע ${formatShekel(w.total)}. מחיקת השורה כאן לא תשנה את סכום הקופה או את החלוקה של שאר העובדים — אם כבר הועבר לו כסף על פי החלוקה הזו, יש לטפל בכך ידנית.`
+                                : "אם לעובד הזה מוקצה כסף בחלוקה זו, מחיקת השורה לא תעדכן את הסכום שכבר חושב לשאר העובדים — יש לטפל בכספו ידנית."}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>ביטול</AlertDialogCancel>
+                            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => deleteAllocation.mutate(w.id)}>
+                              מחיקה
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </td>
+                  )}
                 </tr>
               ))}
               {rows.length === 0 && (
-                <tr><td colSpan={7} className="p-6 text-center text-slate-400">אין נתוני נוכחות בחודש הזה — החלוקה מחושבת מהמשמרות שנרשמו במסך הנוכחות</td></tr>
+                <tr><td colSpan={isLocked ? 8 : 7} className="p-6 text-center text-slate-400">אין נתוני נוכחות בחודש הזה — החלוקה מחושבת מהמשמרות שנרשמו במסך הנוכחות</td></tr>
               )}
             </tbody>
           </table>
