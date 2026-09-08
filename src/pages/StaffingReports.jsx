@@ -163,6 +163,11 @@ function DaySummaryTab() {
                 </td>
                 <td></td>
               </tr>
+              <tr>
+                <td colSpan={5} style={{ padding: "8px 10px", fontWeight: 700, borderTop: "2px solid #0b4d3d" }}>
+                  סה"כ עובדים: {printData.shifts.length}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -174,6 +179,9 @@ function DaySummaryTab() {
 // ---------- cumulative agency reports ----------
 function AgencyReportsTab() {
   const [month, setMonth] = useState(() => todayStr().slice(0, 7)); // YYYY-MM
+  const [exporting, setExporting] = useState(null);
+  const printRef = useRef(null);
+  const [printData, setPrintData] = useState(null);
 
   const { data: shifts = [] } = useQuery({
     queryKey: ["monthShifts", month],
@@ -200,6 +208,28 @@ function AgencyReportsTab() {
     return [...agencies.entries()];
   }, [shifts]);
 
+  const exportAgencyPdf = async (agencyName, data) => {
+    setExporting(agencyName);
+    setPrintData({ agencyName, data });
+    await new Promise((r) => setTimeout(r, 80)); // let the hidden div render
+    try {
+      const el = printRef.current;
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff" });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const imgWidth = pdf.internal.pageSize.getWidth() - 20;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      pdf.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight);
+      pdf.save(`דוח ${agencyName} ${month}.pdf`);
+      toast.success(`דוח ${agencyName} נשמר`);
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setExporting(null);
+      setPrintData(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Input type="month" className="h-9 w-44" value={month} onChange={(e) => setMonth(e.target.value)} />
@@ -208,7 +238,13 @@ function AgencyReportsTab() {
         {report.map(([agencyName, data]) => (
           <Card key={agencyName}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">{agencyName} — סה"כ {fmtHours(data.total)}</CardTitle>
+              <CardTitle className="text-lg flex items-center justify-between gap-2">
+                <span>{agencyName} — סה"כ {fmtHours(data.total)}</span>
+                <Button size="sm" onClick={() => exportAgencyPdf(agencyName, data)} disabled={exporting !== null}>
+                  {exporting === agencyName ? <Loader2 className="w-4 h-4 ml-1 animate-spin" /> : <FileDown className="w-4 h-4 ml-1" />}
+                  ייצוא PDF
+                </Button>
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div>
@@ -238,6 +274,58 @@ function AgencyReportsTab() {
           </Card>
         ))}
       </div>
+
+      {/* hidden print layout */}
+      {printData && (
+        <div ref={printRef} dir="rtl" style={{ position: "absolute", left: -9999, top: 0, width: 794, padding: 30, background: "#fff", fontFamily: "Arial, sans-serif", color: "#1c1917" }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: "#0b6e4f" }}>דוח נוכחות חודשי — {printData.agencyName}</h1>
+          <div style={{ fontSize: 13, color: "#555", marginBottom: 4 }}>אולם אירועים ריי · חודש: {month} · סה"כ {fmtHours(printData.data.total)}</div>
+
+          <div style={{ fontSize: 15, fontWeight: 700, marginTop: 16, marginBottom: 6 }}>לפי עובד</div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr>
+                {["שם", "משמרות", "שעות"].map((h) => (
+                  <th key={h} style={{ background: "#0b4d3d", color: "#fff", padding: "6px 10px", textAlign: "right" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[...printData.data.workers.entries()].sort((a, b) => b[1].hours - a[1].hours).map(([name, w]) => (
+                <tr key={name}>
+                  <td style={{ padding: "6px 10px", borderBottom: "1px solid #e5e5e5" }}>{name}</td>
+                  <td style={{ padding: "6px 10px", borderBottom: "1px solid #e5e5e5" }}>{w.shifts}</td>
+                  <td style={{ padding: "6px 10px", borderBottom: "1px solid #e5e5e5" }}>{fmtHours(w.hours)}</td>
+                </tr>
+              ))}
+              <tr>
+                <td style={{ padding: "8px 10px", fontWeight: 700 }}>סה"כ</td>
+                <td></td>
+                <td style={{ padding: "8px 10px", fontWeight: 700 }}>{fmtHours(printData.data.total)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style={{ fontSize: 15, fontWeight: 700, marginTop: 20, marginBottom: 6 }}>לפי יום</div>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr>
+                {["תאריך", "שעות"].map((h) => (
+                  <th key={h} style={{ background: "#0b4d3d", color: "#fff", padding: "6px 10px", textAlign: "right" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[...printData.data.days.entries()].sort().map(([d, h]) => (
+                <tr key={d}>
+                  <td style={{ padding: "6px 10px", borderBottom: "1px solid #e5e5e5" }}>{d}</td>
+                  <td style={{ padding: "6px 10px", borderBottom: "1px solid #e5e5e5" }}>{fmtHours(h)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

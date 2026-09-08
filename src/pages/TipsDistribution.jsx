@@ -117,13 +117,14 @@ export default function TipsDistribution() {
   });
 
   // When locked — show the snapshot; otherwise the live computation
-  const rows = isLocked && allocations.length
+  const rows = (isLocked && allocations.length
     ? allocations.map((a) => ({
         id: a.id, worker_name: a.worker_name, agency_name: a.agency_name, shifts: a.shifts,
         runners: a.runners, closings: a.closings, total: Number(a.total),
         shiftPay: a.breakdown?.shift_pay ?? 0, runnerPay: a.breakdown?.runner_pay ?? 0, closingPay: a.breakdown?.closing_pay ?? 0,
       }))
-    : result.workers;
+    : result.workers
+  ).slice().sort((a, b) => (a.worker_name || "").localeCompare(b.worker_name || "", "he"));
 
   return (
     <div className="p-4 md:p-6 space-y-4" dir="rtl">
