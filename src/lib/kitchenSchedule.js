@@ -8,19 +8,19 @@
 // stable hash-based color so it still reads consistently without needing a
 // code change.
 const STATION_COLORS = {
-  "מטבח חם": "bg-green-400 text-green-950",
-  "מטבח קר": "bg-green-200 text-green-950",
-  "אקסטרה": "bg-white text-stone-800",
-  "דגים": "bg-rose-300 text-rose-950",
-  "קונדיטוריה": "bg-purple-300 text-purple-950",
-  "שטיפת סירים": "bg-blue-300 text-blue-950",
+  "מטבח חם": "bg-emerald-700 text-white",
+  "מטבח קר": "bg-emerald-200 text-emerald-900",
+  "אקסטרה": "bg-stone-200 text-stone-700",
+  "דגים": "bg-rose-200 text-rose-900",
+  "קונדיטוריה": "bg-purple-200 text-purple-900",
+  "שטיפת סירים": "bg-sky-200 text-sky-900",
 };
 
 const FALLBACK_PALETTE = [
-  "bg-amber-300 text-amber-950",
-  "bg-lime-300 text-lime-950",
-  "bg-indigo-300 text-indigo-950",
-  "bg-orange-300 text-orange-950",
+  "bg-amber-200 text-amber-900",
+  "bg-lime-200 text-lime-900",
+  "bg-indigo-200 text-indigo-900",
+  "bg-orange-200 text-orange-900",
 ];
 
 function hashString(str) {
