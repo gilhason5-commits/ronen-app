@@ -284,7 +284,7 @@ export default function TaskTemplateDialog({ template, taskType, categories, emp
             />
           </div>
 
-          {isPerEvent && (
+          {(isPerEvent || isRecurring) && (
             <div className="pt-4 border-t">
               <Label>תפקיד מנהל אסקלציה</Label>
               <p className="text-xs text-stone-500 mb-1">אם המשימה לא בוצעה, תישלח התראה לעובד בתפקיד זה</p>
