@@ -208,6 +208,9 @@ export default function EventForm({ event, onClose }) {
   const saveEventMutation = useMutation({
     mutationFn: async (data) => {
       const { food_cost_sum, food_cost_pct, ...dataToSave } = data;
+      // children_count is an integer column — an untouched field leaves it as '' in
+      // form state, which Postgres rejects ("invalid input syntax for type integer").
+      dataToSave.children_count = parseInt(dataToSave.children_count, 10) || 0;
       if (event?.id) {
         return await base44.entities.Event.update(event.id, dataToSave);
       } else {
