@@ -17,6 +17,7 @@ import {
 import DepartmentDialog from "../components/tasks/DepartmentDialog";
 import RoleDialog from "../components/tasks/RoleDialog";
 import RoleProceduresDialog from "../components/tasks/RoleProceduresDialog";
+import AgencyWorkerPool from "../components/staffing/AgencyWorkerPool";
 import { toast } from "sonner";
 
 export default function TaskEmployees() {
@@ -35,6 +36,18 @@ export default function TaskEmployees() {
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
+    initialData: [],
+  });
+
+  const { data: agencies = [] } = useQuery({
+    queryKey: ["staffingAgencies"],
+    queryFn: () => base44.entities.StaffingAgency.list("sort_order"),
+    initialData: [],
+  });
+
+  const { data: agencyWorkers = [] } = useQuery({
+    queryKey: ["agencyWorkers"],
+    queryFn: () => base44.entities.AgencyWorker.list("full_name"),
     initialData: [],
   });
 
@@ -230,9 +243,10 @@ export default function TaskEmployees() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="employees">עובדים</TabsTrigger>
           <TabsTrigger value="roles">תפקידים</TabsTrigger>
+          <TabsTrigger value="agencies">סוכנויות כוח אדם</TabsTrigger>
         </TabsList>
 
         <TabsContent value="employees" className="space-y-6">
@@ -668,6 +682,16 @@ export default function TaskEmployees() {
             open={!!proceduresRole}
             onClose={() => setProceduresRole(null)}
           />
+        </TabsContent>
+
+        <TabsContent value="agencies" className="space-y-6">
+          <div>
+            <h2 className="text-xl font-bold">מאגרי עובדים לפי סוכנות</h2>
+            <p className="text-sm text-stone-500 mt-1">
+              מאגר זה משמש לבחירת עובדים בעת סימון נוכחות אירוע — הוספה, שינוי שם או הסרה כאן משפיעה שם.
+            </p>
+          </div>
+          <AgencyWorkerPool agencies={agencies} workers={agencyWorkers} />
         </TabsContent>
       </Tabs>
     </div>

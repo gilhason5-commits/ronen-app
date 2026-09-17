@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ClipboardCheck, Plus, Trash2, Clock, UserPlus, Users, Database, X, ChevronDown, AlertTriangle, Pencil, Check } from "lucide-react";
+import { ClipboardCheck, Plus, Trash2, Clock, UserPlus, Users, AlertTriangle, Check } from "lucide-react";
 import { toast } from "sonner";
 import { FORMAT_LABELS, computeStaffing, orderAgenciesForDisplay } from "@/lib/staffingEngine";
 
@@ -332,163 +332,6 @@ function AgencySection({ event, agency, workers, shifts, plannedCount, updateShi
   );
 }
 
-function WorkerChip({ worker, onRename, onRemove }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(worker.full_name);
-
-  const commit = () => {
-    setEditing(false);
-    if (value.trim() && value.trim() !== worker.full_name) onRename(value);
-    else setValue(worker.full_name);
-  };
-
-  if (editing) {
-    return (
-      <span className="flex items-center gap-1 rounded-full border px-2 py-1 text-sm bg-white">
-        <Input
-          autoFocus
-          className="h-7 w-32 text-sm"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commit();
-            if (e.key === "Escape") { setValue(worker.full_name); setEditing(false); }
-          }}
-        />
-      </span>
-    );
-  }
-
-  return (
-    <span className="flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm bg-slate-50">
-      {worker.full_name}
-      <button
-        className="text-slate-400 hover:text-emerald-600"
-        onClick={() => { setValue(worker.full_name); setEditing(true); }}
-      >
-        <Pencil className="w-3.5 h-3.5" />
-      </button>
-      <button className="text-slate-400 hover:text-red-500" onClick={onRemove}>
-        <X className="w-3.5 h-3.5" />
-      </button>
-    </span>
-  );
-}
-
-// Standalone worker-roster manager (מאגר עובדים) — registers people into
-// AgencyWorker ahead of time so they show up as quick-pick chips in each
-// agency's add-worker popup during the event, instead of being typed fresh
-// every time. Collapsed by default so it stays out of the way of the
-// on-the-day flow the event manager actually uses on their iPad.
-function WorkerPoolSection({ agencies, workers }) {
-  const [expanded, setExpanded] = useState(false);
-  const [agencyId, setAgencyId] = useState(null);
-  const [name, setName] = useState("");
-  const queryClient = useQueryClient();
-
-  const activeAgencyId = agencyId || agencies[0]?.id;
-  const agency = agencies.find((a) => a.id === activeAgencyId);
-  const agencyWorkers = workers.filter((w) => w.agency_id === activeAgencyId);
-
-  const addWorker = useMutation({
-    mutationFn: async () => {
-      const full_name = name.trim();
-      if (!full_name) throw new Error("חסר שם עובד");
-      await base44.entities.AgencyWorker.create({ agency_id: activeAgencyId, agency_name: agency?.name, full_name });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agencyWorkers"] });
-      setName("");
-      toast.success("העובד נוסף למאגר");
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const removeWorker = useMutation({
-    mutationFn: (id) => base44.entities.AgencyWorker.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["agencyWorkers"] }),
-    onError: (e) => toast.error(e.message),
-  });
-
-  // Attendance rows carry their own copy of the worker's name (worker_name),
-  // separate from AgencyWorker.full_name — EventShift groups by worker_id
-  // when it's set, so a rename alone doesn't break which tip totals belong
-  // to whom, but every already-recorded shift would still *display* the old
-  // name. Locked TipAllocation snapshots go a step further: they only ever
-  // stored a name, never a worker_id, so they're re-matched by the old name
-  // text (best effort — two different workers who once shared an exact
-  // name would both get renamed). Updating both keeps every screen, past
-  // and future, showing this employee under one consistent name.
-  const renameWorker = useMutation({
-    mutationFn: async ({ worker, newName }) => {
-      const trimmed = newName.trim();
-      if (!trimmed || trimmed === worker.full_name) return;
-
-      await base44.entities.AgencyWorker.update(worker.id, { full_name: trimmed });
-
-      const relatedShifts = await base44.entities.EventShift.filter({ worker_id: worker.id });
-      await Promise.all(relatedShifts.map((s) => base44.entities.EventShift.update(s.id, { worker_name: trimmed })));
-
-      const relatedAllocations = await base44.entities.TipAllocation.filter({ worker_name: worker.full_name });
-      await Promise.all(
-        relatedAllocations
-          .filter((a) => (a.agency_name || "") === (worker.agency_name || agency?.name || ""))
-          .map((a) => base44.entities.TipAllocation.update(a.id, { worker_name: trimmed }))
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["agencyWorkers"] });
-      queryClient.invalidateQueries({ queryKey: ["eventShifts"] });
-      queryClient.invalidateQueries({ queryKey: ["monthShifts"] });
-      queryClient.invalidateQueries({ queryKey: ["tipAllocations"] });
-      toast.success("שם העובד עודכן בכל המקומות, כולל טיפים קודמים");
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  return (
-    <Card>
-      <CardHeader className="pb-2 cursor-pointer select-none" onClick={() => setExpanded((v) => !v)}>
-        <CardTitle className="text-base flex items-center justify-between gap-2">
-          <span className="flex items-center gap-1.5"><Database className="w-4 h-4" /> מאגר עובדים</span>
-          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${expanded ? "" : "-rotate-90"}`} />
-        </CardTitle>
-      </CardHeader>
-      {expanded && (
-        <CardContent className="space-y-2">
-          <Select value={activeAgencyId} onValueChange={setAgencyId}>
-            <SelectTrigger className="h-10"><SelectValue placeholder="חברת כוח אדם" /></SelectTrigger>
-            <SelectContent>
-              {agencies.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <div className="flex flex-wrap gap-1.5">
-            {agencyWorkers.map((w) => (
-              <WorkerChip
-                key={w.id}
-                worker={w}
-                onRename={(newName) => renameWorker.mutate({ worker: w, newName })}
-                onRemove={() => { if (confirm(`להסיר את ${w.full_name} מהמאגר?`)) removeWorker.mutate(w.id); }}
-              />
-            ))}
-            {agencyWorkers.length === 0 && <span className="text-sm text-slate-400">אין עובדים במאגר לחברה זו</span>}
-          </div>
-
-          <div className="flex gap-2">
-            <Input placeholder="שם עובד חדש…" className="h-10" value={name} onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) addWorker.mutate(); }} />
-            <Button className="h-10" disabled={!name.trim() || addWorker.isPending} onClick={() => addWorker.mutate()}>
-              <Plus className="w-4 h-4" />
-            </Button>
-          </div>
-        </CardContent>
-      )}
-    </Card>
-  );
-}
-
 export default function EventAttendance() {
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const queryClient = useQueryClient();
@@ -562,8 +405,6 @@ export default function EventAttendance() {
 
   return (
     <div className="p-3 md:p-6 space-y-3 max-w-6xl mx-auto" dir="rtl">
-      <WorkerPoolSection agencies={displayAgencies} workers={workers} />
-
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2">
           <ClipboardCheck className="w-6 h-6 text-emerald-700" /> נוכחות אירוע
