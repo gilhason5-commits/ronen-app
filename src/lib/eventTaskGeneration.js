@@ -106,3 +106,38 @@ export function daysUntilEvent(eventDateStr) {
 // event. Once fewer days than this remain, it's too late to approve
 // (worker/kitchen quantities must lock in before the last-minute crunch).
 export const APPROVAL_MAX_DAYS_BEFORE = 4;
+
+// Israeli work week: Sunday–Thursday are business days, Friday/Saturday are
+// the weekend.
+function isIsraeliBusinessDay(date) {
+  const day = date.getDay(); // 0=Sun ... 6=Sat
+  return day !== 5 && day !== 6;
+}
+
+// Count business days strictly between today and an event_date string
+// (YYYY-MM-DD), using the Israeli work week (Sun–Thu). Returns 0 if the
+// event is today or already in the past.
+export function businessDaysUntilEvent(eventDateStr) {
+  if (!eventDateStr) return Infinity;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const eventDate = new Date(eventDateStr);
+  eventDate.setHours(0, 0, 0, 0);
+  if (eventDate <= today) return 0;
+
+  let count = 0;
+  const cursor = new Date(today);
+  cursor.setDate(cursor.getDate() + 1);
+  while (cursor <= eventDate) {
+    if (isIsraeliBusinessDay(cursor)) count++;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+}
+
+// The producer can only approve an event while it's between these two
+// business-day thresholds out from the event date. Fewer than the min and
+// it's too late (staffing/kitchen must already be locked in); more than the
+// max and it's too early (plans aren't final enough yet).
+export const APPROVAL_MIN_BUSINESS_DAYS = 4;
+export const APPROVAL_MAX_BUSINESS_DAYS = 7;

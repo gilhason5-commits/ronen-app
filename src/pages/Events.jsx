@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,28 @@ export default function Events() {
     queryFn: () => base44.entities.Dish.list(),
     initialData: [],
   });
+
+  // Once an in-progress event's date has passed, flip it to completed —
+  // nobody should have to remember to close out old events by hand.
+  useEffect(() => {
+    if (!events.length) return;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const stale = events.filter(
+      (e) => e.status === 'in_progress' && e.event_date && new Date(e.event_date) < today
+    );
+    if (stale.length === 0) return;
+    (async () => {
+      for (const e of stale) {
+        try {
+          await base44.entities.Event.update(e.id, { status: 'completed' });
+        } catch (err) {
+          console.error('Failed to auto-complete past event:', e.id, err);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    })();
+  }, [events]);
 
   const { data: allCategories = [] } = useQuery({
     queryKey: ['categories'],

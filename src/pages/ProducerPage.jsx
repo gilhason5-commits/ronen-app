@@ -7,9 +7,17 @@ import { toast } from "sonner";
 import ProducerEventForm from "../components/producer/ProducerEventForm";
 import ProducerEventCard from "../components/producer/ProducerEventCard";
 import ProducerEventPrint from "../components/producer/ProducerEventPrint";
-import { generateEventTasks, daysUntilEvent, APPROVAL_MAX_DAYS_BEFORE } from "@/lib/eventTaskGeneration";
+import {
+  generateEventTasks,
+  businessDaysUntilEvent,
+  APPROVAL_MIN_BUSINESS_DAYS,
+  APPROVAL_MAX_BUSINESS_DAYS,
+} from "@/lib/eventTaskGeneration";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function ProducerPage() {
+  const { user } = useAuth();
+  const canApprove = user?.role === "producer";
   const [showForm, setShowForm] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [printEvent, setPrintEvent] = useState(null);
@@ -47,10 +55,18 @@ export default function ProducerPage() {
 
   const approveMutation = useMutation({
     mutationFn: async (event) => {
-      // Defensive: the button is disabled when too late, but the mutation
-      // re-checks in case the card was rendered against a stale event_date.
-      if (daysUntilEvent(event.event_date) < APPROVAL_MAX_DAYS_BEFORE) {
-        throw new Error("ניתן לאשר את האירוע רק 4 ימים או יותר לפני תחילתו");
+      // Defensive: only the producer role may approve, and only within the
+      // 4-7 business-day window — the button is disabled otherwise, but the
+      // mutation re-checks in case of a stale render or a direct call.
+      if (!canApprove) {
+        throw new Error("רק המפיק יכול לאשר אירועים");
+      }
+      const days = businessDaysUntilEvent(event.event_date);
+      if (days < APPROVAL_MIN_BUSINESS_DAYS) {
+        throw new Error("אנא אשר מול רונן");
+      }
+      if (days > APPROVAL_MAX_BUSINESS_DAYS) {
+        throw new Error(`ניתן לאשר רק החל מ-${APPROVAL_MAX_BUSINESS_DAYS} ימי עסקים לפני האירוע`);
       }
       await base44.entities.Event.update(event.id, {
         producer_approved: true,
@@ -174,6 +190,7 @@ export default function ProducerPage() {
               onPrint={setPrintEvent}
               onDelete={handleDelete}
               onSavePdf={setPdfEvent}
+              canApprove={canApprove}
             />
           ))}
         </div>
@@ -191,6 +208,7 @@ export default function ProducerPage() {
               onPrint={setPrintEvent}
               onDelete={handleDelete}
               onSavePdf={setPdfEvent}
+              canApprove={canApprove}
             />
           ))}
         </div>

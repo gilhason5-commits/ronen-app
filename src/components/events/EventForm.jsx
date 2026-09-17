@@ -341,7 +341,12 @@ export default function EventForm({ event, onClose }) {
             דוח כללי
           </Button>
           <Button
-            onClick={() => setShowDeptPrintDialog(true)}
+            onClick={() => {
+              if (!event.producer_approved) {
+                toast.warning("שימו לב: האירוע עדיין לא אושר סופית על ידי המפיק");
+              }
+              setShowDeptPrintDialog(true);
+            }}
             className="bg-emerald-600 hover:bg-emerald-700 print:hidden">
             <Printer className="w-4 h-4 mr-2" />
             דוחות מחלקות

@@ -4,7 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Users, Pencil, Send, CheckCircle2, Printer, Trash2, Download } from "lucide-react";
 import { format } from "date-fns";
-import { daysUntilEvent, APPROVAL_MAX_DAYS_BEFORE } from "@/lib/eventTaskGeneration";
+import {
+  businessDaysUntilEvent,
+  APPROVAL_MIN_BUSINESS_DAYS,
+  APPROVAL_MAX_BUSINESS_DAYS,
+} from "@/lib/eventTaskGeneration";
 
 const eventTypeLabels = {
   serving: "אירוע הגשה",
@@ -12,12 +16,14 @@ const eventTypeLabels = {
   party: "מסיבה"
 };
 
-export default function ProducerEventCard({ event, dishCount, onEdit, onApprove, onPrint, onDelete, onSavePdf }) {
+export default function ProducerEventCard({ event, dishCount, onEdit, onApprove, onPrint, onDelete, onSavePdf, canApprove = true }) {
   const isApproved = event.producer_approved;
-  const days = daysUntilEvent(event.event_date);
-  // Too late to approve once fewer than the window's days remain — approval
-  // must happen while there's still enough lead time to staff/kitchen-plan.
-  const tooLate = days < APPROVAL_MAX_DAYS_BEFORE;
+  const days = businessDaysUntilEvent(event.event_date);
+  // Approval window: only allowed between 4 and 7 business days before the
+  // event. Too close and staffing/kitchen quantities must already be
+  // locked in; too early and plans aren't final enough yet.
+  const tooLate = days < APPROVAL_MIN_BUSINESS_DAYS;
+  const tooEarly = days > APPROVAL_MAX_BUSINESS_DAYS;
 
   return (
     <Card className={`border-stone-200 ${isApproved ? "bg-emerald-50 border-emerald-200" : ""}`}>
@@ -29,7 +35,7 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
               {isApproved && (
                 <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300">
                   <CheckCircle2 className="w-3 h-3 ml-1" />
-                  אושר והועבר להנהלה
+                  אושר והועבר לביצוע
                 </Badge>
               )}
             </div>
@@ -75,22 +81,39 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
                   מחיקה
                 </Button>
                 <div className="flex flex-col items-end gap-1 max-w-[280px]">
-                  <Button
-                    size="sm"
-                    className={tooLate ? "bg-stone-300 hover:bg-stone-300 cursor-not-allowed text-stone-600" : "bg-emerald-600 hover:bg-emerald-700"}
-                    disabled={tooLate}
-                    title={tooLate ? "ניתן לאשר את האירוע רק 4 ימים או יותר לפני תחילתו" : ""}
-                    onClick={() => !tooLate && onApprove(event)}
-                  >
-                    <Send className="w-4 h-4 ml-1" />
-                    אושר - העבר להנהלה
-                  </Button>
+                  {canApprove ? (
+                    <Button
+                      size="sm"
+                      className={(tooLate || tooEarly) ? "bg-stone-300 hover:bg-stone-300 cursor-not-allowed text-stone-600" : "bg-emerald-600 hover:bg-emerald-700"}
+                      disabled={tooLate || tooEarly}
+                      title={tooLate ? "אנא אשר מול רונן" : tooEarly ? `ניתן לאשר רק החל מ-${APPROVAL_MAX_BUSINESS_DAYS} ימי עסקים לפני האירוע` : ""}
+                      onClick={() => !(tooLate || tooEarly) && onApprove(event)}
+                    >
+                      <Send className="w-4 h-4 ml-1" />
+                      אושר - העבר להנהלה
+                    </Button>
+                  ) : (
+                    <Button size="sm" disabled className="bg-stone-300 hover:bg-stone-300 cursor-not-allowed text-stone-600" title="רק המפיק יכול לאשר אירועים">
+                      <Send className="w-4 h-4 ml-1" />
+                      אושר - העבר להנהלה
+                    </Button>
+                  )}
                   <p className="text-[11px] text-stone-500 leading-snug text-right">
                     לחיצה על אישור היא התחייבות סופית מבחינת כמות העובדים והמטבח. לאחר האישור הכמויות נחשבות סופיות לאירוע.
                   </p>
-                  {tooLate && (
+                  {!canApprove && (
                     <p className="text-[11px] text-amber-700 leading-snug text-right">
-                      ניתן לאשר את האירוע רק 4 ימים או יותר לפני תחילתו.
+                      רק המפיק יכול לאשר אירועים.
+                    </p>
+                  )}
+                  {canApprove && tooLate && (
+                    <p className="text-[11px] text-amber-700 leading-snug text-right">
+                      אנא אשר מול רונן.
+                    </p>
+                  )}
+                  {canApprove && !tooLate && tooEarly && (
+                    <p className="text-[11px] text-amber-700 leading-snug text-right">
+                      ניתן לאשר את האירוע רק בין {APPROVAL_MIN_BUSINESS_DAYS} ל-{APPROVAL_MAX_BUSINESS_DAYS} ימי עסקים לפני תחילתו.
                     </p>
                   )}
                 </div>
