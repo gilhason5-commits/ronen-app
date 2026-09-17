@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, TrendingUp, Users } from "lucide-react";
 import CategoryBreakdown from "../reports/CategoryBreakdown";
 import { fmtCurrency, fmtNum } from "../utils/formatNumbers";
+import { excludeVat } from "@/lib/vat";
 
-export default function EventSummary({ foodRevenue = 0, pricePerPlate = 0, foodCostSum = 0, foodCostPct = 0, guestCount = 0, eventDishes = [], categories = [], dishes = [], getEffectivePlannedCost, eventId = null }) {
+export default function EventSummary({ foodRevenue = 0, pricePerPlate = 0, foodCostSum = 0, foodCostPct = 0, guestCount = 0, eventDishes = [], categories = [], dishes = [], getEffectivePlannedCost, eventId = null, additions = {} }) {
   const calculatedRevenue = (parseFloat(pricePerPlate) || 0) * (parseFloat(guestCount) || 0);
   const safeRevenue = calculatedRevenue || parseFloat(foodRevenue) || 0;
   const safeCostSum = parseFloat(foodCostSum) || 0;
@@ -12,6 +13,13 @@ export default function EventSummary({ foodRevenue = 0, pricePerPlate = 0, foodC
   const safeGuestCount = parseFloat(guestCount) || 0;
   const grossProfit = safeRevenue - safeCostSum;
   const costPerGuest = safeGuestCount > 0 ? safeCostSum / safeGuestCount : 0;
+  const foodRevenueExVat = excludeVat(safeRevenue);
+  const additionsTotal =
+    (parseFloat(additions.lighting_sound_cost) || 0) +
+    (parseFloat(additions.after_party_food_cost) || 0) +
+    (parseFloat(additions.custom_addition_1_amount) || 0) +
+    (parseFloat(additions.custom_addition_2_amount) || 0);
+  const totalRevenue = safeRevenue + additionsTotal;
 
   return (
     <Card className="border-stone-200 sticky top-6">
@@ -25,8 +33,19 @@ export default function EventSummary({ foodRevenue = 0, pricePerPlate = 0, foodC
             <p className="text-sm text-stone-600">הכנסה מאוכל</p>
           </div>
           <p className="text-2xl font-bold text-stone-900">{fmtCurrency(safeRevenue)}</p>
+          <p className="text-xs text-stone-500 mt-1">
+            הכנסה מאוכל ללא מע״מ: {fmtCurrency(foodRevenueExVat)}
+          </p>
         </div>
-        
+
+        <div className="pt-4 border-t border-stone-200">
+          <p className="text-sm text-stone-600 mb-1">הכנסה כוללת</p>
+          <p className="text-2xl font-bold text-stone-900">{fmtCurrency(totalRevenue)}</p>
+          {additionsTotal > 0 && (
+            <p className="text-xs text-stone-500 mt-1">כולל {fmtCurrency(additionsTotal)} תוספות</p>
+          )}
+        </div>
+
         {eventId && (
           <div className="pt-4 border-t border-stone-200">
             <CategoryBreakdown events={[{ id: eventId }]} eventDishes={eventDishes} getEffectivePlannedCost={getEffectivePlannedCost} />

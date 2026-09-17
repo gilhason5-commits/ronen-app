@@ -547,6 +547,63 @@ export default function EventForm({ event, onClose }) {
                     </div>
                   </div>
 
+                  <div className="col-span-2 grid grid-cols-4 gap-4">
+                    <div>
+                      <Label>תאורה והגברה (₪)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.lighting_sound_cost ?? ''}
+                        onChange={(e) => setFormData({ ...formData, lighting_sound_cost: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                        placeholder="0" />
+                    </div>
+                    <div>
+                      <Label>אוכל אפטר (₪)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.after_party_food_cost ?? ''}
+                        onChange={(e) => setFormData({ ...formData, after_party_food_cost: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                        placeholder="0" />
+                    </div>
+                    <div>
+                      <Label>תוספת נוספת</Label>
+                      <div className="flex h-10 items-center rounded-md border border-input bg-background overflow-hidden focus-within:ring-2 focus-within:ring-ring">
+                        <input
+                          type="text"
+                          className="flex-1 h-full px-2 text-sm bg-transparent outline-none border-l border-input"
+                          value={formData.custom_addition_1_name || ''}
+                          onChange={(e) => setFormData({ ...formData, custom_addition_1_name: e.target.value })}
+                          placeholder="שם התוספת..." />
+                        <input
+                          type="number"
+                          step="0.01"
+                          className="w-1/3 h-full px-2 text-sm bg-transparent outline-none text-center"
+                          value={formData.custom_addition_1_amount ?? ''}
+                          onChange={(e) => setFormData({ ...formData, custom_addition_1_amount: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                          placeholder="₪" />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>תוספת נוספת</Label>
+                      <div className="flex h-10 items-center rounded-md border border-input bg-background overflow-hidden focus-within:ring-2 focus-within:ring-ring">
+                        <input
+                          type="text"
+                          className="flex-1 h-full px-2 text-sm bg-transparent outline-none border-l border-input"
+                          value={formData.custom_addition_2_name || ''}
+                          onChange={(e) => setFormData({ ...formData, custom_addition_2_name: e.target.value })}
+                          placeholder="שם התוספת..." />
+                        <input
+                          type="number"
+                          step="0.01"
+                          className="w-1/3 h-full px-2 text-sm bg-transparent outline-none text-center"
+                          value={formData.custom_addition_2_amount ?? ''}
+                          onChange={(e) => setFormData({ ...formData, custom_addition_2_amount: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                          placeholder="₪" />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="col-span-2">
                     <Label>הערות</Label>
                     <Textarea
@@ -608,7 +665,13 @@ export default function EventForm({ event, onClose }) {
             categories={allCategories}
             dishes={dishes}
             getEffectivePlannedCost={getEffectivePlannedCost}
-            eventId={event?.id} />
+            eventId={event?.id}
+            additions={{
+              lighting_sound_cost: formData.lighting_sound_cost,
+              after_party_food_cost: formData.after_party_food_cost,
+              custom_addition_1_amount: formData.custom_addition_1_amount,
+              custom_addition_2_amount: formData.custom_addition_2_amount,
+            }} />
 
         </div>
       </div>
