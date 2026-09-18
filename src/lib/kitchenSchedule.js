@@ -13,7 +13,7 @@ const STATION_COLORS = {
   "אקסטרה": "bg-stone-200 text-stone-700",
   "דגים": "bg-rose-200 text-rose-900",
   "קונדיטוריה": "bg-purple-200 text-purple-900",
-  "שטיפת סירים": "bg-sky-200 text-sky-900",
+  "שטיפת סירים/ניקיון מטבח": "bg-sky-200 text-sky-900",
 };
 
 const FALLBACK_PALETTE = [
