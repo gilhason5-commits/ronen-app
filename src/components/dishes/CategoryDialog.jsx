@@ -12,15 +12,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 
-export default function CategoryDialog({ category, eventType = 'serving', open, onClose }) {
+const GROUP_LABELS = {
+  food: 'אוכל',
+  drink: 'שתייה',
+  consumables: 'מתכלים',
+};
+
+export default function CategoryDialog({ category, eventType = 'serving', groupType = 'food', open, onClose }) {
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     display_order: 0,
-    event_type: eventType
+    event_type: eventType,
+    group_type: groupType,
   });
 
   useEffect(() => {
@@ -31,10 +45,11 @@ export default function CategoryDialog({ category, eventType = 'serving', open, 
         name: '',
         description: '',
         display_order: 0,
-        event_type: eventType
+        event_type: eventType,
+        group_type: groupType,
       });
     }
-  }, [category, eventType]);
+  }, [category, eventType, groupType]);
 
   const saveMutation = useMutation({
     mutationFn: (data) => {
@@ -75,6 +90,23 @@ export default function CategoryDialog({ category, eventType = 'serving', open, 
               onChange={(e) => setFormData({...formData, name: e.target.value})}
               required
             />
+          </div>
+
+          <div>
+            <Label>קבוצה *</Label>
+            <Select
+              value={formData.group_type}
+              onValueChange={(value) => setFormData({ ...formData, group_type: value })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(GROUP_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>

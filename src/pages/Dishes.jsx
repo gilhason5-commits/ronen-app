@@ -21,6 +21,7 @@ export default function Dishes() {
   const [selectedSubCategory, setSelectedSubCategory] = useState(null);
   const [subCategoryParentId, setSubCategoryParentId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterGroup, setFilterGroup] = useState("food");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterSubCategory, setFilterSubCategory] = useState("all");
   const [expandedCategoryId, setExpandedCategoryId] = useState(null);
@@ -78,9 +79,12 @@ export default function Dishes() {
     initialData: [],
   });
 
-  // Filter categories by event type
-  const categories = allCategories.filter(cat => cat.event_type === eventTypeFilter);
+  // Filter categories by event type, then by the top-level group (אוכל/שתייה/מתכלים)
+  const categoriesForEventType = allCategories.filter(cat => cat.event_type === eventTypeFilter);
+  const categories = categoriesForEventType.filter(cat => (cat.group_type || 'food') === filterGroup);
   const subCategories = allSubCategories.filter(sc => sc.event_type === eventTypeFilter);
+
+  const GROUP_LABELS = { food: 'אוכל', drink: 'שתייה', consumables: 'מתכלים' };
 
   // Auto-open edit dialog if edit param exists
   useEffect(() => {
@@ -116,13 +120,22 @@ export default function Dishes() {
     }
   });
 
+  const categoryIdsInGroup = categories.map(cat => cat.id);
+
   const filteredDishes = dishes.filter(dish => {
     const matchesSearch = dish.name?.toLowerCase().includes(searchTerm.toLowerCase());
     let matchesCategory = false;
     if (filterCategory === "no_ingredients") {
       matchesCategory = !dish.ingredients || dish.ingredients.length === 0;
     } else if (filterCategory === "all") {
-      matchesCategory = true;
+      // "הכל" means every dish in the selected group (אוכל/שתייה/מתכלים).
+      // A dish with no category at all can't be excluded from a group it
+      // was never assigned to — keep it visible under the food group (the
+      // default/original group every dish belonged to before groups existed).
+      const hasNoCategory = !dish.categories || dish.categories.length === 0;
+      matchesCategory = hasNoCategory
+        ? filterGroup === "food"
+        : dish.categories.some(catId => categoryIdsInGroup.includes(catId));
     } else {
       matchesCategory = dish.categories?.includes(filterCategory);
       if (matchesCategory && filterSubCategory !== "all") {
@@ -162,6 +175,13 @@ export default function Dishes() {
     setFilterCategory(categoryId);
     setFilterSubCategory("all");
     setExpandedCategoryId(categoryId);
+  };
+
+  const handleSelectGroup = (group) => {
+    setFilterGroup(group);
+    setFilterCategory("all");
+    setFilterSubCategory("all");
+    setExpandedCategoryId(null);
   };
 
   const handleSelectBuiltIn = (filterValue) => {
@@ -296,10 +316,25 @@ export default function Dishes() {
         </div>
       </div>
 
-      {categories.length > 0 && (
-        <Card className="border-stone-200">
+      <div className="flex flex-wrap gap-2">
+        {Object.entries(GROUP_LABELS).map(([group, label]) => (
+          <button
+            key={group}
+            onClick={() => handleSelectGroup(group)}
+            className={`px-4 py-2 rounded-lg border transition-colors text-sm font-bold ${
+              filterGroup === group
+                ? "bg-stone-900 text-white border-stone-900"
+                : "bg-white border-stone-300 hover:bg-stone-50"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <Card className="border-stone-200">
           <CardHeader className="border-b border-stone-200 p-4">
-            <CardTitle className="text-sm font-medium">קטגוריות מנות</CardTitle>
+            <CardTitle className="text-sm font-medium">קטגוריות {GROUP_LABELS[filterGroup]}</CardTitle>
           </CardHeader>
           <CardContent className="p-4">
             <div className="flex flex-wrap gap-2">
@@ -408,7 +443,6 @@ export default function Dishes() {
             )}
           </CardContent>
         </Card>
-      )}
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
@@ -448,6 +482,7 @@ export default function Dishes() {
         <CategoryDialog
           category={selectedCategory}
           eventType={eventTypeFilter}
+          groupType={filterGroup}
           open={showCategoryDialog}
           onClose={() => setShowCategoryDialog(false)}
         />
