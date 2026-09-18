@@ -372,6 +372,16 @@ function KitchenScheduleTable({ month }) {
     }
     return map;
   }, [allEvents, dayStrs]);
+  const eventNamesByDay = useMemo(() => {
+    const map = new Map();
+    for (const e of allEvents) {
+      if (e.status === "cancelled" || !dayStrs.includes(e.event_date)) continue;
+      const list = map.get(e.event_date) || [];
+      list.push(e.event_name);
+      map.set(e.event_date, list);
+    }
+    return map;
+  }, [allEvents, dayStrs]);
 
   // Only show a column for a day that actually has an event — a day with no
   // event ("X" in the סועדים row) carries nothing for the kitchen/cleaning
@@ -468,6 +478,22 @@ function KitchenScheduleTable({ month }) {
                 {DAY_NAMES[d.getDay()]}
               </th>
             ))}
+          </tr>
+          <tr className="bg-stone-100">
+            <th className="border border-stone-300 text-[10px] font-bold text-stone-700" colSpan={2}>שם האירוע</th>
+            {visibleDays.map((d) => {
+              const ds = toDateStr(d);
+              const names = eventNamesByDay.get(ds) || [];
+              return (
+                <th
+                  key={ds}
+                  className="border border-stone-300 px-1 py-1 text-center font-medium text-stone-700 text-[10px] leading-tight break-words"
+                  title={names.join(" / ")}
+                >
+                  {names.join(" / ") || "-"}
+                </th>
+              );
+            })}
           </tr>
           <tr className="bg-stone-50">
             <th className="border border-stone-300 text-[10px] font-bold text-stone-700" colSpan={2}>סועדים</th>
