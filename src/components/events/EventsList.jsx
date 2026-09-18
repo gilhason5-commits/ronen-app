@@ -8,18 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fmtCurrency } from "../utils/formatNumbers";
 
 export default function EventsList({ events, isLoading, onEdit, onDelete }) {
-  const statusColors = {
-    in_progress: "bg-emerald-100 text-emerald-700",
-    completed: "bg-blue-100 text-blue-700",
-    producer_draft: "bg-amber-100 text-amber-700",
-  };
-
-  const statusLabels = {
-    in_progress: "בתהליך",
-    completed: "הושלם",
-    producer_draft: "טיוטת מפיק",
-  };
-
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -77,9 +65,6 @@ export default function EventsList({ events, isLoading, onEdit, onDelete }) {
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1.5">
-                <Badge className={statusColors[event.status]}>
-                  {statusLabels[event.status] || event.status}
-                </Badge>
                 {event.producer_approved ? (
                   <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300">
                     <CheckCircle2 className="w-3 h-3 ml-1" />
