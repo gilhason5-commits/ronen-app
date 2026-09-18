@@ -12,6 +12,7 @@ import DishDialog from "@/components/dishes/DishDialog";
 import { fmtCurrency } from "@/components/utils/formatNumbers";
 import DishNoteEditor from "@/components/events/DishNoteEditor";
 import { applyWasteToQty } from "@/lib/foodWaste";
+import { calculateAdultPortions } from "@/lib/dinerCount";
 
 export default function EventStages({ 
   event, 
@@ -119,7 +120,10 @@ export default function EventStages({
   };
 
   const calculateSuggestedQuantity = (dish, currentCategory = null) => {
-    const guestCount = event?.guest_count || 0;
+    // Standard dish quantities are planned for guests eating the standard
+    // menu — guest_count minus vegans/glatt, who get separate dishes not
+    // counted in this tree (e.g. 300 committed, 20 vegan -> plan for 280).
+    const guestCount = calculateAdultPortions(event?.guest_count, event?.vegan_count, event?.glatt_count);
     const servingPercentage = dish.serving_percentage ?? 100;
 
     // Check if dish has new preparation_mass_grams and portion_size_grams fields

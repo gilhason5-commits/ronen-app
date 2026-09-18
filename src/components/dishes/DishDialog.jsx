@@ -27,6 +27,7 @@ import {
 import IngredientDetailsDialog from "./IngredientDetailsDialog";
 import IngredientDialog from "../inventory/IngredientDialog";
 import SpecialIngredientDialog from "../ingredients/SpecialIngredientDialog";
+import { calculateAdultPortions } from "@/lib/dinerCount";
 
 const SUB_MANA_CATEGORY_ID = '694ab43b7f41f262f932394d';
 
@@ -135,8 +136,10 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
         for (const eventDish of eventDishes) {
           const event = await base44.entities.Event.filter({ id: eventDish.event_id });
           if (event[0]) {
-            const guestCount = event[0].guest_count || 0;
-            
+            // Standard dish quantities are planned for guests eating the
+            // standard menu — guest_count minus vegans/glatt.
+            const guestCount = calculateAdultPortions(event[0].guest_count, event[0].vegan_count, event[0].glatt_count);
+
             let plannedQty, plannedCost;
             if (isFirstCourseCategory()) {
               const servingPct = data.serving_percentage ?? 100;

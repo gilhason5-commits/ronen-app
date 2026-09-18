@@ -145,26 +145,32 @@ export default function EventForm({ event, onClose }) {
     const guestCount = formData.guest_count || 0;
     // Apply the event-level food reduction (פחת) to the stored cost as well —
     // planned_cost is saved as the pre-reduction base, so reduce it here.
+    // The waste bracket is driven by the full committed headcount (guest_count),
+    // same as revenue — it's a billing concept, unrelated to who eats what.
     if (eventDish.planned_cost && eventDish.planned_cost > 0) {
       return applyWasteToValue(eventDish.planned_cost, guestCount);
     }
-    // If planned_cost is 0, calculate from suggested quantity
+    // If planned_cost is 0, calculate from suggested quantity. Standard dish
+    // quantities are planned for the guests actually eating the standard
+    // menu — i.e. guest_count minus vegans/glatt, who get separate dishes
+    // not counted in this tree (e.g. 300 committed, 20 vegan -> plan for 280).
+    const dishGuestCount = calculateAdultPortions(formData.guest_count, formData.vegan_count, formData.glatt_count);
     const dish = dishes.find(d => d.id === eventDish.dish_id);
     if (!dish) return 0;
     const servingPercentage = dish.serving_percentage ?? 100;
     let plannedQty;
     if (dish.preparation_mass_grams && dish.portion_size_grams) {
       const portionsPerPreparation = dish.preparation_mass_grams / dish.portion_size_grams;
-      const totalPortionsNeeded = guestCount * (servingPercentage / 100);
+      const totalPortionsNeeded = dishGuestCount * (servingPercentage / 100);
       plannedQty = Math.ceil(totalPortionsNeeded / portionsPerPreparation);
     } else {
       const isWedding = formData.event_type === 'wedding';
       const portionFactor = (isFirstCourseDish(dish) && !isWedding) ? 1 / 6 : (dish.portion_factor ?? 1);
-      const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
+      const rawQuantity = dishGuestCount * (servingPercentage / 100) * portionFactor;
       plannedQty = Math.ceil(rawQuantity);
     }
     return applyWasteToValue(plannedQty * (dish.unit_cost || 0), guestCount);
-  }, [dishes, formData.guest_count, formData.event_type, categories]);
+  }, [dishes, formData.guest_count, formData.vegan_count, formData.glatt_count, formData.event_type, categories]);
 
   const recalculateEventCosts = useCallback(async (overrideRevenue = null, specificEventId = null) => {
     const targetEventId = specificEventId || event?.id;
@@ -240,13 +246,16 @@ export default function EventForm({ event, onClose }) {
 
     try {
       if (checked) {
-        const guestCount = formData.guest_count || 0;
+        // Standard dish quantities are planned for guests eating the standard
+        // menu — guest_count minus vegans/glatt, who get separate dishes not
+        // counted in this tree (e.g. 300 committed, 20 vegan -> plan for 280).
+        const guestCount = calculateAdultPortions(formData.guest_count, formData.vegan_count, formData.glatt_count);
         const isFirstCourse = isFirstCourseDish(dish);
         const servingPercentage = dish.serving_percentage ?? 100;
-        
+
         let plannedQty;
         let plannedCost;
-        
+
         // Check if dish has new preparation_mass_grams and portion_size_grams fields
         if (dish.preparation_mass_grams && dish.portion_size_grams) {
           // New calculation: portions per preparation
@@ -524,17 +533,17 @@ export default function EventForm({ event, onClose }) {
                     </div>
                     <div>
                       <Label>גלאט</Label>
-                      <div className="flex h-10 items-center rounded-md border border-input bg-background overflow-hidden focus-within:ring-2 focus-within:ring-ring">
-                        <input
+                      <div className="flex gap-2">
+                        <Input
                           type="text"
                           inputMode="numeric"
-                          className="w-1/3 h-full px-2 text-sm bg-transparent outline-none border-l border-input text-center"
+                          className="w-16 shrink-0 text-center font-semibold"
                           value={formData.glatt_count || ''}
                           onChange={(e) => setFormData({ ...formData, glatt_count: e.target.value })}
                           placeholder="0" />
-                        <input
+                        <Input
                           type="text"
-                          className="flex-1 h-full px-2 text-sm bg-transparent outline-none"
+                          className="flex-1"
                           value={formData.kashrut_note || ''}
                           onChange={(e) => setFormData({ ...formData, kashrut_note: e.target.value })}
                           placeholder="סוג כשרות..." />

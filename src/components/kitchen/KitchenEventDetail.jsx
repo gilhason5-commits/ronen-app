@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
 import DepartmentPrintDialog from "@/components/events/DepartmentPrintDialog";
 import { applyWasteToQty } from "@/lib/foodWaste";
+import { calculateAdultPortions } from "@/lib/dinerCount";
 
 export default function KitchenEventDetail({ event }) {
   const [showDeptPrint, setShowDeptPrint] = React.useState(false);
@@ -66,15 +67,19 @@ export default function KitchenEventDetail({ event }) {
 
   const calculateSuggestedQuantity = (dish) => {
     const guestCount = event?.guest_count || 0;
+    // Standard dish quantities are planned for guests eating the standard
+    // menu — guest_count minus vegans/glatt, who get separate dishes not
+    // counted in this tree (e.g. 300 committed, 20 vegan -> plan for 280).
+    const dishGuestCount = calculateAdultPortions(event?.guest_count, event?.vegan_count, event?.glatt_count);
     const servingPercentage = dish.serving_percentage ?? 100;
     let baseQty;
     if (dish.preparation_mass_grams && dish.portion_size_grams) {
       const portionsPerPreparation = dish.preparation_mass_grams / dish.portion_size_grams;
-      const totalPortionsNeeded = guestCount * (servingPercentage / 100);
+      const totalPortionsNeeded = dishGuestCount * (servingPercentage / 100);
       baseQty = Math.ceil(totalPortionsNeeded / portionsPerPreparation);
     } else {
       const portionFactor = isFirstCourseDish(dish) ? 1/6 : (dish.portion_factor ?? 1);
-      const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
+      const rawQuantity = dishGuestCount * (servingPercentage / 100) * portionFactor;
       baseQty = Math.ceil(rawQuantity);
     }
     return applyWasteToQty(baseQty, guestCount);

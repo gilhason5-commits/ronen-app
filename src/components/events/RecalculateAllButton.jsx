@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { applyWasteToValue } from "@/lib/foodWaste";
+import { calculateAdultPortions } from "@/lib/dinerCount";
 
 export default function RecalculateAllButton({ events, allDishes, allCategories }) {
   const [isRunning, setIsRunning] = useState(false);
@@ -21,21 +22,27 @@ export default function RecalculateAllButton({ events, allDishes, allCategories 
   const getEffectivePlannedCost = (eventDish, event, dishMap) => {
     const guestCount = event.guest_count || 0;
     // planned_cost is stored as the pre-reduction base — apply the פחת here too.
+    // The waste bracket is driven by the full committed headcount, same as
+    // revenue — a billing concept, unrelated to who eats what.
     if (eventDish.planned_cost && eventDish.planned_cost > 0) {
       return applyWasteToValue(eventDish.planned_cost, guestCount);
     }
+    // Standard dish quantities are planned for guests eating the standard
+    // menu — guest_count minus vegans/glatt, who get separate dishes not
+    // counted in this tree (e.g. 300 committed, 20 vegan -> plan for 280).
+    const dishGuestCount = calculateAdultPortions(event.guest_count, event.vegan_count, event.glatt_count);
     const dish = dishMap[eventDish.dish_id];
     if (!dish) return 0;
     const servingPercentage = dish.serving_percentage ?? 100;
     let plannedQty;
     if (dish.preparation_mass_grams && dish.portion_size_grams) {
       const portionsPerPreparation = dish.preparation_mass_grams / dish.portion_size_grams;
-      const totalPortionsNeeded = guestCount * (servingPercentage / 100);
+      const totalPortionsNeeded = dishGuestCount * (servingPercentage / 100);
       plannedQty = Math.ceil(totalPortionsNeeded / portionsPerPreparation);
     } else {
       const isWedding = event?.event_type === 'wedding';
       const portionFactor = (isFirstCourseDish(dish) && !isWedding) ? 1 / 6 : (dish.portion_factor ?? 1);
-      const rawQuantity = guestCount * (servingPercentage / 100) * portionFactor;
+      const rawQuantity = dishGuestCount * (servingPercentage / 100) * portionFactor;
       plannedQty = Math.ceil(rawQuantity);
     }
     return applyWasteToValue(plannedQty * (dish.unit_cost || 0), guestCount);
