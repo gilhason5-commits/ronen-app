@@ -38,21 +38,36 @@ export function getStationColor(station) {
   return FALLBACK_PALETTE[hashString(station || "") % FALLBACK_PALETTE.length];
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** Sunday (start of week) for the week containing `date`. */
-export function startOfWeek(date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - d.getDay());
-  return d;
-}
-
-/** The 7 dates (Sun..Sat) of the week starting at `weekStart`. */
-export function weekDates(weekStart) {
-  return Array.from({ length: 7 }, (_, i) => new Date(weekStart.getTime() + i * DAY_MS));
+/** Every date (1st through the last day) of the month containing `month`. */
+export function monthDates(month) {
+  const year = month.getFullYear();
+  const m = month.getMonth();
+  const daysInMonth = new Date(year, m + 1, 0).getDate();
+  return Array.from({ length: daysInMonth }, (_, i) => new Date(year, m, i + 1));
 }
 
 export function toDateStr(d) {
   return d.toLocaleDateString("sv-SE"); // YYYY-MM-DD, local time (not UTC)
+}
+
+// Turn digits-only shorthand into "HH:MM" so a shift time can be typed as
+// plain numbers, e.g. "1615" -> "16:15", "915" -> "09:15", "8" -> "08:00".
+// Anything already containing a colon (or empty) passes through unchanged.
+export function formatTimeDigits(raw) {
+  const trimmed = (raw || "").trim();
+  if (!trimmed || trimmed.includes(":")) return trimmed;
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return trimmed;
+  let hour, minute;
+  if (digits.length <= 2) {
+    hour = digits;
+    minute = "00";
+  } else if (digits.length === 3) {
+    hour = digits.slice(0, 1);
+    minute = digits.slice(1);
+  } else {
+    hour = digits.slice(0, -2);
+    minute = digits.slice(-2);
+  }
+  return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
 }

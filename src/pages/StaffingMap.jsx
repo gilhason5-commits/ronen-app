@@ -16,7 +16,7 @@ import {
 } from "@/lib/staffingEngine";
 import { exportConstraintsPdf, exportSupplierOrdersPdf, exportFloorReportPdf } from "@/lib/staffingPdf";
 import { getStaffColor } from "@/lib/staffColors";
-import { getStationColor, startOfWeek, weekDates, toDateStr } from "@/lib/kitchenSchedule";
+import { getStationColor, monthDates, toDateStr, formatTimeDigits } from "@/lib/kitchenSchedule";
 
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
@@ -309,10 +309,14 @@ function KitchenShiftCell({ member, shift, onSave }) {
   }, [shift?.id, shift?.clock_in, shift?.clock_out, member.default_clock_in, member.default_clock_out]);
 
   const commit = () => {
+    const formattedIn = formatTimeDigits(clockIn);
+    const formattedOut = formatTimeDigits(clockOut);
+    setClockIn(formattedIn);
+    setClockOut(formattedOut);
     const savedIn = shift?.clock_in ?? "";
     const savedOut = shift?.clock_out ?? "";
-    if (clockIn === savedIn && clockOut === savedOut) return;
-    onSave({ clock_in: clockIn, clock_out: clockOut });
+    if (formattedIn === savedIn && formattedOut === savedOut) return;
+    onSave({ clock_in: formattedIn, clock_out: formattedOut });
   };
 
   const isOff = !clockIn.trim() && !clockOut.trim();
@@ -331,10 +335,9 @@ function KitchenShiftCell({ member, shift, onSave }) {
 // any StaffingRule formula. Each person keeps roughly the same hours every
 // week (managed in ספר התקנים ← צוות מטבח); this just lets the manager
 // override a specific day when someone comes in earlier/later or is off.
-function KitchenScheduleTable() {
+function KitchenScheduleTable({ month }) {
   const queryClient = useQueryClient();
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
-  const days = useMemo(() => weekDates(weekStart), [weekStart]);
+  const days = useMemo(() => monthDates(month), [month]);
   const dayStrs = useMemo(() => days.map(toDateStr), [days]);
 
   const { data: members = [] } = useQuery({
@@ -435,20 +438,14 @@ function KitchenScheduleTable() {
     onError: (e) => toast.error(e.message),
   });
 
-  const shiftWeek = (dir) => setWeekStart((w) => new Date(w.getTime() + dir * 7 * 24 * 60 * 60 * 1000));
-  const weekLabel = `${days[0].toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit" })} – ${days[6].toLocaleDateString("he-IL", { day: "2-digit", month: "2-digit" })}`;
+  const monthLabel = month.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
 
   return (
     <div className="bg-white border border-stone-300 overflow-x-auto">
       <div className="px-3 py-2 border-b border-stone-200 flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
-          <UtensilsCrossed className="w-4 h-4 text-emerald-700" /> צוות מטבח וניקיון
+          <UtensilsCrossed className="w-4 h-4 text-emerald-700" /> צוות מטבח וניקיון — {monthLabel}
         </h2>
-        <div className="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-lg p-1">
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => shiftWeek(1)}><ChevronRight className="w-3.5 h-3.5" /></Button>
-          <span className="text-xs font-medium w-28 text-center">{weekLabel}</span>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => shiftWeek(-1)}><ChevronLeft className="w-3.5 h-3.5" /></Button>
-        </div>
       </div>
       <table className="w-full table-fixed text-sm border-collapse">
         <colgroup>
@@ -769,7 +766,7 @@ export default function StaffingMap() {
             </table>
           </div>
 
-          <KitchenScheduleTable />
+          <KitchenScheduleTable month={month} />
 
           <ChangeLog month={month} />
         </>
