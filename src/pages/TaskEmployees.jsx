@@ -108,7 +108,9 @@ export default function TaskEmployees() {
       role_id: '',
       role_name: '',
       is_active: true,
-      whatsapp_enabled: true
+      whatsapp_enabled: true,
+      work_agreement: '',
+      note: ''
     });
   };
 
@@ -352,6 +354,8 @@ export default function TaskEmployees() {
                   <th className="text-right p-3 text-sm font-semibold text-stone-700">סטטוס</th>
                   <th className="text-right p-3 text-sm font-semibold text-stone-700">WhatsApp</th>
                   <th className="text-right p-3 text-sm font-semibold text-stone-700">עובד חלופי</th>
+                  <th className="text-right p-3 text-sm font-semibold text-stone-700">הסכם עבודה</th>
+                  <th className="text-right p-3 text-sm font-semibold text-stone-700">הערה</th>
                   <th className="text-right p-3 text-sm font-semibold text-stone-700">פעולות</th>
                 </tr>
               </thead>
@@ -400,6 +404,20 @@ export default function TaskEmployees() {
                     <td className="p-3">-</td>
                     <td className="p-3">-</td>
                     <td className="p-3">{renderBackupSelect()}</td>
+                    <td className="p-3">
+                      <Input
+                        value={editForm.work_agreement || ''}
+                        onChange={(e) => setEditForm({...editForm, work_agreement: e.target.value})}
+                        placeholder="הסכם עבודה"
+                      />
+                    </td>
+                    <td className="p-3">
+                      <Input
+                        value={editForm.note || ''}
+                        onChange={(e) => setEditForm({...editForm, note: e.target.value})}
+                        placeholder="הערה"
+                      />
+                    </td>
                     <td className="p-3">
                       <div className="flex gap-2">
                         <Button
@@ -475,6 +493,20 @@ export default function TaskEmployees() {
                         </td>
                         <td className="p-3">{renderBackupSelect()}</td>
                         <td className="p-3">
+                          <Input
+                            value={editForm.work_agreement || ''}
+                            onChange={(e) => setEditForm({...editForm, work_agreement: e.target.value})}
+                            placeholder="הסכם עבודה"
+                          />
+                        </td>
+                        <td className="p-3">
+                          <Input
+                            value={editForm.note || ''}
+                            onChange={(e) => setEditForm({...editForm, note: e.target.value})}
+                            placeholder="הערה"
+                          />
+                        </td>
+                        <td className="p-3">
                           <div className="flex gap-2">
                             <Button
                               size="sm"
@@ -524,6 +556,12 @@ export default function TaskEmployees() {
                         </td>
                         <td className="p-3">
                           <p className="text-sm text-stone-600">{employee.backup_employee_name || '-'}</p>
+                        </td>
+                        <td className="p-3">
+                          <p className="text-sm text-stone-600 max-w-[160px] truncate" title={employee.work_agreement || ''}>{employee.work_agreement || '-'}</p>
+                        </td>
+                        <td className="p-3">
+                          <p className="text-sm text-stone-600 max-w-[160px] truncate" title={employee.note || ''}>{employee.note || '-'}</p>
                         </td>
                         <td className="p-3">
                           <div className="flex gap-2">
