@@ -1,5 +1,24 @@
 import { supabase } from './supabaseClient';
 
+// Supabase/PostgREST caps a single response at 1000 rows by default. Any
+// table that grows past that would have silently truncated results from a
+// plain .select() — page through with .range() so list()/filter() always
+// return everything, not just the first page.
+const PAGE_SIZE = 1000;
+
+async function fetchAllPages(buildQuery) {
+  let all = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    all = all.concat(data);
+    if (data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return all;
+}
+
 /**
  * Creates a Base44-compatible entity API backed by Supabase.
  * Supports: list(orderBy?, limit?), filter(obj), create(data), update(id, data), delete(id), bulkCreate(arr)
@@ -9,28 +28,32 @@ export function createEntity(tableName) {
     async list(orderBy = 'created_date', limit = null) {
       const ascending = !orderBy.startsWith('-');
       const column = orderBy.replace(/^-/, '');
-      let query = supabase
-        .from(tableName)
-        .select('*')
-        .order(column, { ascending });
-      if (limit) query = query.limit(limit);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      if (limit) {
+        const { data, error } = await supabase
+          .from(tableName)
+          .select('*')
+          .order(column, { ascending })
+          .limit(limit);
+        if (error) throw error;
+        return data;
+      }
+      return fetchAllPages(() =>
+        supabase.from(tableName).select('*').order(column, { ascending })
+      );
     },
 
     async filter(filters = {}) {
-      let query = supabase.from(tableName).select('*');
-      for (const [key, value] of Object.entries(filters)) {
-        if (value === null || value === undefined) {
-          query = query.is(key, null);
-        } else {
-          query = query.eq(key, value);
+      return fetchAllPages(() => {
+        let query = supabase.from(tableName).select('*');
+        for (const [key, value] of Object.entries(filters)) {
+          if (value === null || value === undefined) {
+            query = query.is(key, null);
+          } else {
+            query = query.eq(key, value);
+          }
         }
-      }
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+        return query;
+      });
     },
 
     async create(data) {

@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, RefreshCw } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import EventsList from "../components/events/EventsList";
 import EventForm from "../components/events/EventForm";
-import RecalculateAllButton from "../components/events/RecalculateAllButton";
+import { computeEventFoodCost } from "@/lib/eventFoodCost";
 
 export default function Events() {
   const [showForm, setShowForm] = useState(false);
@@ -56,6 +56,28 @@ export default function Events() {
     initialData: [],
   });
 
+  const { data: allEventDishes = [] } = useQuery({
+    queryKey: ['allEventDishes'],
+    queryFn: () => base44.entities.Events_Dish.list(),
+    initialData: [],
+  });
+
+  // Food revenue/cost shown on each card is computed live from the event's
+  // current dishes every render — never from a stored snapshot, so it can
+  // never drift out of sync with what the event's own page shows.
+  const eventsWithLiveCosts = useMemo(() => {
+    const dishesById = {};
+    allDishes.forEach((d) => { dishesById[d.id] = d; });
+    const categoriesById = {};
+    allCategories.forEach((c) => { categoriesById[c.id] = c; });
+
+    return events.map((event) => {
+      const eventDishes = allEventDishes.filter((ed) => ed.event_id === event.id);
+      const { foodRevenue, foodCostSum, foodCostPct } = computeEventFoodCost(event, eventDishes, dishesById, categoriesById);
+      return { ...event, event_price: foodRevenue, food_cost_sum: foodCostSum, food_cost_pct: foodCostPct };
+    });
+  }, [events, allEventDishes, allDishes, allCategories]);
+
   const deleteEventMutation = useMutation({
     mutationFn: async (eventId) => {
       // Delete associated event stages and dishes
@@ -81,7 +103,7 @@ export default function Events() {
     }
   });
 
-  const filteredEvents = events.filter(event => {
+  const filteredEvents = eventsWithLiveCosts.filter(event => {
     const matchesSearch = event.event_name?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === "all" || event.status === filterStatus;
     return matchesSearch && matchesStatus;
@@ -128,12 +150,7 @@ export default function Events() {
               <p className="text-stone-500 mt-1">ניהול אירועים עם תכנון מנות לפי שלבים</p>
             </div>
             <div className="flex gap-3">
-              <RecalculateAllButton 
-                events={events} 
-                allDishes={allDishes} 
-                allCategories={allCategories} 
-              />
-              <Button 
+              <Button
                 onClick={handleCreateEvent}
                 className="bg-emerald-600 hover:bg-emerald-700"
               >
