@@ -33,3 +33,5 @@ dist-ssr
 # Local browser-automation scratch scripts
 .cdp-*.mjs
 .env*
+.manual-login-test.cjs
+.auth/
