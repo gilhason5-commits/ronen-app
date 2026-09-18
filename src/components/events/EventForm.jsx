@@ -683,7 +683,9 @@ export default function EventForm({ event, onClose }) {
             additions={{
               lighting_sound_cost: formData.lighting_sound_cost,
               after_party_food_cost: formData.after_party_food_cost,
+              custom_addition_1_name: formData.custom_addition_1_name,
               custom_addition_1_amount: formData.custom_addition_1_amount,
+              custom_addition_2_name: formData.custom_addition_2_name,
               custom_addition_2_amount: formData.custom_addition_2_amount,
             }} />
 

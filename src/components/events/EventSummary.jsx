@@ -14,11 +14,13 @@ export default function EventSummary({ foodRevenue = 0, pricePerPlate = 0, foodC
   const grossProfit = safeRevenue - safeCostSum;
   const costPerGuest = safeGuestCount > 0 ? safeCostSum / safeGuestCount : 0;
   const foodRevenueExVat = excludeVat(safeRevenue);
-  const additionsTotal =
-    (parseFloat(additions.lighting_sound_cost) || 0) +
-    (parseFloat(additions.after_party_food_cost) || 0) +
-    (parseFloat(additions.custom_addition_1_amount) || 0) +
-    (parseFloat(additions.custom_addition_2_amount) || 0);
+  const additionLines = [
+    { name: 'תאורה והגברה', amount: parseFloat(additions.lighting_sound_cost) || 0 },
+    { name: 'אוכל אפטר', amount: parseFloat(additions.after_party_food_cost) || 0 },
+    { name: additions.custom_addition_1_name || 'תוספת נוספת', amount: parseFloat(additions.custom_addition_1_amount) || 0 },
+    { name: additions.custom_addition_2_name || 'תוספת נוספת', amount: parseFloat(additions.custom_addition_2_amount) || 0 },
+  ].filter((line) => line.amount > 0);
+  const additionsTotal = additionLines.reduce((sum, line) => sum + line.amount, 0);
   const totalRevenue = safeRevenue + additionsTotal;
 
   return (
@@ -30,12 +32,34 @@ export default function EventSummary({ foodRevenue = 0, pricePerPlate = 0, foodC
         <div>
           <div className="flex items-center gap-2 mb-1">
             <DollarSign className="w-4 h-4 text-stone-500" />
-            <p className="text-sm text-stone-600">הכנסה מאוכל</p>
+            <p className="text-sm text-stone-600">סיכום תוספות</p>
           </div>
+          {additionLines.length > 0 ? (
+            <div className="space-y-1">
+              {additionLines.map((line, i) => (
+                <div key={i} className="flex items-center justify-between text-sm">
+                  <span className="text-stone-600">{line.name}</span>
+                  <span className="font-medium text-stone-900">{fmtCurrency(line.amount)}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between text-sm font-bold pt-1 border-t border-stone-100">
+                <span className="text-stone-700">סה״כ תוספות</span>
+                <span className="text-stone-900">{fmtCurrency(additionsTotal)}</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-stone-400">אין תוספות</p>
+          )}
+        </div>
+
+        <div className="pt-4 border-t border-stone-200">
+          <p className="text-sm text-stone-600 mb-1">הכנסה מאוכל כולל מע״מ</p>
           <p className="text-2xl font-bold text-stone-900">{fmtCurrency(safeRevenue)}</p>
-          <p className="text-xs text-stone-500 mt-1">
-            הכנסה מאוכל ללא מע״מ: {fmtCurrency(foodRevenueExVat)}
-          </p>
+        </div>
+
+        <div className="pt-4 border-t border-stone-200">
+          <p className="text-sm text-stone-600 mb-1">הכנסה מאוכל ללא מע״מ</p>
+          <p className="text-2xl font-bold text-stone-900">{fmtCurrency(foodRevenueExVat)}</p>
         </div>
 
         <div className="pt-4 border-t border-stone-200">

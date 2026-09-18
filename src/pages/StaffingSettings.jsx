@@ -13,9 +13,9 @@ import { toast } from "sonner";
 import { FORMAT_LABELS } from "@/lib/staffingEngine";
 
 const RULE_TYPE_LABELS = {
-  WAITER_FORMULA: "נוסחאות מלצרים",
   REQUIRED_ROLE: "בעלי תפקידים חובה",
-  OPS: "תפעול, מטבח וניקיון",
+  WAITER_FORMULA: "פלור",
+  OPS: "מטבח וניקיון",
   SPECIAL_DAY: "חוקי ימים מיוחדים",
 };
 

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, ChevronDown, Map as MapIcon, AlertTriangle, Clock, UtensilsCrossed, FileDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Map as MapIcon, AlertTriangle, Clock, UtensilsCrossed, FileDown, Users } from "lucide-react";
 import { toast } from "sonner";
 import {
   computeStaffing,
@@ -719,6 +719,9 @@ export default function StaffingMap() {
 
       {!isLoading && events.length > 0 && (
         <>
+          <h2 className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
+            <Users className="w-4 h-4 text-emerald-700" /> טבלת פלור
+          </h2>
           <div className="flex items-center gap-4 text-xs text-stone-600">
             <span className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-gradient-to-br from-orange-200 via-blue-200 to-pink-200 border border-stone-300 inline-block" />
