@@ -202,7 +202,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
     if (!formData.name?.trim()) errors.push('שם');
     if (!formData.system_unit) errors.push('יחידת מדידה');
     if (!formData.purchase_unit || parseFloat(formData.purchase_unit) <= 0) errors.push('כמות יחידת רכישה');
-    if (!formData.base_price && formData.base_price !== 0) errors.push('מחיר רכישה כולל');
+    if (!formData.base_price && formData.base_price !== 0) errors.push('מחיר רכישה מינימום');
     if (errors.length > 0) {
       setValidationError('שדות חובה חסרים: ' + errors.join(', '));
       return;
@@ -321,7 +321,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
           </div>
 
           <div>
-            <Label>מחיר רכישה כולל (₪) *</Label>
+            <Label>מחיר רכישה מינימום (₪) *</Label>
             <Input
               type="text"
               inputMode="decimal"

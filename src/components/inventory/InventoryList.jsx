@@ -131,7 +131,7 @@ export default function InventoryList({ ingredients, isLoading, onEdit, onAdjust
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-stone-600">מחיר רכישה כולל:</span>
+                    <span className="text-stone-600">מחיר רכישה מינימום:</span>
                     <span className="font-medium">₪{basePrice.toFixed(2)}</span>
                   </div>
                 </div>
