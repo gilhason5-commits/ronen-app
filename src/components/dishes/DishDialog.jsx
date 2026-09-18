@@ -317,9 +317,14 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
       const existsInSpecial = specialIngredients.some(ing => ing.id === item.ingredient_id);
       return existsInRegular || existsInSpecial;
     });
-    
+
+    // Dropping stale/orphaned ingredient references (above) must also drop
+    // their cost — recompute here rather than trusting formData.unit_cost,
+    // which was last set from whatever ingredient list was in memory before
+    // this filter ran and could still include a since-deleted ingredient.
     const dataToSave = {
       ...formData,
+      unit_cost: calculateDishCost(validIngredients),
       ingredients: validIngredients.map(ing => ({
         ...ing,
         qty: typeof ing.qty === 'string' ? parseFloat(ing.qty) || 0 : (ing.qty || 0)
