@@ -348,8 +348,25 @@ function KitchenRosterTab() {
     initialData: [],
   });
   const crud = useEntityCrud("KitchenRosterMember", "kitchenRoster", "איש צוות");
+  const queryClient = useQueryClient();
   const [newName, setNewName] = useState({});
   const [newStationName, setNewStationName] = useState("");
+
+  // A roster member also needs a real TaskEmployee record (so they show up
+  // under "עובדים" and can be referenced consistently elsewhere) — create
+  // both together and link them, instead of just the roster row.
+  const addMember = useMutation({
+    mutationFn: async ({ full_name, station, sort_order }) => {
+      const employee = await base44.entities.TaskEmployee.create({ full_name, is_active: true });
+      return base44.entities.KitchenRosterMember.create({ full_name, station, sort_order, employee_id: employee.id });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kitchenRoster"] });
+      queryClient.invalidateQueries({ queryKey: ["taskEmployees"] });
+      toast.success("איש צוות נוסף");
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const stations = useMemo(() => {
     const seen = [];
@@ -402,7 +419,7 @@ function KitchenRosterTab() {
                     const name = (newName[station] || "").trim();
                     if (!name) return;
                     const maxOrder = Math.max(0, ...stationMembers.map((m) => m.sort_order || 0));
-                    crud.create.mutate({ full_name: name, station, sort_order: maxOrder + 1 });
+                    addMember.mutate({ full_name: name, station, sort_order: maxOrder + 1 });
                     setNewName({ ...newName, [station]: "" });
                   }}><Plus className="w-4 h-4" /></Button>
                 </div>
@@ -420,7 +437,7 @@ function KitchenRosterTab() {
                 if (!station) return;
                 const name = prompt("שם העובד הראשון בעמדה:");
                 if (!name) return;
-                crud.create.mutate({ full_name: name.trim(), station, sort_order: members.length + 1 });
+                addMember.mutate({ full_name: name.trim(), station, sort_order: members.length + 1 });
                 setNewStationName("");
               }}><Plus className="w-4 h-4" /></Button>
             </div>

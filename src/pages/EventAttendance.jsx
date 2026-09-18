@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ClipboardCheck, Plus, Trash2, Clock, UserPlus, Users, AlertTriangle, Check } from "lucide-react";
 import { toast } from "sonner";
 import { FORMAT_LABELS, computeStaffing, orderAgenciesForDisplay } from "@/lib/staffingEngine";
+import { fmtCurrency } from "../components/utils/formatNumbers";
 
 const todayStr = () => new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD local
 
@@ -149,7 +150,45 @@ function ManagerAttendanceSection({ event, rules, agencies, allEvents }) {
 // then quickly picking the minute would fire two overlapping mutations, the
 // second one reading a stale hour from props and reverting the first. Batching
 // both fields into a single explicit save removes that race entirely.
-function ShiftRow({ shift, onUpdate, onDelete }) {
+// Pay type + rate entry shared by agency and kitchen shift rows — hourly
+// (hours × rate) or daily (flat rate), with the computed amount shown live.
+function PayFields({ shift, onUpdate }) {
+  const total = shift.pay_type === "hourly"
+    ? (parseFloat(shift.hours) || 0) * (parseFloat(shift.hourly_rate) || 0)
+    : shift.pay_type === "daily"
+    ? (parseFloat(shift.daily_rate) || 0)
+    : 0;
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap text-sm">
+      <Select value={shift.pay_type || "none"} onValueChange={(v) => onUpdate({ pay_type: v === "none" ? null : v })}>
+        <SelectTrigger className="h-8 w-28"><SelectValue placeholder="סוג שכר" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">ללא</SelectItem>
+          <SelectItem value="hourly">שכר שעתי</SelectItem>
+          <SelectItem value="daily">שכר יומי</SelectItem>
+        </SelectContent>
+      </Select>
+      {shift.pay_type === "hourly" && (
+        <>
+          <Input type="number" step="0.25" placeholder="שעות" className="h-8 w-20"
+            defaultValue={shift.hours ?? ""} onBlur={(e) => onUpdate({ hours: e.target.value === "" ? null : parseFloat(e.target.value) || 0 })} />
+          <Input type="number" step="0.01" placeholder="₪/שעה" className="h-8 w-24"
+            defaultValue={shift.hourly_rate ?? ""} onBlur={(e) => onUpdate({ hourly_rate: e.target.value === "" ? null : parseFloat(e.target.value) || 0 })} />
+        </>
+      )}
+      {shift.pay_type === "daily" && (
+        <Input type="number" step="0.01" placeholder="₪ ליום" className="h-8 w-24"
+          defaultValue={shift.daily_rate ?? ""} onBlur={(e) => onUpdate({ daily_rate: e.target.value === "" ? null : parseFloat(e.target.value) || 0 })} />
+      )}
+      {shift.pay_type && total > 0 && (
+        <span className="text-slate-700 font-medium">= {fmtCurrency(total)}</span>
+      )}
+    </div>
+  );
+}
+
+function ShiftRow({ shift, onUpdate, onDelete, hideWaiterFlags = false }) {
   const [draftClockIn, setDraftClockIn] = useState(shift.clock_in || "");
   const [draftClockOut, setDraftClockOut] = useState(shift.clock_out || "");
   const dirty = draftClockIn !== (shift.clock_in || "") || draftClockOut !== (shift.clock_out || "");
@@ -189,17 +228,20 @@ function ShiftRow({ shift, onUpdate, onDelete }) {
           עדכון שעות
         </Button>
       </div>
-      <div className="flex items-center gap-4 text-sm">
-        <label className="flex items-center gap-1.5">
-          <Checkbox checked={shift.is_runner} onCheckedChange={(v) => onUpdate({ is_runner: !!v })} /> ראנר
-        </label>
-        <label className="flex items-center gap-1.5">
-          <Checkbox checked={shift.is_closing} onCheckedChange={(v) => onUpdate({ is_closing: !!v })} /> סגירה
-        </label>
-        <label className="flex items-center gap-1.5">
-          <Checkbox checked={shift.is_balcony} onCheckedChange={(v) => onUpdate({ is_balcony: !!v })} /> מרפסת
-        </label>
-      </div>
+      {!hideWaiterFlags && (
+        <div className="flex items-center gap-4 text-sm">
+          <label className="flex items-center gap-1.5">
+            <Checkbox checked={shift.is_runner} onCheckedChange={(v) => onUpdate({ is_runner: !!v })} /> ראנר
+          </label>
+          <label className="flex items-center gap-1.5">
+            <Checkbox checked={shift.is_closing} onCheckedChange={(v) => onUpdate({ is_closing: !!v })} /> סגירה
+          </label>
+          <label className="flex items-center gap-1.5">
+            <Checkbox checked={shift.is_balcony} onCheckedChange={(v) => onUpdate({ is_balcony: !!v })} /> מרפסת
+          </label>
+        </div>
+      )}
+      <PayFields shift={shift} onUpdate={onUpdate} />
       <Input
         placeholder="הערה…"
         className="h-8 text-sm"
@@ -332,6 +374,93 @@ function AgencySection({ event, agency, workers, shifts, plannedCount, updateShi
   );
 }
 
+// Kitchen/cleaning staff quick-pick — sourced from the same roster used by
+// the "צוות מטבח וניקיון" schedule (KitchenRosterMember), so a chef selected
+// here is the same linked employee record shown there and on עמוד עובדים.
+function AddKitchenWorkerDialog({ event, rosterMembers, shifts, open, onOpenChange }) {
+  const queryClient = useQueryClient();
+  const existingIds = new Set(shifts.filter((s) => s.source === "kitchen").map((s) => s.kitchen_member_id).filter(Boolean));
+  const available = rosterMembers.filter((m) => m.is_active !== false && !existingIds.has(m.id));
+
+  const addShift = useMutation({
+    mutationFn: async (member) => {
+      await base44.entities.EventShift.create({
+        event_id: event.id,
+        event_date: event.event_date,
+        worker_name: member.full_name,
+        kitchen_member_id: member.id,
+        source: "kitchen",
+        role_name: member.station || "מטבח",
+        clock_in: nowTime(),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["eventShifts"] });
+      onOpenChange(false);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent dir="rtl" className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><UserPlus className="w-4 h-4" /> הוספת איש צוות מטבח/ניקיון</DialogTitle>
+        </DialogHeader>
+        {available.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {available.map((m) => (
+              <button
+                key={m.id}
+                className="rounded-full border px-3 py-1.5 text-sm bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 active:scale-95 transition"
+                disabled={addShift.isPending}
+                onClick={() => addShift.mutate(m)}
+              >
+                {m.full_name}{m.station ? ` (${m.station})` : ""}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-slate-400">כל אנשי הצוות כבר משובצים</div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Mirrors AgencySection but for kitchen/cleaning staff — hours + hourly or
+// daily rate instead of waiter-specific flags (ראנר/סגירה/מרפסת).
+function KitchenSection({ event, rosterMembers, shifts, updateShift, deleteShift }) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const kitchenShifts = shifts.filter((s) => s.source === "kitchen");
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
+          <span>מטבח וניקיון ({kitchenShifts.length})</span>
+          <Button size="sm" onClick={() => setDialogOpen(true)}>
+            <UserPlus className="w-4 h-4 ml-1" /> הוספת עובד
+          </Button>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {kitchenShifts.length === 0 && <div className="text-sm text-slate-400 text-center py-4">אין עובדים משובצים</div>}
+        {kitchenShifts.map((s) => (
+          <ShiftRow
+            key={s.id}
+            shift={s}
+            hideWaiterFlags
+            onUpdate={(data) => updateShift.mutate({ id: s.id, data })}
+            onDelete={() => { if (confirm(`להסיר את ${s.worker_name}?`)) deleteShift.mutate(s.id); }}
+          />
+        ))}
+      </CardContent>
+      <AddKitchenWorkerDialog event={event} rosterMembers={rosterMembers} shifts={shifts} open={dialogOpen} onOpenChange={setDialogOpen} />
+    </Card>
+  );
+}
+
 export default function EventAttendance() {
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const queryClient = useQueryClient();
@@ -365,6 +494,7 @@ export default function EventAttendance() {
   });
   const { data: agencies = [] } = useQuery({ queryKey: ["staffingAgencies"], queryFn: () => base44.entities.StaffingAgency.list("sort_order"), initialData: [] });
   const { data: workers = [] } = useQuery({ queryKey: ["agencyWorkers"], queryFn: () => base44.entities.AgencyWorker.list("full_name"), initialData: [] });
+  const { data: kitchenRoster = [] } = useQuery({ queryKey: ["kitchenRoster"], queryFn: () => base44.entities.KitchenRosterMember.list("sort_order"), initialData: [] });
   const { data: rules = [] } = useQuery({ queryKey: ["staffingRules"], queryFn: () => base44.entities.StaffingRule.list("sort_order"), initialData: [] });
   const { data: agencySplits = [] } = useQuery({
     queryKey: ["eventAgencySplits", event?.id],
@@ -389,7 +519,10 @@ export default function EventAttendance() {
     [agencies]
   );
   const displayAgencyIds = useMemo(() => new Set(displayAgencies.map((a) => a.id)), [displayAgencies]);
-  const orphanShifts = useMemo(() => shifts.filter((s) => !displayAgencyIds.has(s.agency_id)), [shifts, displayAgencyIds]);
+  const orphanShifts = useMemo(
+    () => shifts.filter((s) => s.source !== "kitchen" && !displayAgencyIds.has(s.agency_id)),
+    [shifts, displayAgencyIds]
+  );
 
   // Planned waiter count per agency — an explicit EventAgencySplit override
   // if the office set one, otherwise the standards-book default split — same
@@ -455,6 +588,13 @@ export default function EventAttendance() {
                 deleteShift={deleteShift}
               />
             ))}
+            <KitchenSection
+              event={event}
+              rosterMembers={kitchenRoster}
+              shifts={shifts}
+              updateShift={updateShift}
+              deleteShift={deleteShift}
+            />
           </div>
 
           {orphanShifts.length > 0 && (

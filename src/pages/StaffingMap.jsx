@@ -371,6 +371,12 @@ function KitchenScheduleTable() {
     return map;
   }, [allEvents, dayStrs]);
 
+  // Only show a column for a day that actually has an event — a day with no
+  // event ("X" in the סועדים row) carries nothing for the kitchen/cleaning
+  // crew to plan around, so it's dropped rather than shown empty.
+  const eventDaySet = useMemo(() => new Set(allEvents.filter((e) => e.status !== "cancelled").map((e) => e.event_date)), [allEvents]);
+  const visibleDays = useMemo(() => days.filter((d) => eventDaySet.has(toDateStr(d))), [days, eventDaySet]);
+
   // The "מטבח חם" station covers the OPS-standard "טבח" base headcount (4 up
   // to 250 guests). "אקסטרה" (סטיבן — no default hours, called in only when
   // needed) is the 5th chef the standard adds above 250. Flag days where the
@@ -448,12 +454,12 @@ function KitchenScheduleTable() {
         <colgroup>
           <col style={{ width: "5%" }} />
           <col style={{ width: "13%" }} />
-          {days.map((d) => <col key={toDateStr(d)} style={{ width: `${82 / 7}%` }} />)}
+          {visibleDays.map((d) => <col key={toDateStr(d)} style={{ width: `${82 / Math.max(visibleDays.length, 1)}%` }} />)}
         </colgroup>
         <thead>
           <tr className="bg-stone-200">
             <th className="border border-stone-300" colSpan={2} />
-            {days.map((d) => (
+            {visibleDays.map((d) => (
               <th key={toDateStr(d)} className="border border-stone-300 px-1 py-1 text-center font-bold text-stone-800 text-[10px]">
                 {d.getDate()}.{d.getMonth() + 1}
               </th>
@@ -461,7 +467,7 @@ function KitchenScheduleTable() {
           </tr>
           <tr className="bg-stone-100">
             <th className="border border-stone-300" colSpan={2} />
-            {days.map((d) => (
+            {visibleDays.map((d) => (
               <th key={toDateStr(d)} className="border border-stone-300 px-1 py-1 text-center font-medium text-stone-600 text-[10px]">
                 {DAY_NAMES[d.getDay()]}
               </th>
@@ -469,7 +475,7 @@ function KitchenScheduleTable() {
           </tr>
           <tr className="bg-stone-50">
             <th className="border border-stone-300 text-[10px] font-bold text-stone-700" colSpan={2}>סועדים</th>
-            {days.map((d) => {
+            {visibleDays.map((d) => {
               const ds = toDateStr(d);
               const g = guestsByDay.get(ds) || 0;
               const shortfall = chefShortfallByDay.get(ds);
@@ -519,7 +525,7 @@ function KitchenScheduleTable() {
                 >
                   {member.full_name}
                 </td>
-                {days.map((d) => {
+                {visibleDays.map((d) => {
                   const ds = toDateStr(d);
                   const shift = weekShifts.find((s) => s.member_id === member.id && s.shift_date === ds);
                   return (
@@ -537,8 +543,15 @@ function KitchenScheduleTable() {
           })}
           {stations.length === 0 && (
             <tr>
-              <td colSpan={9} className="text-center text-stone-400 py-6 text-sm">
+              <td colSpan={2 + visibleDays.length} className="text-center text-stone-400 py-6 text-sm">
                 אין אנשי צוות מוגדרים — ניתן להוסיף ב"ספר התקנים" ← "צוות מטבח"
+              </td>
+            </tr>
+          )}
+          {stations.length > 0 && visibleDays.length === 0 && (
+            <tr>
+              <td colSpan={2 + Math.max(days.length, 1)} className="text-center text-stone-400 py-6 text-sm">
+                אין אירועים בשבוע זה
               </td>
             </tr>
           )}
