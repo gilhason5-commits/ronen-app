@@ -23,7 +23,7 @@ import EventSummary from "../events/EventSummary";
 import EventPrintDialog from "../events/EventPrintDialog";
 import DepartmentPrintDialog from "../events/DepartmentPrintDialog";
 import { fmtCurrency } from "../utils/formatNumbers";
-import { calculateAdultCommitment, calculateAdultPortions } from "@/lib/dinerCount";
+import { calculateAdultCommitment, calculateAdultPortions, parseRangeMax } from "@/lib/dinerCount";
 import { applyWasteToValue, wasteLabel } from "@/lib/foodWaste";
 
 export default function EventForm({ event, onClose }) {
@@ -372,11 +372,20 @@ export default function EventForm({ event, onClose }) {
                       required />
                   </div>
                   <div>
-                    <Label>אופי האירוע</Label>
-                    <Input
+                    <Label>סוג האירוע</Label>
+                    <Select
                       value={formData.occasion || ''}
-                      onChange={(e) => setFormData({ ...formData, occasion: e.target.value })}
-                      placeholder="חתונה, בר מצווה, אירוע חברה..." />
+                      onValueChange={(value) => setFormData({ ...formData, occasion: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="בחר סוג אירוע..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="חתונה">חתונה</SelectItem>
+                        <SelectItem value="בר מצווה">בר מצווה</SelectItem>
+                        <SelectItem value="ברית">ברית</SelectItem>
+                        <SelectItem value="אירוע עסקי">אירוע עסקי</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div>
@@ -414,7 +423,7 @@ export default function EventForm({ event, onClose }) {
                   </div>
 
                   <div>
-                    <Label>סוג אירוע *</Label>
+                    <Label>סוג הגשה *</Label>
                     <Select
                       value={formData.event_type}
                       onValueChange={(value) => setFormData({ ...formData, event_type: value })}
@@ -429,24 +438,8 @@ export default function EventForm({ event, onClose }) {
                       </SelectContent>
                     </Select>
                     {event?.id &&
-                    <p className="text-xs text-stone-500 mt-1">לא ניתן לשנות סוג אירוע לאחר היצירה</p>
+                    <p className="text-xs text-stone-500 mt-1">לא ניתן לשנות סוג הגשה לאחר היצירה</p>
                     }
-                  </div>
-
-                  <div>
-                    <Label>סטטוס</Label>
-                    <Select
-                      value={formData.status}
-                      onValueChange={(value) => setFormData({ ...formData, status: value })}>
-
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="in_progress">בתהליך</SelectItem>
-                        <SelectItem value="completed">הושלם</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
 
                   <div className="col-span-2 grid grid-cols-4 gap-4">
@@ -510,6 +503,16 @@ export default function EventForm({ event, onClose }) {
                         value={formData.reserves || ''}
                         onChange={(e) => setFormData({ ...formData, reserves: e.target.value })}
                         placeholder="טווח (10-20)" />
+                      {(() => {
+                        const reservesMax = parseRangeMax(formData.reserves);
+                        const guestCount = formData.guest_count || 0;
+                        const pct = guestCount > 0 ? (reservesMax / guestCount) * 100 : 0;
+                        return pct > 5 ? (
+                          <p className="text-xs text-amber-700 mt-1">
+                            מעל 5% מהאורחים — יש לבקש אישור מרונן
+                          </p>
+                        ) : null;
+                      })()}
                     </div>
                     <div>
                       <Label>טבעונים</Label>
@@ -566,40 +569,42 @@ export default function EventForm({ event, onClose }) {
                         onChange={(e) => setFormData({ ...formData, after_party_food_cost: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
                         placeholder="0" />
                     </div>
-                    <div>
-                      <Label>תוספת נוספת</Label>
-                      <div className="flex h-10 items-center rounded-md border border-input bg-background overflow-hidden focus-within:ring-2 focus-within:ring-ring">
-                        <input
+                    <div className="space-y-2">
+                      <div>
+                        <Label>תוספת נוספת</Label>
+                        <Input
                           type="text"
-                          className="flex-1 h-full px-2 text-sm bg-transparent outline-none border-l border-input"
                           value={formData.custom_addition_1_name || ''}
                           onChange={(e) => setFormData({ ...formData, custom_addition_1_name: e.target.value })}
                           placeholder="שם התוספת..." />
-                        <input
+                      </div>
+                      <div>
+                        <Label>מחיר (₪)</Label>
+                        <Input
                           type="number"
                           step="0.01"
-                          className="w-1/3 h-full px-2 text-sm bg-transparent outline-none text-center"
                           value={formData.custom_addition_1_amount ?? ''}
                           onChange={(e) => setFormData({ ...formData, custom_addition_1_amount: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                          placeholder="₪" />
+                          placeholder="0" />
                       </div>
                     </div>
-                    <div>
-                      <Label>תוספת נוספת</Label>
-                      <div className="flex h-10 items-center rounded-md border border-input bg-background overflow-hidden focus-within:ring-2 focus-within:ring-ring">
-                        <input
+                    <div className="space-y-2">
+                      <div>
+                        <Label>תוספת נוספת</Label>
+                        <Input
                           type="text"
-                          className="flex-1 h-full px-2 text-sm bg-transparent outline-none border-l border-input"
                           value={formData.custom_addition_2_name || ''}
                           onChange={(e) => setFormData({ ...formData, custom_addition_2_name: e.target.value })}
                           placeholder="שם התוספת..." />
-                        <input
+                      </div>
+                      <div>
+                        <Label>מחיר (₪)</Label>
+                        <Input
                           type="number"
                           step="0.01"
-                          className="w-1/3 h-full px-2 text-sm bg-transparent outline-none text-center"
                           value={formData.custom_addition_2_amount ?? ''}
                           onChange={(e) => setFormData({ ...formData, custom_addition_2_amount: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                          placeholder="₪" />
+                          placeholder="0" />
                       </div>
                     </div>
                   </div>
