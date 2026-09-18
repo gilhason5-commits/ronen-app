@@ -87,6 +87,18 @@ export default function Events() {
     return matchesSearch && matchesStatus;
   });
 
+  // Split into: the single nearest upcoming event (shown on its own up top),
+  // the rest of the future events (soonest first), and everything already
+  // past (most recent first) under "ארכיון אירועים".
+  const todayStr = new Date().toLocaleDateString("sv-SE");
+  const futureEvents = filteredEvents
+    .filter(e => e.event_date >= todayStr)
+    .sort((a, b) => a.event_date.localeCompare(b.event_date));
+  const pastEvents = filteredEvents
+    .filter(e => e.event_date < todayStr)
+    .sort((a, b) => b.event_date.localeCompare(a.event_date));
+  const [closestEvent, ...restFutureEvents] = futureEvents;
+
   const handleCreateEvent = () => {
     setSelectedEvent(null);
     setShowForm(true);
@@ -160,12 +172,51 @@ export default function Events() {
             </div>
           </div>
 
-          <EventsList 
-            events={filteredEvents}
-            isLoading={isLoading}
-            onEdit={handleEditEvent}
-            onDelete={handleDeleteEvent}
-          />
+          {isLoading ? (
+            <EventsList events={[]} isLoading onEdit={handleEditEvent} onDelete={handleDeleteEvent} />
+          ) : (
+            <>
+              {closestEvent && (
+                <div className="space-y-3">
+                  <h2 className="text-xl font-semibold text-stone-900">האירוע הקרוב ביותר</h2>
+                  <EventsList
+                    events={[closestEvent]}
+                    isLoading={false}
+                    onEdit={handleEditEvent}
+                    onDelete={handleDeleteEvent}
+                  />
+                </div>
+              )}
+
+              {restFutureEvents.length > 0 && (
+                <div className="space-y-3">
+                  <h2 className="text-xl font-semibold text-stone-900">אירועים עתידיים</h2>
+                  <EventsList
+                    events={restFutureEvents}
+                    isLoading={false}
+                    onEdit={handleEditEvent}
+                    onDelete={handleDeleteEvent}
+                  />
+                </div>
+              )}
+
+              {pastEvents.length > 0 && (
+                <div className="space-y-3 pt-6 border-t border-stone-200">
+                  <h2 className="text-xl font-semibold text-stone-900">ארכיון אירועים</h2>
+                  <EventsList
+                    events={pastEvents}
+                    isLoading={false}
+                    onEdit={handleEditEvent}
+                    onDelete={handleDeleteEvent}
+                  />
+                </div>
+              )}
+
+              {futureEvents.length === 0 && pastEvents.length === 0 && (
+                <EventsList events={[]} isLoading={false} onEdit={handleEditEvent} onDelete={handleDeleteEvent} />
+              )}
+            </>
+          )}
         </>
       ) : (
         <EventForm 

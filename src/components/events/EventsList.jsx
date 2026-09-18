@@ -69,6 +69,11 @@ export default function EventsList({ events, isLoading, onEdit, onDelete }) {
                   {event.event_type && (
                     <span className="capitalize">{event.event_type}</span>
                   )}
+                  {event.created_date && (
+                    <span className="text-xs text-stone-400">
+                      נפתח בתאריך {format(new Date(event.created_date), "dd/MM/yyyy")}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1.5">
