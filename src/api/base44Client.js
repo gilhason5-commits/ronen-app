@@ -46,6 +46,7 @@ export const base44 = {
     StaffingChangeLog:          createEntity('StaffingChangeLog'),
     KitchenRosterMember:        createEntity('KitchenRosterMember'),
     KitchenShift:               createEntity('KitchenShift'),
+    FixedExpense:               createEntity('FixedExpense'),
     // Query is used generically in some places — map to a no-op passthrough
     Query: { list: async () => [], filter: async () => [], create: async (d) => d },
   },
