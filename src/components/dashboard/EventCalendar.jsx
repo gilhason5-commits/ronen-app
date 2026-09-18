@@ -359,7 +359,7 @@ export default function EventCalendar({ events = [], onEventClick }) {
                 </div>
                 <div>
                   <p className="text-stone-500">הכנסה מאוכל</p>
-                  <p className="font-medium">₪{(selectedEvent.food_revenue || 0).toFixed(2)}</p>
+                  <p className="font-medium">₪{((selectedEvent.price_per_plate || 0) * (selectedEvent.guest_count || 0)).toFixed(2)}</p>
                 </div>
               </div>
 

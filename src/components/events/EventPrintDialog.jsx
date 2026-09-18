@@ -260,7 +260,7 @@ export default function EventPrintDialog({
                 </tr>
                 <tr>
                   <td className="font-semibold">הכנסה מאוכל:</td>
-                  <td>₪{formatNum(event.food_revenue || 0)}</td>
+                  <td>₪{formatNum((event.price_per_plate || 0) * (event.guest_count || 0))}</td>
                 </tr>
                 <tr>
                   <td className="font-semibold">עלות אוכל כוללת:</td>

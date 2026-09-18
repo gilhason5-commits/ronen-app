@@ -195,10 +195,14 @@ export default function EventForm({ event, onClose }) {
         food_cost_pct: foodCostPct
       }));
 
+      // Note: Event has no food_revenue column — writing one used to throw
+      // and get swallowed below, silently preventing food_cost_sum/pct from
+      // ever actually persisting (the open form still looked right because
+      // of the local setFormData above, but the DB value — and anything
+      // reading it, like the events list card — never updated).
       await base44.entities.Event.update(targetEventId, {
         food_cost_sum: totalCost,
         food_cost_pct: foodCostPct,
-        food_revenue: foodRevenue,
         price_per_plate: pricePerPlate
       });
 

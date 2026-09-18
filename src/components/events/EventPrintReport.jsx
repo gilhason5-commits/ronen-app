@@ -163,7 +163,7 @@ export default function EventPrintReport({ event, eventDishes, dishes, categorie
                 </tr>
                 <tr className="border-b border-stone-200">
                   <td className="py-3 font-semibold">הכנסה מאוכל:</td>
-                  <td className="py-3">₪{(event.food_revenue || 0).toFixed(2)}</td>
+                  <td className="py-3">₪{((event.price_per_plate || 0) * (event.guest_count || 0)).toFixed(2)}</td>
                 </tr>
                 <tr className="border-b border-stone-200">
                   <td className="py-3 font-semibold">עלות אוכל כוללת:</td>
@@ -175,7 +175,7 @@ export default function EventPrintReport({ event, eventDishes, dishes, categorie
                 </tr>
                 <tr className="border-b border-stone-200">
                   <td className="py-3 font-semibold">רווח גולמי:</td>
-                  <td className="py-3">₪{((event.food_revenue || 0) - (event.food_cost_sum || 0)).toFixed(2)}</td>
+                  <td className="py-3">₪{(((event.price_per_plate || 0) * (event.guest_count || 0)) - (event.food_cost_sum || 0)).toFixed(2)}</td>
                 </tr>
               </tbody>
             </table>
