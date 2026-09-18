@@ -296,9 +296,8 @@ function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleCol
 // One cell in the kitchen weekly grid: free-text clock-in/out for one person
 // on one day, defaulting to their usual hours but always overridable — days
 // off are just left blank (shown as a faint "X" placeholder).
-// Two boxes side by side per day (clock-out on the right, clock-in on the
-// left, matching how the paper sheet reads right-to-left) instead of
-// stacked lines — same underlying fields, same on-blur save.
+// Two boxes side by side per day (clock-in on the right, clock-out on the
+// left) instead of stacked lines — same underlying fields, same on-blur save.
 function KitchenShiftCell({ member, shift, onSave }) {
   const [clockIn, setClockIn] = useState(shift?.clock_in ?? member.default_clock_in ?? "");
   const [clockOut, setClockOut] = useState(shift?.clock_out ?? member.default_clock_out ?? "");
@@ -324,8 +323,8 @@ function KitchenShiftCell({ member, shift, onSave }) {
 
   return (
     <div dir="rtl" className="flex items-stretch h-full divide-x divide-x-reverse divide-black/10">
-      <input type="text" value={clockOut} placeholder="X" className={inputClass} onChange={(e) => setClockOut(e.target.value)} onBlur={commit} />
       <input type="text" value={clockIn} placeholder="X" className={inputClass} onChange={(e) => setClockIn(e.target.value)} onBlur={commit} />
+      <input type="text" value={clockOut} placeholder="X" className={inputClass} onChange={(e) => setClockOut(e.target.value)} onBlur={commit} />
     </div>
   );
 }
