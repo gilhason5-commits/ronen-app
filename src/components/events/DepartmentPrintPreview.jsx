@@ -5,11 +5,12 @@ import { Printer, X, Download, Loader2 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 
-export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent, title, headerInfo }) {
+export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent, title, headerInfo, autoDownload = false, onAutoDownloadHandled }) {
   const iframeRef = useRef(null);
   const [iframeHeight, setIframeHeight] = useState(2000);
   const [layoutReady, setLayoutReady] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const autoDownloadTriggeredRef = useRef(false);
 
   const handlePrint = () => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
@@ -63,6 +64,17 @@ export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent
   useEffect(() => {
     setLayoutReady(false);
   }, [htmlContent]);
+
+  useEffect(() => {
+    if (!open || !autoDownload) {
+      autoDownloadTriggeredRef.current = false;
+      return;
+    }
+    if (layoutReady && !autoDownloadTriggeredRef.current) {
+      autoDownloadTriggeredRef.current = true;
+      handleDownloadPdf().then(() => onAutoDownloadHandled?.());
+    }
+  }, [open, autoDownload, layoutReady]);
 
   const hi = headerInfo || {};
 
