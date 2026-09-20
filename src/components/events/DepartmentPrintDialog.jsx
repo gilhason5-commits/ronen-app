@@ -763,7 +763,7 @@ export default function DepartmentPrintDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md" dir="rtl">
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="text-xl">הדפסת דוחות מחלקות</DialogTitle>
         </DialogHeader>
