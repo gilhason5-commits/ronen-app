@@ -202,6 +202,13 @@ export default function Layout({ children, currentPageName }) {
     }
   }
 
+  // Financials-restricted admin (e.g. info@raytlv.co.il): keeps normal admin
+  // access to everything except the Reports page and event profitability
+  // figures (those are hidden inline in the components that show them).
+  if (user?.hide_financials && currentPageName === "Reports") {
+    return <Navigate to={createPageUrl("Dashboard")} replace />;
+  }
+
   const filteredItems = navigationItems.filter(item => {
     if (userRole === 'purchase') {
       return item.url.includes("KitchenView");
@@ -216,6 +223,9 @@ export default function Layout({ children, currentPageName }) {
       return item.url.includes("EventAttendance");
     }
     if (adminOnlyPages.some(p => item.url.includes(p)) && userRole !== 'admin') {
+      return false;
+    }
+    if (item.url.includes("Reports") && user?.hide_financials) {
       return false;
     }
     return true;

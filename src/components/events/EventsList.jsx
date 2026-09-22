@@ -6,8 +6,11 @@ import { Calendar, Users, Edit, Trash2, CheckCircle2, Clock } from "lucide-react
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fmtCurrency } from "../utils/formatNumbers";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function EventsList({ events, isLoading, onEdit, onDelete }) {
+  const { user } = useAuth();
+  const hideFinancials = !!user?.hide_financials;
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -81,7 +84,7 @@ export default function EventsList({ events, isLoading, onEdit, onDelete }) {
 
             <div className="flex items-center justify-between pt-4 border-t border-stone-100">
               <div className="flex items-center gap-6 text-sm">
-                {event.event_price > 0 && (
+                {!hideFinancials && event.event_price > 0 && (
                   <div>
                     <p className="text-xs text-stone-500">הכנסה מאוכל</p>
                     <p className="font-semibold text-stone-900">
@@ -89,7 +92,7 @@ export default function EventsList({ events, isLoading, onEdit, onDelete }) {
                     </p>
                   </div>
                 )}
-                {event.food_cost_sum > 0 && (
+                {!hideFinancials && event.food_cost_sum > 0 && (
                   <div>
                     <p className="text-xs text-stone-500">עלות אוכל</p>
                     <p className="font-semibold text-stone-900">
@@ -97,7 +100,7 @@ export default function EventsList({ events, isLoading, onEdit, onDelete }) {
                     </p>
                   </div>
                 )}
-                {event.event_price > 0 && event.food_cost_sum > 0 && (
+                {!hideFinancials && event.event_price > 0 && event.food_cost_sum > 0 && (
                   <div>
                     <p className="text-xs text-stone-500">רווח</p>
                     <p className={`font-semibold ${(event.event_price - event.food_cost_sum) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -105,7 +108,7 @@ export default function EventsList({ events, isLoading, onEdit, onDelete }) {
                     </p>
                   </div>
                 )}
-                {event.food_cost_pct != null && (
+                {!hideFinancials && event.food_cost_pct != null && (
                   <div>
                     <p className="text-xs text-stone-500">אחוז עלות אוכל</p>
                     <p className={`font-semibold ${

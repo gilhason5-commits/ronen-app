@@ -25,10 +25,13 @@ import KPICard from "../components/dashboard/KPICard";
 import EventCalendar from "../components/dashboard/EventCalendar";
 import RecentActivity from "../components/dashboard/RecentActivity";
 import ARAPStatus from "../components/dashboard/ARAPStatus";
+import { useAuth } from "@/lib/AuthContext";
 
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const hideFinancials = !!user?.hide_financials;
   const today = format(new Date(), "yyyy-MM-dd");
 
   const { data: events = [] } = useQuery({
@@ -145,14 +148,16 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPICard
-          title="אחוז עלות אוכל"
-          value={`${avgFoodCostPct.toFixed(1)}%`}
-          icon={TrendingUp}
-          trend={avgFoodCostPct < 30 ? "מצוין" : avgFoodCostPct < 35 ? "טוב" : "גבוה"}
-          trendUp={avgFoodCostPct >= 35}
-          color="emerald"
-        />
+        {!hideFinancials && (
+          <KPICard
+            title="אחוז עלות אוכל"
+            value={`${avgFoodCostPct.toFixed(1)}%`}
+            icon={TrendingUp}
+            trend={avgFoodCostPct < 30 ? "מצוין" : avgFoodCostPct < 35 ? "טוב" : "גבוה"}
+            trendUp={avgFoodCostPct >= 35}
+            color="emerald"
+          />
+        )}
         <KPICard
           title="אירועים פעילים"
           value={activeEvents.length}
@@ -160,13 +165,15 @@ export default function Dashboard() {
           subtitle={`${todayEvents.length} היום`}
           color="blue"
         />
-        <KPICard
-          title="עלות ממוצעת לסועד"
-          value={avgCostPerGuest}
-          icon={DollarSign}
-          color="purple"
-          currency={true}
-        />
+        {!hideFinancials && (
+          <KPICard
+            title="עלות ממוצעת לסועד"
+            value={avgCostPerGuest}
+            icon={DollarSign}
+            color="purple"
+            currency={true}
+          />
+        )}
       </div>
 
 

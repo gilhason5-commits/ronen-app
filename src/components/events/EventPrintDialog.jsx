@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Printer, X } from "lucide-react";
 import { applyWasteToQty, applyWasteToValue } from "@/lib/foodWaste";
+import { useAuth } from "@/lib/AuthContext";
 
 const formatNum = (num) => {
   if (num === 0) return '0';
@@ -20,8 +21,10 @@ export default function EventPrintDialog({
   dishes, 
   categories, 
   ingredients, 
-  ingredientCategories 
+  ingredientCategories
 }) {
+  const { user } = useAuth();
+  const hideFinancials = !!user?.hide_financials;
   const printRef = useRef(null);
 
   const handlePrint = () => {
@@ -251,27 +254,31 @@ export default function EventPrintDialog({
               </tbody>
             </table>
 
-            <h3>נתונים כספיים</h3>
-            <table>
-              <tbody>
-                <tr>
-                  <td className="font-semibold w-1/3">מחיר למנה כולל מע״מ:</td>
-                  <td>₪{formatNum(event.price_per_plate || 0)}</td>
-                </tr>
-                <tr>
-                  <td className="font-semibold">הכנסה מאוכל:</td>
-                  <td>₪{formatNum((event.price_per_plate || 0) * (event.guest_count || 0))}</td>
-                </tr>
-                <tr>
-                  <td className="font-semibold">עלות אוכל כוללת:</td>
-                  <td>₪{formatNum(event.food_cost_sum || 0)}</td>
-                </tr>
-                <tr>
-                  <td className="font-semibold">אחוז עלות אוכל:</td>
-                  <td>{formatNum(event.food_cost_pct || 0)}%</td>
-                </tr>
-              </tbody>
-            </table>
+            {!hideFinancials && (
+              <>
+                <h3>נתונים כספיים</h3>
+                <table>
+                  <tbody>
+                    <tr>
+                      <td className="font-semibold w-1/3">מחיר למנה כולל מע״מ:</td>
+                      <td>₪{formatNum(event.price_per_plate || 0)}</td>
+                    </tr>
+                    <tr>
+                      <td className="font-semibold">הכנסה מאוכל:</td>
+                      <td>₪{formatNum((event.price_per_plate || 0) * (event.guest_count || 0))}</td>
+                    </tr>
+                    <tr>
+                      <td className="font-semibold">עלות אוכל כוללת:</td>
+                      <td>₪{formatNum(event.food_cost_sum || 0)}</td>
+                    </tr>
+                    <tr>
+                      <td className="font-semibold">אחוז עלות אוכל:</td>
+                      <td>{formatNum(event.food_cost_pct || 0)}%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </>
+            )}
 
             {event.notes && (
               <>

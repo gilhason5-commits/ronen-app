@@ -4,8 +4,12 @@ import { DollarSign } from "lucide-react";
 import CategoryBreakdown from "../reports/CategoryBreakdown";
 import { fmtCurrency } from "../utils/formatNumbers";
 import { excludeVat } from "@/lib/vat";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function EventSummary({ foodRevenue = 0, pricePerPlate = 0, guestCount = 0, eventDishes = [], getEffectivePlannedCost, eventId = null, additions = {} }) {
+  const { user } = useAuth();
+  if (user?.hide_financials) return null;
+
   const calculatedRevenue = (parseFloat(pricePerPlate) || 0) * (parseFloat(guestCount) || 0);
   const safeRevenue = calculatedRevenue || parseFloat(foodRevenue) || 0;
   const additionsTotal =

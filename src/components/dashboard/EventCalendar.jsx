@@ -16,6 +16,7 @@ import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   eachDayOfInterval, eachHourOfInterval, setHours } from "date-fns";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { useAuth } from "@/lib/AuthContext";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +32,8 @@ const statusColors = {
 };
 
 export default function EventCalendar({ events = [], onEventClick }) {
+  const { user } = useAuth();
+  const hideFinancials = !!user?.hide_financials;
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState('month'); // month, week, day
   const [selectedDate, setSelectedDate] = useState(null);
@@ -357,10 +360,12 @@ export default function EventCalendar({ events = [], onEventClick }) {
                   <p className="text-stone-500">סועדים</p>
                   <p className="font-medium">{selectedEvent.guest_count}</p>
                 </div>
-                <div>
-                  <p className="text-stone-500">הכנסה מאוכל</p>
-                  <p className="font-medium">₪{((selectedEvent.price_per_plate || 0) * (selectedEvent.guest_count || 0)).toFixed(2)}</p>
-                </div>
+                {!hideFinancials && (
+                  <div>
+                    <p className="text-stone-500">הכנסה מאוכל</p>
+                    <p className="font-medium">₪{((selectedEvent.price_per_plate || 0) * (selectedEvent.guest_count || 0)).toFixed(2)}</p>
+                  </div>
+                )}
               </div>
 
               {selectedEvent.notes && (

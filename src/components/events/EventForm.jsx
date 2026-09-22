@@ -25,11 +25,14 @@ import EventPrintDialog from "../events/EventPrintDialog";
 import DepartmentPrintDialog from "../events/DepartmentPrintDialog";
 import { fmtCurrency } from "../utils/formatNumbers";
 import { calculateTotalGuests, calculateAdultPortions, parseRangeMax } from "@/lib/dinerCount";
+import { useAuth } from "@/lib/AuthContext";
 import { applyWasteToValue, wasteLabel } from "@/lib/foodWaste";
 
 export default function EventForm({ event, onClose }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const hideFinancials = !!user?.hide_financials;
 
   const [formData, setFormData] = useState({
     event_name: '',
@@ -631,44 +634,46 @@ export default function EventForm({ event, onClose }) {
                     </div>
                   </div>
 
-                  <div className="col-span-2 grid grid-cols-3 gap-4 pt-2">
-                    <div>
-                      <Label>הכנסה מאוכל כולל מע״מ</Label>
-                      <Input
-                        type="text"
-                        value={fmtCurrency((parseFloat(formData.price_per_plate) || 0) * (formData.guest_count || 0))}
-                        disabled
-                        readOnly />
+                  {!hideFinancials && (
+                    <div className="col-span-2 grid grid-cols-3 gap-4 pt-2">
+                      <div>
+                        <Label>הכנסה מאוכל כולל מע״מ</Label>
+                        <Input
+                          type="text"
+                          value={fmtCurrency((parseFloat(formData.price_per_plate) || 0) * (formData.guest_count || 0))}
+                          disabled
+                          readOnly />
+                      </div>
+                      <div>
+                        <Label>הכנסה מתוספות כולל מע״מ</Label>
+                        <Input
+                          type="text"
+                          value={fmtCurrency(
+                            (parseFloat(formData.lighting_sound_cost) || 0) +
+                            (parseFloat(formData.after_party_food_cost) || 0) +
+                            (parseFloat(formData.custom_addition_1_amount) || 0) +
+                            (parseFloat(formData.custom_addition_2_amount) || 0)
+                          )}
+                          disabled
+                          readOnly />
+                      </div>
+                      <div>
+                        <Label>הכנסה כוללת</Label>
+                        <Input
+                          type="text"
+                          className="font-semibold text-emerald-700"
+                          value={fmtCurrency(
+                            ((parseFloat(formData.price_per_plate) || 0) * (formData.guest_count || 0)) +
+                            (parseFloat(formData.lighting_sound_cost) || 0) +
+                            (parseFloat(formData.after_party_food_cost) || 0) +
+                            (parseFloat(formData.custom_addition_1_amount) || 0) +
+                            (parseFloat(formData.custom_addition_2_amount) || 0)
+                          )}
+                          disabled
+                          readOnly />
+                      </div>
                     </div>
-                    <div>
-                      <Label>הכנסה מתוספות כולל מע״מ</Label>
-                      <Input
-                        type="text"
-                        value={fmtCurrency(
-                          (parseFloat(formData.lighting_sound_cost) || 0) +
-                          (parseFloat(formData.after_party_food_cost) || 0) +
-                          (parseFloat(formData.custom_addition_1_amount) || 0) +
-                          (parseFloat(formData.custom_addition_2_amount) || 0)
-                        )}
-                        disabled
-                        readOnly />
-                    </div>
-                    <div>
-                      <Label>הכנסה כוללת</Label>
-                      <Input
-                        type="text"
-                        className="font-semibold text-emerald-700"
-                        value={fmtCurrency(
-                          ((parseFloat(formData.price_per_plate) || 0) * (formData.guest_count || 0)) +
-                          (parseFloat(formData.lighting_sound_cost) || 0) +
-                          (parseFloat(formData.after_party_food_cost) || 0) +
-                          (parseFloat(formData.custom_addition_1_amount) || 0) +
-                          (parseFloat(formData.custom_addition_2_amount) || 0)
-                        )}
-                        disabled
-                        readOnly />
-                    </div>
-                  </div>
+                  )}
 
                   <div className="col-span-2">
                     <Label>הערות</Label>
