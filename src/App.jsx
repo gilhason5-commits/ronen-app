@@ -1,4 +1,5 @@
 import './App.css'
+import { DirectionProvider } from '@radix-ui/react-direction'
 import { Toaster } from "@/components/ui/toaster" // v2
 import { Toaster as SonnerToaster } from "sonner"
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -125,20 +126,22 @@ const AuthenticatedApp = () => {
 function App() {
 
   return (
-    <QueryClientProvider client={queryClientInstance}>
-      <Router>
-        <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/WorkSummaryForm" element={<WorkSummaryForm />} />
-            <Route path="*" element={<AuthenticatedApp />} />
-          </Routes>
-        </AuthProvider>
-      </Router>
-      <Toaster />
-      <SonnerToaster richColors closeButton position="top-center" dir="rtl" />
-      <VisualEditAgent />
-    </QueryClientProvider>
+    <DirectionProvider dir="rtl">
+      <QueryClientProvider client={queryClientInstance}>
+        <Router>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/WorkSummaryForm" element={<WorkSummaryForm />} />
+              <Route path="*" element={<AuthenticatedApp />} />
+            </Routes>
+          </AuthProvider>
+        </Router>
+        <Toaster />
+        <SonnerToaster richColors closeButton position="top-center" dir="rtl" />
+        <VisualEditAgent />
+      </QueryClientProvider>
+    </DirectionProvider>
   )
 }
 
