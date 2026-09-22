@@ -36,3 +36,13 @@ export function calculateTotalGuests(guestCount, childrenCount, veganCount, glat
   const children = parseInt(childrenCount, 10) || 0;
   return adults + children + parseRangeMax(veganCount) + parseRangeMax(glattCount) + parseRangeMax(reserves);
 }
+
+// Headcount for staffing purposes (מפת כוח אדם) — everyone actually
+// expected and needing service, but NOT reserves: those are unconfirmed
+// extra seats, so staffing shouldn't be provisioned for them in advance.
+// Same as calculateTotalGuests minus the reserves term.
+export function calculateStaffingGuestCount(guestCount, childrenCount, veganCount, glattCount) {
+  const adults = parseInt(guestCount, 10) || 0;
+  const children = parseInt(childrenCount, 10) || 0;
+  return adults + children + parseRangeMax(veganCount) + parseRangeMax(glattCount);
+}

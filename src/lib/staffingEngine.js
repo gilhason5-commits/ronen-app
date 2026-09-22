@@ -2,6 +2,8 @@
 // Computes required staffing per event from editable StaffingRule rows,
 // and diffs the plan against the requirements to produce red flags.
 
+import { calculateStaffingGuestCount } from "./dinerCount";
+
 export const FORMAT_LABELS = {
   serving: 'הגשה',
   flipped: 'הפוכה',
@@ -30,11 +32,17 @@ function inRange(rule, guests) {
   return true;
 }
 
-// Staffing formulas key off total guests (סה״כ אורחים), not the derived
-// adult-commitment count (סה״כ מבוגרים להתחייבות) that food-cost/waste math
-// uses — fall back to guest_count only for older records missing total_guests.
+// Staffing formulas key off the confirmed headcount (guest_count + children
+// + vegan + glatt) — everyone actually expected and needing service — but
+// NOT reserves, which are unconfirmed extra seats nobody should be staffed
+// for in advance. This is deliberately narrower than the stored
+// total_guests field, which bakes reserves in. Falls back to total_guests/
+// guest_count only for older records missing the granular fields.
 function guestsOf(event) {
-  return Number(event.total_guests ?? event.guest_count) || 0;
+  if (event.guest_count != null) {
+    return calculateStaffingGuestCount(event.guest_count, event.children_count, event.vegan_count, event.glatt_count);
+  }
+  return Number(event.total_guests) || 0;
 }
 
 // Roles that count as "managers" for the flipped-format waiter formula

@@ -39,6 +39,17 @@ export default function ProducerPage() {
     initialData: []
   });
 
+  // Sort pending events with the nearest upcoming date at the top — the
+  // most urgent approval sits first. Events without a date sink to the
+  // bottom.
+  const pendingSorted = events
+    .slice()
+    .sort((a, b) => {
+      const tA = a.event_date ? new Date(a.event_date).getTime() : Infinity;
+      const tB = b.event_date ? new Date(b.event_date).getTime() : Infinity;
+      return tA - tB;
+    });
+
   // Sort approved events with the furthest future date at the top.
   // Events without a date sink to the bottom.
   const approvedOnly = approvedEvents
@@ -193,7 +204,7 @@ export default function ProducerPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {events.map(event => (
+          {pendingSorted.map(event => (
             <ProducerEventCard
               key={event.id}
               event={event}

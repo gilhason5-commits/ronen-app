@@ -17,11 +17,24 @@ import {
 import { exportConstraintsPdf, exportSupplierOrdersPdf, exportFloorReportPdf } from "@/lib/staffingPdf";
 import { getStaffColor } from "@/lib/staffColors";
 import { getStationColor, monthDates, toDateStr, formatTimeDigits } from "@/lib/kitchenSchedule";
+import { calculateStaffingGuestCount } from "@/lib/dinerCount";
 
 // A single shared reference for "no rows" so a missing lookup key never
 // hands a memoized row component a freshly-allocated (and thus always
 // "changed") empty array.
 const EMPTY_ARRAY = [];
+
+// Guest count used for every staffing/headcount figure on this page —
+// confirmed guests only (guest_count + children + vegan + glatt), NOT
+// reserves, which are unconfirmed extra seats nobody should be staffed for
+// in advance. Mirrors staffingEngine.js's guestsOf() so the numbers shown
+// here always match what actually drove the role requirements.
+function staffingGuestsOf(event) {
+  if (event.guest_count != null) {
+    return calculateStaffingGuestCount(event.guest_count, event.children_count, event.vegan_count, event.glatt_count);
+  }
+  return Number(event.total_guests) || 0;
+}
 
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
@@ -169,9 +182,9 @@ const EventTableRow = React.memo(function EventTableRow({ event, rules, agencies
   });
 
   const date = new Date(`${event.event_date}T00:00:00`);
-  // "כמות" shows total guests (סה״כ אורחים), not the derived adult-commitment
-  // count (סה״כ מבוגרים להתחייבות) that staffing.requiredRoles is computed from.
-  const displayGuestCount = event.total_guests ?? event.guest_count ?? 0;
+  // "כמות" matches the same confirmed-guests figure (no reserves) that
+  // staffing.requiredRoles is actually computed from.
+  const displayGuestCount = staffingGuestsOf(event);
   const bigEvent = displayGuestCount >= 300;
   const bigEventCellClass = bigEvent ? "bg-yellow-200" : "";
   const redCount = flags.filter((f) => f.severity === "red").length;
@@ -404,7 +417,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
     const map = new Map();
     for (const e of allEvents) {
       if (e.status === "cancelled" || !dayStrs.includes(e.event_date)) continue;
-      const g = e.total_guests ?? e.guest_count ?? 0;
+      const g = staffingGuestsOf(e);
       map.set(e.event_date, (map.get(e.event_date) || 0) + g);
     }
     return map;
