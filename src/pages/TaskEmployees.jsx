@@ -230,9 +230,19 @@ export default function TaskEmployees() {
   });
 
   const payLabel = (emp) => {
-    if (emp.pay_type === 'hourly') return `${emp.hourly_rate ?? 0} ₪/שעה`;
-    if (emp.pay_type === 'global') return `${emp.global_rate ?? 0} ₪ גלובלי`;
-    return null;
+    const parts = [];
+    if (emp.pay_type === 'hourly' || emp.pay_type === 'both') parts.push(`${emp.hourly_rate ?? 0} ₪/שעה`);
+    if (emp.pay_type === 'global' || emp.pay_type === 'both') parts.push(`${emp.global_rate ?? 0} ₪ גלובלי`);
+    return parts.length ? parts.join(' + ') : null;
+  };
+
+  // pay_type is derived from which of the two checkboxes are on — 'hourly',
+  // 'global', 'both', or '' (cleared) if neither.
+  const togglePayFlag = (flag, checked) => {
+    const hasHourly = flag === 'hourly' ? checked : (editForm.pay_type === 'hourly' || editForm.pay_type === 'both');
+    const hasGlobal = flag === 'global' ? checked : (editForm.pay_type === 'global' || editForm.pay_type === 'both');
+    const pay_type = hasHourly && hasGlobal ? 'both' : hasHourly ? 'hourly' : hasGlobal ? 'global' : '';
+    setEditForm({ ...editForm, pay_type });
   };
 
   const renderEditFields = (excludeEmployeeId) => (
@@ -290,39 +300,43 @@ export default function TaskEmployees() {
     </>
   );
 
-  const renderPayFields = () => (
-    <div className="flex gap-2">
-      <Select
-        value={editForm.pay_type || '__none__'}
-        onValueChange={(v) => setEditForm({ ...editForm, pay_type: v === '__none__' ? '' : v })}
-      >
-        <SelectTrigger className="w-32 shrink-0">
-          <SelectValue placeholder="סוג שכר" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__none__">ללא</SelectItem>
-          <SelectItem value="hourly">שעתי</SelectItem>
-          <SelectItem value="global">גלובלי</SelectItem>
-        </SelectContent>
-      </Select>
-      {editForm.pay_type === 'hourly' && (
-        <Input
-          type="number"
-          placeholder="₪ לשעה"
-          value={editForm.hourly_rate ?? ''}
-          onChange={(e) => setEditForm({ ...editForm, hourly_rate: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-        />
-      )}
-      {editForm.pay_type === 'global' && (
-        <Input
-          type="number"
-          placeholder="₪ גלובלי"
-          value={editForm.global_rate ?? ''}
-          onChange={(e) => setEditForm({ ...editForm, global_rate: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-        />
-      )}
-    </div>
-  );
+  const renderPayFields = () => {
+    const isHourly = editForm.pay_type === 'hourly' || editForm.pay_type === 'both';
+    const isGlobal = editForm.pay_type === 'global' || editForm.pay_type === 'both';
+    return (
+      <div className="space-y-2 border border-stone-200 rounded-md p-2">
+        <p className="text-xs font-medium text-stone-500">סוג שכר</p>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-sm shrink-0 w-16">
+            <input type="checkbox" checked={isHourly} onChange={(e) => togglePayFlag('hourly', e.target.checked)} />
+            שעתי
+          </label>
+          {isHourly && (
+            <Input
+              type="number"
+              placeholder="₪ לשעה"
+              value={editForm.hourly_rate ?? ''}
+              onChange={(e) => setEditForm({ ...editForm, hourly_rate: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+            />
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-sm shrink-0 w-16">
+            <input type="checkbox" checked={isGlobal} onChange={(e) => togglePayFlag('global', e.target.checked)} />
+            גלובלי
+          </label>
+          {isGlobal && (
+            <Input
+              type="number"
+              placeholder="₪ גלובלי"
+              value={editForm.global_rate ?? ''}
+              onChange={(e) => setEditForm({ ...editForm, global_rate: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+            />
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const departmentColors = {
     "שירות": "bg-blue-100 text-blue-700",
