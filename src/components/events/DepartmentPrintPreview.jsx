@@ -1,11 +1,16 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Printer, X } from "lucide-react";
+import { Printer, X, Download, Loader2 } from "lucide-react";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 
-export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent, title, headerInfo }) {
+export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent, title, headerInfo, autoDownload = false, onAutoDownloadHandled }) {
   const iframeRef = useRef(null);
   const [iframeHeight, setIframeHeight] = useState(2000);
+  const [layoutReady, setLayoutReady] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const autoDownloadTriggeredRef = useRef(false);
 
   const handlePrint = () => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
@@ -14,16 +19,62 @@ export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent
     }
   };
 
+  // Grabs the already-laid-out A4 pages from the preview iframe and renders
+  // each one into a real, downloadable multi-page PDF (same html2canvas +
+  // jsPDF pipeline used elsewhere for PDF exports), instead of relying on
+  // the browser's print-to-PDF dialog.
+  const handleDownloadPdf = async () => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc) return;
+    const pages = doc.querySelectorAll('.preview-page');
+    if (pages.length === 0) return;
+
+    setDownloadingPdf(true);
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      for (let i = 0; i < pages.length; i++) {
+        const canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+        const imgData = canvas.toDataURL('image/png');
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      }
+
+      pdf.save(`${title || 'דוח מחלקה'}.pdf`);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
   // Listen for messages from iframe to adjust height
   useEffect(() => {
     const handler = (e) => {
       if (e.data && e.data.type === 'resize' && typeof e.data.height === 'number') {
         setIframeHeight(e.data.height + 60);
+        setLayoutReady(true);
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
+
+  // A fresh report was loaded into the iframe; its pages aren't laid out yet.
+  useEffect(() => {
+    setLayoutReady(false);
+  }, [htmlContent]);
+
+  useEffect(() => {
+    if (!open || !autoDownload) {
+      autoDownloadTriggeredRef.current = false;
+      return;
+    }
+    if (layoutReady && !autoDownloadTriggeredRef.current) {
+      autoDownloadTriggeredRef.current = true;
+      handleDownloadPdf().then(() => onAutoDownloadHandled?.());
+    }
+  }, [open, autoDownload, layoutReady]);
 
   const hi = headerInfo || {};
 
@@ -428,6 +479,15 @@ export default function DepartmentPrintPreview({ open, onOpenChange, htmlContent
         <div className="flex items-center justify-between px-6 py-4 border-b bg-white shrink-0">
           <DialogTitle className="text-lg font-bold">{title || 'תצוגה מקדימה'}</DialogTitle>
           <div className="flex items-center gap-2">
+            <Button
+              onClick={handleDownloadPdf}
+              disabled={!layoutReady || downloadingPdf}
+              variant="outline"
+              className="gap-2"
+            >
+              {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {downloadingPdf ? 'מייצר PDF...' : 'הורד PDF'}
+            </Button>
             <Button onClick={handlePrint} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
               <Printer className="w-4 h-4" />
               הדפס

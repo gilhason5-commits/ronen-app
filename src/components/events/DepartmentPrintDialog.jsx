@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Printer } from "lucide-react";
+import { Printer, Download } from "lucide-react";
 import DepartmentPrintPreview from "./DepartmentPrintPreview";
 import { eventWastePct, eventWasteFactor, applyWasteToQty } from "@/lib/foodWaste";
 import { calculateAdultPortions } from "@/lib/dinerCount";
@@ -71,6 +71,7 @@ export default function DepartmentPrintDialog({
   const [previewHtml, setPreviewHtml] = useState('');
   const [previewTitle, setPreviewTitle] = useState('');
   const [previewHeaderInfo, setPreviewHeaderInfo] = useState(null);
+  const [autoDownloadPdf, setAutoDownloadPdf] = useState(false);
 
   // Helper to get category display_order for sorting
   const getCategoryOrder = (dish) => {
@@ -762,7 +763,7 @@ export default function DepartmentPrintDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md" dir="rtl">
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="text-xl">הדפסת דוחות מחלקות</DialogTitle>
         </DialogHeader>
@@ -818,7 +819,7 @@ export default function DepartmentPrintDialog({
             </div>
           </div>
 
-          <div className="border-t pt-4">
+          <div className="border-t pt-4 space-y-2">
             <Button
               className="w-full bg-emerald-600 hover:bg-emerald-700"
               onClick={() => handlePrint(allDepartments)}
@@ -826,16 +827,32 @@ export default function DepartmentPrintDialog({
               <Printer className="w-4 h-4 ml-2" />
               הדפס את כל המחלקות
             </Button>
+            <Button
+              className="w-full"
+              variant="outline"
+              onClick={() => {
+                setAutoDownloadPdf(true);
+                handlePrint(allDepartments);
+              }}
+            >
+              <Download className="w-4 h-4 ml-2" />
+              הורד PDF אחד - כל המחלקות
+            </Button>
           </div>
         </div>
       </DialogContent>
 
       <DepartmentPrintPreview
         open={previewOpen}
-        onOpenChange={setPreviewOpen}
+        onOpenChange={(v) => {
+          setPreviewOpen(v);
+          if (!v) setAutoDownloadPdf(false);
+        }}
         htmlContent={previewHtml}
         title={previewTitle}
         headerInfo={previewHeaderInfo}
+        autoDownload={autoDownloadPdf}
+        onAutoDownloadHandled={() => setAutoDownloadPdf(false)}
       />
     </Dialog>
   );
