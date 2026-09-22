@@ -18,6 +18,9 @@ import { useAuth } from "@/lib/AuthContext";
 export default function ProducerPage() {
   const { user } = useAuth();
   const canApprove = user?.role === "producer";
+  // The producer role only approves events the main user creates — it no
+  // longer creates or deletes events itself.
+  const isProducerRole = user?.role === "producer";
   const [showForm, setShowForm] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [printEvent, setPrintEvent] = useState(null);
@@ -96,6 +99,12 @@ export default function ProducerPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (event) => {
+      // Defensive: the delete button is hidden for the producer role, but
+      // guard the mutation itself in case of a stale render or direct call —
+      // producer only approves events, it doesn't create or delete them.
+      if (isProducerRole) {
+        throw new Error("מפיק אינו יכול למחוק אירועים");
+      }
       // Delete associated dishes first
       const dishes = await base44.entities.Events_Dish.filter({ event_id: event.id });
       for (const d of dishes) {
@@ -156,15 +165,19 @@ export default function ProducerPage() {
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-stone-900">עמוד מפיק</h1>
-          <p className="text-stone-500 mt-1">צור אירועים חדשים, בחר מנות ואשר להעברה להנהלה</p>
+          <p className="text-stone-500 mt-1">
+            {isProducerRole ? "בחר מנות ואשר אירועים להעברה לביצוע" : "צור אירועים חדשים, בחר מנות ואשר להעברה להנהלה"}
+          </p>
         </div>
-        <Button
-          onClick={() => { setSelectedEvent(null); setShowForm(true); }}
-          className="bg-emerald-600 hover:bg-emerald-700"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          אירוע חדש
-        </Button>
+        {!isProducerRole && (
+          <Button
+            onClick={() => { setSelectedEvent(null); setShowForm(true); }}
+            className="bg-emerald-600 hover:bg-emerald-700"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            אירוע חדש
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
@@ -189,6 +202,7 @@ export default function ProducerPage() {
               onApprove={handleApprove}
               onPrint={setPrintEvent}
               onDelete={handleDelete}
+              canDelete={!isProducerRole}
               onSavePdf={setPdfEvent}
               canApprove={canApprove}
             />
@@ -207,6 +221,7 @@ export default function ProducerPage() {
               onApprove={handleApprove}
               onPrint={setPrintEvent}
               onDelete={handleDelete}
+              canDelete={!isProducerRole}
               onSavePdf={setPdfEvent}
               canApprove={canApprove}
             />

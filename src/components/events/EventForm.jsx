@@ -39,7 +39,12 @@ export default function EventForm({ event, onClose }) {
     total_guests: 0,
     guest_count: 0,
     children_count: '',
-    status: 'in_progress',
+    // New events wait for producer approval before kitchen/staffing tasks
+    // are generated — matches the same pipeline events created from עמוד
+    // מפיק already went through (ProducerPage's approveMutation flips this
+    // to in_progress once approved).
+    status: 'producer_draft',
+    producer_approved: false,
     notes: '',
     food_cost_sum: 0,
     food_cost_pct: 0

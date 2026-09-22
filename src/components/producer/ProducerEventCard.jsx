@@ -16,7 +16,7 @@ const eventTypeLabels = {
   party: "מסיבה"
 };
 
-export default function ProducerEventCard({ event, dishCount, onEdit, onApprove, onPrint, onDelete, onSavePdf, canApprove = true }) {
+export default function ProducerEventCard({ event, dishCount, onEdit, onApprove, onPrint, onDelete, onSavePdf, canApprove = true, canDelete = true }) {
   const isApproved = event.producer_approved;
   const days = businessDaysUntilEvent(event.event_date);
   // Approval window: only allowed between 4 and 7 business days before the
@@ -76,10 +76,12 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
             </Button>
             {!isApproved && (
               <>
-                <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => onDelete(event)}>
-                  <Trash2 className="w-4 h-4 ml-1" />
-                  מחיקה
-                </Button>
+                {canDelete && (
+                  <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => onDelete(event)}>
+                    <Trash2 className="w-4 h-4 ml-1" />
+                    מחיקה
+                  </Button>
+                )}
                 <div className="flex flex-col items-end gap-1 max-w-[280px]">
                   {canApprove ? (
                     <Button
