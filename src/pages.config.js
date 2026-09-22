@@ -47,23 +47,27 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import CustomerInvoices from './pages/CustomerInvoices';
-import Dashboard from './pages/Dashboard';
-import Dishes from './pages/Dishes';
-import Events from './pages/Events';
-import Home from './pages/Home';
-import Ingredients from './pages/Ingredients';
-import Inventory from './pages/Inventory';
-import KitchenView from './pages/KitchenView';
-import PerEventTasks from './pages/PerEventTasks';
-import ProducerPage from './pages/ProducerPage';
-import RecurringTasks from './pages/RecurringTasks';
-import Reports from './pages/Reports';
-import SpecialIngredients from './pages/SpecialIngredients';
-import SupplierInvoices from './pages/SupplierInvoices';
-import Suppliers from './pages/Suppliers';
-import TaskEmployees from './pages/TaskEmployees';
-import TaskManagement from './pages/TaskManagement';
+// Route-level code splitting: each page is its own chunk, fetched only when
+// actually navigated to, instead of every page's code shipping in the one
+// initial bundle (App.jsx wraps the routes using these in <Suspense>).
+import { lazy } from 'react';
+const CustomerInvoices = lazy(() => import('./pages/CustomerInvoices'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Dishes = lazy(() => import('./pages/Dishes'));
+const Events = lazy(() => import('./pages/Events'));
+const Home = lazy(() => import('./pages/Home'));
+const Ingredients = lazy(() => import('./pages/Ingredients'));
+const Inventory = lazy(() => import('./pages/Inventory'));
+const KitchenView = lazy(() => import('./pages/KitchenView'));
+const PerEventTasks = lazy(() => import('./pages/PerEventTasks'));
+const ProducerPage = lazy(() => import('./pages/ProducerPage'));
+const RecurringTasks = lazy(() => import('./pages/RecurringTasks'));
+const Reports = lazy(() => import('./pages/Reports'));
+const SpecialIngredients = lazy(() => import('./pages/SpecialIngredients'));
+const SupplierInvoices = lazy(() => import('./pages/SupplierInvoices'));
+const Suppliers = lazy(() => import('./pages/Suppliers'));
+const TaskEmployees = lazy(() => import('./pages/TaskEmployees'));
+const TaskManagement = lazy(() => import('./pages/TaskManagement'));
 import __Layout from './Layout.jsx';
 
 

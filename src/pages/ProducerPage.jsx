@@ -51,7 +51,7 @@ export default function ProducerPage() {
     });
 
   const { data: allEventDishes = [] } = useQuery({
-    queryKey: ["all_event_dishes"],
+    queryKey: ["eventsDishes"],
     queryFn: () => base44.entities.Events_Dish.list(),
     initialData: []
   });
@@ -119,7 +119,7 @@ export default function ProducerPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["producer_events"] });
-      queryClient.invalidateQueries({ queryKey: ["all_event_dishes"] });
+      queryClient.invalidateQueries({ queryKey: ["eventsDishes"] });
       toast.success("האירוע נמחק בהצלחה");
     },
     onError: () => {
@@ -149,7 +149,7 @@ export default function ProducerPage() {
     setSelectedEvent(null);
     queryClient.invalidateQueries({ queryKey: ["producer_events"] });
     queryClient.invalidateQueries({ queryKey: ["producer_approved_events"] });
-    queryClient.invalidateQueries({ queryKey: ["all_event_dishes"] });
+    queryClient.invalidateQueries({ queryKey: ["eventsDishes"] });
   };
 
   if (showForm) {

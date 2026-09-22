@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -110,14 +110,14 @@ export default function TaskEmployees() {
     },
   });
 
-  const filteredEmployees = employees.filter(emp => {
+  const filteredEmployees = useMemo(() => employees.filter(emp => {
     const search = searchTerm.toLowerCase();
-    const matchesSearch = emp.full_name?.toLowerCase().includes(search) || 
+    const matchesSearch = emp.full_name?.toLowerCase().includes(search) ||
            emp.phone_e164?.toLowerCase().includes(search) ||
            emp.role?.toLowerCase().includes(search);
     const matchesDepartment = !selectedDeptFilter || emp.department_id === selectedDeptFilter;
     return matchesSearch && matchesDepartment;
-  });
+  }), [employees, searchTerm, selectedDeptFilter]);
 
   const activeCount = employees.filter(e => e.is_active).length;
   const whatsappEnabledCount = employees.filter(e => e.whatsapp_enabled).length;

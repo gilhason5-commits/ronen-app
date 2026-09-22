@@ -133,17 +133,26 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
 
       if (dish?.id) {
         const eventDishes = await base44.entities.Events_Dish.filter({ dish_id: dish.id });
-        for (const eventDish of eventDishes) {
-          const event = await base44.entities.Event.filter({ id: eventDish.event_id });
-          if (event[0]) {
+        if (eventDishes.length > 0) {
+          // One batched lookup for every referenced event instead of a
+          // sequential round-trip per event — this used to be 2 serial
+          // requests per usage of the dish (dozens for a popular one).
+          const eventIds = [...new Set(eventDishes.map((ed) => ed.event_id))];
+          const events = await base44.entities.Event.filter({ id: eventIds });
+          const eventById = new Map(events.map((e) => [e.id, e]));
+          const isFirstCourse = isFirstCourseCategory();
+
+          await Promise.all(eventDishes.map((eventDish) => {
+            const event = eventById.get(eventDish.event_id);
+            if (!event) return null;
             // Standard dish quantities are planned for guests eating the
             // standard menu — guest_count minus vegans/glatt.
-            const guestCount = calculateAdultPortions(event[0].guest_count, event[0].vegan_count, event[0].glatt_count);
+            const guestCount = calculateAdultPortions(event.guest_count, event.vegan_count, event.glatt_count);
 
             let plannedQty, plannedCost;
-            if (isFirstCourseCategory()) {
+            if (isFirstCourse) {
               const servingPct = data.serving_percentage ?? 100;
-              const isWedding = event[0].event_type === 'wedding';
+              const isWedding = event.event_type === 'wedding';
               const portionFactor = !isWedding ? (1 / 6) : (data.portion_factor ?? 1);
               const rawQty = guestCount * (servingPct / 100) * portionFactor;
               plannedQty = Math.ceil(rawQty);
@@ -154,11 +163,11 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
               plannedCost = plannedQty * data.unit_cost;
             }
 
-            await base44.entities.Events_Dish.update(eventDish.id, {
+            return base44.entities.Events_Dish.update(eventDish.id, {
               planned_qty: plannedQty,
               planned_cost: plannedCost
             });
-          }
+          }));
         }
       }
 

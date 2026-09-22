@@ -39,13 +39,11 @@ export default function Events() {
     );
     if (stale.length === 0) return;
     (async () => {
-      for (const e of stale) {
-        try {
-          await base44.entities.Event.update(e.id, { status: 'completed' });
-        } catch (err) {
+      await Promise.all(stale.map((e) =>
+        base44.entities.Event.update(e.id, { status: 'completed' }).catch((err) => {
           console.error('Failed to auto-complete past event:', e.id, err);
-        }
-      }
+        })
+      ));
       queryClient.invalidateQueries({ queryKey: ['events'] });
     })();
   }, [events]);
@@ -57,7 +55,10 @@ export default function Events() {
   });
 
   const { data: allEventDishes = [] } = useQuery({
-    queryKey: ['allEventDishes'],
+    // Shared key with CategoryBreakdown/Inventory/IngredientCategoryPieChart/
+    // ProducerPage so React Query dedupes this full-table fetch instead of
+    // each component re-fetching it separately.
+    queryKey: ['eventsDishes'],
     queryFn: () => base44.entities.Events_Dish.list(),
     initialData: [],
   });

@@ -1,4 +1,5 @@
 import './App.css'
+import { Suspense, lazy } from 'react'
 import { DirectionProvider } from '@radix-ui/react-direction'
 import { Toaster } from "@/components/ui/toaster" // v2
 import { Toaster as SonnerToaster } from "sonner"
@@ -11,16 +12,18 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import WorkSummaryForm from './pages/WorkSummaryForm';
-import WorkSummaries from './pages/WorkSummaries';
-import PetiVorRecurringTasks from './pages/PetiVorRecurringTasks';
-import MenuViewer from './pages/MenuViewer';
+// Kept eager: the first screen an unauthenticated visitor sees, small
+// enough that splitting it out isn't worth an extra suspense flash.
 import Login from './pages/Login';
-import StaffingMap from './pages/StaffingMap';
-import EventAttendance from './pages/EventAttendance';
-import StaffingReports from './pages/StaffingReports';
-import TipsDistribution from './pages/TipsDistribution';
-import StaffingSettings from './pages/StaffingSettings';
+const WorkSummaryForm = lazy(() => import('./pages/WorkSummaryForm'));
+const WorkSummaries = lazy(() => import('./pages/WorkSummaries'));
+const PetiVorRecurringTasks = lazy(() => import('./pages/PetiVorRecurringTasks'));
+const MenuViewer = lazy(() => import('./pages/MenuViewer'));
+const StaffingMap = lazy(() => import('./pages/StaffingMap'));
+const EventAttendance = lazy(() => import('./pages/EventAttendance'));
+const StaffingReports = lazy(() => import('./pages/StaffingReports'));
+const TipsDistribution = lazy(() => import('./pages/TipsDistribution'));
+const StaffingSettings = lazy(() => import('./pages/StaffingSettings'));
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -60,6 +63,11 @@ const AuthenticatedApp = () => {
 
   // Render the main app
   return (
+    <Suspense fallback={
+      <div className="fixed inset-0 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      </div>
+    }>
     <Routes>
       <Route path="/" element={
         <LayoutWrapper currentPageName={mainPageKey}>
@@ -119,6 +127,7 @@ const AuthenticatedApp = () => {
       } />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
+    </Suspense>
   );
 };
 

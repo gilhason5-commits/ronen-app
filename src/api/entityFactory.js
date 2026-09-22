@@ -48,6 +48,10 @@ export function createEntity(tableName) {
         for (const [key, value] of Object.entries(filters)) {
           if (value === null || value === undefined) {
             query = query.is(key, null);
+          } else if (Array.isArray(value)) {
+            // Batch lookup by a set of ids/values in one round-trip instead
+            // of the caller looping and filtering one-by-one.
+            query = query.in(key, value);
           } else {
             query = query.eq(key, value);
           }

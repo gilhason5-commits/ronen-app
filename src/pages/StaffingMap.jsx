@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,11 @@ import {
 import { exportConstraintsPdf, exportSupplierOrdersPdf, exportFloorReportPdf } from "@/lib/staffingPdf";
 import { getStaffColor } from "@/lib/staffColors";
 import { getStationColor, monthDates, toDateStr, formatTimeDigits } from "@/lib/kitchenSchedule";
+
+// A single shared reference for "no rows" so a missing lookup key never
+// hands a memoized row component a freshly-allocated (and thus always
+// "changed") empty array.
+const EMPTY_ARRAY = [];
 
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
@@ -97,7 +102,11 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
   );
 }
 
-function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleColumns, allEvents, employees, planRows, splitRows, onChange }) {
+// Memoized: this row is re-created for every event in the monthly table, so
+// without memo, editing one event's staffing (or any query invalidation)
+// re-renders every other row too, causing visible input lag on the busiest
+// months.
+const EventTableRow = React.memo(function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleColumns, allEvents, employees, planRows, splitRows, onChange }) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
   const invalidate = () => {
@@ -291,14 +300,17 @@ function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleCol
       )}
     </>
   );
-}
+});
 
 // One cell in the kitchen weekly grid: free-text clock-in/out for one person
 // on one day, defaulting to their usual hours but always overridable — days
 // off are just left blank (shown as a faint "X" placeholder).
 // Two boxes side by side per day (clock-in on the right, clock-out on the
 // left) instead of stacked lines — same underlying fields, same on-blur save.
-function KitchenShiftCell({ member, shift, onSave }) {
+// Memoized for the same reason as EventTableRow — there's one of these per
+// person per day across the whole month, so an un-memoized version re-renders
+// the entire grid on every keystroke in any single cell.
+const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, dateStr, onSave }) {
   const [clockIn, setClockIn] = useState(shift?.clock_in ?? member.default_clock_in ?? "");
   const [clockOut, setClockOut] = useState(shift?.clock_out ?? member.default_clock_out ?? "");
 
@@ -315,7 +327,7 @@ function KitchenShiftCell({ member, shift, onSave }) {
     const savedIn = shift?.clock_in ?? "";
     const savedOut = shift?.clock_out ?? "";
     if (formattedIn === savedIn && formattedOut === savedOut) return;
-    onSave({ clock_in: formattedIn, clock_out: formattedOut });
+    onSave(member, dateStr, { clock_in: formattedIn, clock_out: formattedOut });
   };
 
   const isOff = !clockIn.trim() && !clockOut.trim();
@@ -327,7 +339,7 @@ function KitchenShiftCell({ member, shift, onSave }) {
       <input type="text" value={clockOut} placeholder="X" className={inputClass} onChange={(e) => setClockOut(e.target.value)} onBlur={commit} />
     </div>
   );
-}
+});
 
 // Fixed weekly roster grid for kitchen/cleaning staff — unlike the floor
 // table above, these shifts aren't derived from an event's guest count or
@@ -454,8 +466,11 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
       const existing = shifts.find((s) => s.member_id === member.id && s.shift_date === dateStr);
       const bothEmpty = !clock_in.trim() && !clock_out.trim();
       if (bothEmpty) {
-        if (existing) await base44.entities.KitchenShift.delete(existing.id);
-        return;
+        if (existing) {
+          await base44.entities.KitchenShift.delete(existing.id);
+          return { deletedId: existing.id };
+        }
+        return null;
       }
       const data = {
         member_id: member.id,
@@ -465,12 +480,37 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
         clock_in: clock_in.trim(),
         clock_out: clock_out.trim(),
       };
-      if (existing) await base44.entities.KitchenShift.update(existing.id, data);
-      else await base44.entities.KitchenShift.create(data);
+      if (existing) {
+        const updated = await base44.entities.KitchenShift.update(existing.id, data);
+        return { saved: updated };
+      }
+      const created = await base44.entities.KitchenShift.create(data);
+      return { saved: created };
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["kitchenShifts"] }),
+    // Patch the one changed shift into the cached list in place instead of
+    // invalidating (refetching) the whole table — a full refetch hands every
+    // row a brand-new shift object, which defeats KitchenShiftCell's memo
+    // and re-renders every cell in the grid on a single edit.
+    onSuccess: (result) => {
+      if (!result) return;
+      queryClient.setQueryData(["kitchenShifts"], (old = []) => {
+        if (result.deletedId) return old.filter((s) => s.id !== result.deletedId);
+        const idx = old.findIndex((s) => s.id === result.saved.id);
+        if (idx === -1) return [...old, result.saved];
+        const next = old.slice();
+        next[idx] = result.saved;
+        return next;
+      });
+    },
     onError: (e) => toast.error(e.message),
   });
+
+  // Stable across re-renders (mutate's identity doesn't change) so it never
+  // busts KitchenShiftCell's memo the way a fresh inline closure per cell
+  // would.
+  const handleSaveShift = useCallback((member, dateStr, payload) => {
+    saveShift.mutate({ member, dateStr, ...payload });
+  }, [saveShift.mutate]);
 
   const swapMember = useMutation({
     mutationFn: async ({ member, employee }) =>
@@ -608,7 +648,8 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                       <KitchenShiftCell
                         member={member}
                         shift={shift}
-                        onSave={(payload) => saveShift.mutate({ member, dateStr: ds, ...payload })}
+                        dateStr={ds}
+                        onSave={handleSaveShift}
                       />
                     </td>
                   );
@@ -707,6 +748,26 @@ export default function StaffingMap() {
   const { data: allPlans = [] } = useQuery({ queryKey: ["staffingPlans"], queryFn: () => base44.entities.EventStaffingPlan.list("created_date", 5000), initialData: [] });
   const { data: allSplits = [] } = useQuery({ queryKey: ["agencySplits"], queryFn: () => base44.entities.EventAgencySplit.list("created_date", 5000), initialData: [] });
 
+  // Grouped once per data change instead of each EventTableRow re-filtering
+  // the full list on every render — .filter() inline in the map below would
+  // also hand every row a brand-new array each render, breaking its memo.
+  const plansByEventId = useMemo(() => {
+    const map = new Map();
+    for (const p of allPlans) {
+      if (!map.has(p.event_id)) map.set(p.event_id, []);
+      map.get(p.event_id).push(p);
+    }
+    return map;
+  }, [allPlans]);
+  const splitsByEventId = useMemo(() => {
+    const map = new Map();
+    for (const s of allSplits) {
+      if (!map.has(s.event_id)) map.set(s.event_id, []);
+      map.get(s.event_id).push(s);
+    }
+    return map;
+  }, [allSplits]);
+
   const roleColumns = useRoleColumns(rules);
   const displayRoleColumns = useMemo(() => orderRoleColumns(roleColumns), [roleColumns]);
   const activeAgencies = useMemo(
@@ -738,6 +799,12 @@ export default function StaffingMap() {
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staffingChangeLog", mKey] }),
   });
+
+  // Stable reference so it never busts EventTableRow's memo the way a fresh
+  // inline closure per row would.
+  const handleStaffingChange = useCallback((change) => {
+    logChange.mutate(change);
+  }, [logChange.mutate]);
 
   const monthLabel = month.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
 
@@ -838,9 +905,9 @@ export default function StaffingMap() {
                     displayRoleColumns={displayRoleColumns}
                     allEvents={events}
                     employees={employees}
-                    planRows={allPlans.filter((p) => p.event_id === event.id)}
-                    splitRows={allSplits.filter((s) => s.event_id === event.id)}
-                    onChange={(change) => logChange.mutate(change)}
+                    planRows={plansByEventId.get(event.id) || EMPTY_ARRAY}
+                    splitRows={splitsByEventId.get(event.id) || EMPTY_ARRAY}
+                    onChange={handleStaffingChange}
                   />
                 ))}
               </tbody>
