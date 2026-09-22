@@ -99,6 +99,7 @@ export default function TaskEmployees() {
       toast.success('עובד עודכן');
       setEditingId(null);
     },
+    onError: (e) => toast.error(e.message || 'עדכון העובד נכשל'),
   });
 
   const createEmployeeMutation = useMutation({
@@ -108,6 +109,7 @@ export default function TaskEmployees() {
       toast.success('עובד נוצר');
       setEditingId(null);
     },
+    onError: (e) => toast.error(e.message || 'יצירת העובד נכשלה'),
   });
 
   const filteredEmployees = useMemo(() => employees.filter(emp => {
@@ -160,13 +162,21 @@ export default function TaskEmployees() {
     if (dataToSave.role_id) {
       const role = roles.find(r => r.id === dataToSave.role_id);
       if (role) {
-        dataToSave.department_id = role.department_id || '';
+        dataToSave.department_id = role.department_id || null;
         dataToSave.department_name = role.department_name || '';
       }
     } else {
-      dataToSave.department_id = '';
+      dataToSave.department_id = null;
       dataToSave.department_name = '';
     }
+    // '' fails at the DB level for uuid columns (role_id/department_id) and
+    // for pay_type's CHECK constraint (must be null or one of the allowed
+    // values) — an untouched field defaults to '' in form state, which used
+    // to silently block creating an employee with just a name.
+    if (!dataToSave.role_id) dataToSave.role_id = null;
+    if (!dataToSave.pay_type) dataToSave.pay_type = null;
+    if (dataToSave.hourly_rate === '') dataToSave.hourly_rate = null;
+    if (dataToSave.global_rate === '') dataToSave.global_rate = null;
     if (id === 'new') {
       createEmployeeMutation.mutate(dataToSave);
     } else {
