@@ -537,19 +537,32 @@ export default function EventForm({ event, onClose }) {
                         </div>
                       </div>
 
-                      <div className="col-span-2 text-center">
-                        <Label className="block">סה״כ אורחים</Label>
-                        <p className="text-2xl font-bold text-stone-900">{formData.total_guests || 0}</p>
-                      </div>
-                      <div className="col-span-2 text-center">
-                        <Label className="block">סה״כ מנות למוצר</Label>
-                        <p className="text-2xl font-bold text-stone-900">{formData.total_guests || 0}</p>
-                      </div>
                       <div className="col-span-2">
-                        <Label>מנות מבוגר</Label>
+                        <Label>תוספת נוספת 1 - שם</Label>
                         <Input
                           type="text"
-                          value={calculateAdultPortions(formData.guest_count, formData.vegan_count, formData.glatt_count) || ''}
+                          value={formData.custom_addition_1_name || ''}
+                          onChange={(e) => setFormData({ ...formData, custom_addition_1_name: e.target.value })}
+                          placeholder="שם התוספת..." />
+                      </div>
+                      <div className="col-span-2">
+                        <Label>תוספת נוספת 2 - שם</Label>
+                        <Input
+                          type="text"
+                          value={formData.custom_addition_2_name || ''}
+                          onChange={(e) => setFormData({ ...formData, custom_addition_2_name: e.target.value })}
+                          placeholder="שם התוספת..." />
+                      </div>
+                      <div className="col-span-2">
+                        <Label>סה״כ הזמנה</Label>
+                        <Input
+                          type="text"
+                          value={
+                            (formData.guest_count || 0) +
+                            (parseInt(formData.children_count, 10) || 0) +
+                            parseRangeMax(formData.vegan_count) +
+                            parseRangeMax(formData.glatt_count)
+                          }
                           disabled
                           readOnly />
                       </div>
@@ -588,74 +601,63 @@ export default function EventForm({ event, onClose }) {
                           onChange={(e) => setFormData({ ...formData, after_party_food_cost: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
                           placeholder="0" />
                       </div>
-                      <div className="space-y-2">
-                        <Label>תוספת נוספת</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            type="text"
-                            className="flex-1"
-                            value={formData.custom_addition_1_name || ''}
-                            onChange={(e) => setFormData({ ...formData, custom_addition_1_name: e.target.value })}
-                            placeholder="שם התוספת..." />
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="w-28 shrink-0"
-                            value={formData.custom_addition_1_amount ?? ''}
-                            onChange={(e) => setFormData({ ...formData, custom_addition_1_amount: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                            placeholder="₪" />
-                        </div>
+                      <div>
+                        <Label>תוספת נוספת 1 - סכום (₪)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={formData.custom_addition_1_amount ?? ''}
+                          onChange={(e) => setFormData({ ...formData, custom_addition_1_amount: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                          placeholder="0" />
                       </div>
-                      <div className="space-y-2">
-                        <Label>תוספת נוספת</Label>
-                        <div className="flex gap-2">
-                          <Input
-                            type="text"
-                            className="flex-1"
-                            value={formData.custom_addition_2_name || ''}
-                            onChange={(e) => setFormData({ ...formData, custom_addition_2_name: e.target.value })}
-                            placeholder="שם התוספת..." />
-                          <Input
-                            type="number"
-                            step="0.01"
-                            className="w-28 shrink-0"
-                            value={formData.custom_addition_2_amount ?? ''}
-                            onChange={(e) => setFormData({ ...formData, custom_addition_2_amount: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                            placeholder="₪" />
-                        </div>
+                      <div>
+                        <Label>תוספת נוספת 2 - סכום (₪)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={formData.custom_addition_2_amount ?? ''}
+                          onChange={(e) => setFormData({ ...formData, custom_addition_2_amount: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                          placeholder="0" />
                       </div>
                     </div>
                   </div>
 
                   <div className="col-span-2 grid grid-cols-3 gap-4 pt-2">
-                    <div className="rounded-lg bg-stone-50 border border-stone-200 p-4 text-center">
-                      <Label className="block">הכנסה מאוכל כולל מע״מ</Label>
-                      <p className="text-xl font-bold text-stone-900">
-                        {fmtCurrency((parseFloat(formData.price_per_plate) || 0) * (formData.guest_count || 0))}
-                      </p>
+                    <div>
+                      <Label>הכנסה מאוכל כולל מע״מ</Label>
+                      <Input
+                        type="text"
+                        value={fmtCurrency((parseFloat(formData.price_per_plate) || 0) * (formData.guest_count || 0))}
+                        disabled
+                        readOnly />
                     </div>
-                    <div className="rounded-lg bg-stone-50 border border-stone-200 p-4 text-center">
-                      <Label className="block">הכנסה מתוספות כולל מע״מ</Label>
-                      <p className="text-xl font-bold text-stone-900">
-                        {fmtCurrency(
+                    <div>
+                      <Label>הכנסה מתוספות כולל מע״מ</Label>
+                      <Input
+                        type="text"
+                        value={fmtCurrency(
                           (parseFloat(formData.lighting_sound_cost) || 0) +
                           (parseFloat(formData.after_party_food_cost) || 0) +
                           (parseFloat(formData.custom_addition_1_amount) || 0) +
                           (parseFloat(formData.custom_addition_2_amount) || 0)
                         )}
-                      </p>
+                        disabled
+                        readOnly />
                     </div>
-                    <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
-                      <Label className="block">הכנסה כוללת</Label>
-                      <p className="text-xl font-bold text-emerald-700">
-                        {fmtCurrency(
+                    <div>
+                      <Label>הכנסה כוללת</Label>
+                      <Input
+                        type="text"
+                        className="font-semibold text-emerald-700"
+                        value={fmtCurrency(
                           ((parseFloat(formData.price_per_plate) || 0) * (formData.guest_count || 0)) +
                           (parseFloat(formData.lighting_sound_cost) || 0) +
                           (parseFloat(formData.after_party_food_cost) || 0) +
                           (parseFloat(formData.custom_addition_1_amount) || 0) +
                           (parseFloat(formData.custom_addition_2_amount) || 0)
                         )}
-                      </p>
+                        disabled
+                        readOnly />
                     </div>
                   </div>
 
