@@ -110,7 +110,10 @@ export default function TaskEmployees() {
       is_active: true,
       whatsapp_enabled: true,
       work_agreement: '',
-      note: ''
+      note: '',
+      pay_type: '',
+      hourly_rate: '',
+      global_rate: ''
     });
   };
 
@@ -225,6 +228,101 @@ export default function TaskEmployees() {
       toast.success('תפקיד נמחק');
     },
   });
+
+  const payLabel = (emp) => {
+    if (emp.pay_type === 'hourly') return `${emp.hourly_rate ?? 0} ₪/שעה`;
+    if (emp.pay_type === 'global') return `${emp.global_rate ?? 0} ₪ גלובלי`;
+    return null;
+  };
+
+  const renderEditFields = (excludeEmployeeId) => (
+    <>
+      <Input
+        value={editForm.full_name}
+        onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+        placeholder="שם מלא"
+        className="font-semibold"
+      />
+      <Input
+        value={editForm.phone_e164}
+        onChange={(e) => setEditForm({ ...editForm, phone_e164: e.target.value })}
+        placeholder="+972501234567"
+      />
+      <Select value={editForm.role_id || "__none__"} onValueChange={handleRoleChange}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="תפקיד" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">ללא תפקיד</SelectItem>
+          {roles.filter(r => r.is_active).map(role => {
+            const taken = employees.some(e => e.is_active && e.role_id === role.id && e.id !== excludeEmployeeId);
+            return (
+              <SelectItem key={role.id} value={role.id} disabled={taken}>
+                {role.role_name} ({role.department_name || '-'}){taken ? ' ✓' : ''}
+              </SelectItem>
+            );
+          })}
+        </SelectContent>
+      </Select>
+      <p className="text-sm text-stone-600">מחלקה: {editForm.department_name || '-'}</p>
+      {renderBackupSelect()}
+      {renderPayFields()}
+      <Input
+        value={editForm.work_agreement || ''}
+        onChange={(e) => setEditForm({ ...editForm, work_agreement: e.target.value })}
+        placeholder="הסכם עבודה"
+      />
+      <Input
+        value={editForm.note || ''}
+        onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+        placeholder="הערה"
+      />
+      <div className="flex items-center gap-4 text-sm pt-1">
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={!!editForm.is_active} onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })} />
+          פעיל
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={!!editForm.whatsapp_enabled} onChange={(e) => setEditForm({ ...editForm, whatsapp_enabled: e.target.checked })} />
+          WhatsApp
+        </label>
+      </div>
+    </>
+  );
+
+  const renderPayFields = () => (
+    <div className="flex gap-2">
+      <Select
+        value={editForm.pay_type || '__none__'}
+        onValueChange={(v) => setEditForm({ ...editForm, pay_type: v === '__none__' ? '' : v })}
+      >
+        <SelectTrigger className="w-32 shrink-0">
+          <SelectValue placeholder="סוג שכר" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">ללא</SelectItem>
+          <SelectItem value="hourly">שעתי</SelectItem>
+          <SelectItem value="global">גלובלי</SelectItem>
+        </SelectContent>
+      </Select>
+      {editForm.pay_type === 'hourly' && (
+        <Input
+          type="number"
+          placeholder="₪ לשעה"
+          value={editForm.hourly_rate ?? ''}
+          onChange={(e) => setEditForm({ ...editForm, hourly_rate: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+        />
+      )}
+      {editForm.pay_type === 'global' && (
+        <Input
+          type="number"
+          placeholder="₪ גלובלי"
+          value={editForm.global_rate ?? ''}
+          onChange={(e) => setEditForm({ ...editForm, global_rate: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+        />
+      )}
+    </div>
+  );
 
   const departmentColors = {
     "שירות": "bg-blue-100 text-blue-700",
@@ -342,258 +440,98 @@ export default function TaskEmployees() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-stone-50">
-                <tr>
-                  <th className="text-right p-3 text-sm font-semibold text-stone-700">שם מלא</th>
-                  <th className="text-right p-3 text-sm font-semibold text-stone-700">טלפון <span className="font-normal text-stone-400">(+972...)</span></th>
-                  <th className="text-right p-3 text-sm font-semibold text-stone-700">תפקיד</th>
-                  <th className="text-right p-3 text-sm font-semibold text-stone-700">מחלקה</th>
-                  <th className="text-right p-3 text-sm font-semibold text-stone-700">מנהל</th>
-                  <th className="text-right p-3 text-sm font-semibold text-stone-700">סטטוס</th>
-                  <th className="text-right p-3 text-sm font-semibold text-stone-700">WhatsApp</th>
-                  <th className="text-right p-3 text-sm font-semibold text-stone-700">עובד חלופי</th>
-                  <th className="text-right p-3 text-sm font-semibold text-stone-700">הסכם עבודה</th>
-                  <th className="text-right p-3 text-sm font-semibold text-stone-700">הערה</th>
-                  <th className="text-right p-3 text-sm font-semibold text-stone-700">פעולות</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-200">
-                {editingId === 'new' && (
-                  <tr className="bg-blue-50">
-                    <td className="p-3">
-                      <Input
-                        value={editForm.full_name}
-                        onChange={(e) => setEditForm({...editForm, full_name: e.target.value})}
-                        placeholder="שם מלא"
-                      />
-                    </td>
-                    <td className="p-3">
-                      <Input
-                        value={editForm.phone_e164}
-                        onChange={(e) => setEditForm({...editForm, phone_e164: e.target.value})}
-                        placeholder="+972501234567"
-                      />
-                    </td>
-                    <td className="p-3">
-                      <Select
-                        value={editForm.role_id || "__none__"}
-                        onValueChange={handleRoleChange}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="תפקיד" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">ללא תפקיד</SelectItem>
-                          {roles.filter(r => r.is_active).map(role => {
-                            const taken = employees.some(e => e.is_active && e.role_id === role.id);
-                            return (
-                              <SelectItem key={role.id} value={role.id} disabled={taken}>
-                                {role.role_name} ({role.department_name || '-'}){taken ? ' ✓' : ''}
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="p-3">
-                      <span className="text-sm text-stone-600">{editForm.department_name || '-'}</span>
-                    </td>
-                    <td className="p-3">-</td>
-                    <td className="p-3">-</td>
-                    <td className="p-3">-</td>
-                    <td className="p-3">{renderBackupSelect()}</td>
-                    <td className="p-3">
-                      <Input
-                        value={editForm.work_agreement || ''}
-                        onChange={(e) => setEditForm({...editForm, work_agreement: e.target.value})}
-                        placeholder="הסכם עבודה"
-                      />
-                    </td>
-                    <td className="p-3">
-                      <Input
-                        value={editForm.note || ''}
-                        onChange={(e) => setEditForm({...editForm, note: e.target.value})}
-                        placeholder="הערה"
-                      />
-                    </td>
-                    <td className="p-3">
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => handleSave('new')}
-                          className="bg-emerald-600 hover:bg-emerald-700"
-                        >
-                          <Check className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleCancel}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-                {filteredEmployees.map((employee) => (
-                  <tr key={employee.id} className={editingId === employee.id ? "bg-blue-50" : "hover:bg-stone-50"}>
+          <div className="max-h-[75vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {editingId === 'new' && (
+                <Card className="border-emerald-400 border-2">
+                  <CardContent className="p-4 space-y-3">
+                    {renderEditFields(null)}
+                    <div className="flex gap-2 pt-1">
+                      <Button size="sm" onClick={() => handleSave('new')} className="bg-emerald-600 hover:bg-emerald-700">
+                        <Check className="w-4 h-4 ml-1" /> שמירה
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleCancel}>
+                        <X className="w-4 h-4 ml-1" /> ביטול
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {filteredEmployees.map((employee) => (
+                <Card key={employee.id} className={editingId === employee.id ? "border-emerald-400 border-2" : "hover:shadow-md transition-shadow"}>
+                  <CardContent className="p-4 space-y-3">
                     {editingId === employee.id ? (
                       <>
-                        <td className="p-3">
-                          <Input
-                            value={editForm.full_name}
-                            onChange={(e) => setEditForm({...editForm, full_name: e.target.value})}
-                          />
-                        </td>
-                        <td className="p-3">
-                          <Input
-                            value={editForm.phone_e164}
-                            onChange={(e) => setEditForm({...editForm, phone_e164: e.target.value})}
-                          />
-                        </td>
-                        <td className="p-3">
-                          <Select
-                            value={editForm.role_id || "__none__"}
-                            onValueChange={handleRoleChange}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="תפקיד" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">ללא תפקיד</SelectItem>
-                              {roles.filter(r => r.is_active).map(role => {
-                                const taken = employees.some(e => e.is_active && e.role_id === role.id && e.id !== editingId);
-                                return (
-                                  <SelectItem key={role.id} value={role.id} disabled={taken}>
-                                    {role.role_name} ({role.department_name || '-'}){taken ? ' ✓' : ''}
-                                  </SelectItem>
-                                );
-                              })}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="p-3">
-                          <span className="text-sm text-stone-600">{editForm.department_name || '-'}</span>
-                        </td>
-                        <td className="p-3">
-                          <p className="text-sm text-stone-600">{employee.manager_name || '-'}</p>
-                        </td>
-                        <td className="p-3">
-                          <Badge className={employee.is_active ? "bg-emerald-100 text-emerald-700" : "bg-stone-100 text-stone-700"}>
-                            {employee.is_active ? 'פעיל' : 'לא פעיל'}
-                          </Badge>
-                        </td>
-                        <td className="p-3">
-                          <Badge className={employee.whatsapp_enabled ? "bg-green-100 text-green-700" : "bg-stone-100 text-stone-700"}>
-                            {employee.whatsapp_enabled ? 'מופעל' : 'כבוי'}
-                          </Badge>
-                        </td>
-                        <td className="p-3">{renderBackupSelect()}</td>
-                        <td className="p-3">
-                          <Input
-                            value={editForm.work_agreement || ''}
-                            onChange={(e) => setEditForm({...editForm, work_agreement: e.target.value})}
-                            placeholder="הסכם עבודה"
-                          />
-                        </td>
-                        <td className="p-3">
-                          <Input
-                            value={editForm.note || ''}
-                            onChange={(e) => setEditForm({...editForm, note: e.target.value})}
-                            placeholder="הערה"
-                          />
-                        </td>
-                        <td className="p-3">
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => handleSave(employee.id)}
-                              className="bg-emerald-600 hover:bg-emerald-700"
-                            >
-                              <Check className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleCancel}
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </td>
+                        {renderEditFields(employee.id)}
+                        <div className="flex gap-2 pt-1">
+                          <Button size="sm" onClick={() => handleSave(employee.id)} className="bg-emerald-600 hover:bg-emerald-700">
+                            <Check className="w-4 h-4 ml-1" /> שמירה
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={handleCancel}>
+                            <X className="w-4 h-4 ml-1" /> ביטול
+                          </Button>
+                        </div>
                       </>
                     ) : (
                       <>
-                        <td className="p-3">
-                          <p className="font-medium text-stone-900">{employee.full_name}</p>
-                        </td>
-                        <td className="p-3">
-                          <p className="text-sm text-stone-600 font-mono">{employee.phone_e164}</p>
-                        </td>
-                        <td className="p-3">
-                          <p className="text-sm text-stone-600">{employee.role_name || '-'}</p>
-                        </td>
-                        <td className="p-3">
-                          <Badge className="bg-blue-100 text-blue-700">
-                            {employee.department_name || '-'}
-                          </Badge>
-                        </td>
-                        <td className="p-3">
-                          <p className="text-sm text-stone-600">{employee.manager_name || '-'}</p>
-                        </td>
-                        <td className="p-3">
-                          <Badge className={employee.is_active ? "bg-emerald-100 text-emerald-700" : "bg-stone-100 text-stone-700"}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-lg text-stone-900 truncate">{employee.full_name}</h3>
+                            <p className="text-sm text-stone-500 font-mono">{employee.phone_e164 || '-'}</p>
+                          </div>
+                          <Badge className={employee.is_active ? "bg-emerald-100 text-emerald-700 shrink-0" : "bg-stone-100 text-stone-700 shrink-0"}>
                             {employee.is_active ? 'פעיל' : 'לא פעיל'}
                           </Badge>
-                        </td>
-                        <td className="p-3">
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5">
+                          {employee.role_name && <Badge variant="outline">{employee.role_name}</Badge>}
+                          {employee.department_name && <Badge className="bg-blue-100 text-blue-700">{employee.department_name}</Badge>}
                           <Badge className={employee.whatsapp_enabled ? "bg-green-100 text-green-700" : "bg-stone-100 text-stone-700"}>
-                            {employee.whatsapp_enabled ? 'מופעל' : 'כבוי'}
+                            WhatsApp {employee.whatsapp_enabled ? 'מופעל' : 'כבוי'}
                           </Badge>
-                        </td>
-                        <td className="p-3">
-                          <p className="text-sm text-stone-600">{employee.backup_employee_name || '-'}</p>
-                        </td>
-                        <td className="p-3">
-                          <p className="text-sm text-stone-600 max-w-[160px] truncate" title={employee.work_agreement || ''}>{employee.work_agreement || '-'}</p>
-                        </td>
-                        <td className="p-3">
-                          <p className="text-sm text-stone-600 max-w-[160px] truncate" title={employee.note || ''}>{employee.note || '-'}</p>
-                        </td>
-                        <td className="p-3">
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEdit(employee)}
-                            >
-                              <Edit className="w-4 h-4 mr-1" />
-                              ערוך
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                              onClick={() => {
-                                if (window.confirm(`האם למחוק את העובד ${employee.full_name}?`)) {
-                                  deleteEmployeeMutation.mutate(employee.id);
-                                }
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                        </div>
+
+                        <div className="text-sm text-stone-600 space-y-1">
+                          {employee.manager_name && <p>מנהל: {employee.manager_name}</p>}
+                          {employee.backup_employee_name && <p>עובד חלופי: {employee.backup_employee_name}</p>}
+                          {payLabel(employee) && <p className="font-medium text-stone-900">שכר: {payLabel(employee)}</p>}
+                        </div>
+
+                        {(employee.work_agreement || employee.note) && (
+                          <div className="text-xs text-stone-500 border-t border-stone-100 pt-2 space-y-1">
+                            {employee.work_agreement && <p className="truncate" title={employee.work_agreement}>הסכם: {employee.work_agreement}</p>}
+                            {employee.note && <p className="truncate" title={employee.note}>הערה: {employee.note}</p>}
                           </div>
-                        </td>
+                        )}
+
+                        <div className="flex gap-2 pt-1">
+                          <Button variant="outline" size="sm" onClick={() => handleEdit(employee)}>
+                            <Edit className="w-4 h-4 ml-1" />
+                            ערוך
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                            onClick={() => {
+                              if (window.confirm(`האם למחוק את העובד ${employee.full_name}?`)) {
+                                deleteEmployeeMutation.mutate(employee.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {filteredEmployees.length === 0 && (
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {filteredEmployees.length === 0 && editingId !== 'new' && (
               <div className="text-center py-12">
                 <Users className="w-12 h-12 text-stone-300 mx-auto mb-3" />
                 <p className="text-stone-500">לא נמצאו עובדים</p>
