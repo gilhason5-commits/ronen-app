@@ -25,3 +25,14 @@ export function calculateAdultPortions(guestCount, veganCount, glattCount) {
   const portions = adults - parseRangeMax(veganCount) - parseRangeMax(glattCount);
   return portions > 0 ? portions : 0;
 }
+
+// סה״כ אורחים (display total, distinct from מנות מבוגר above) = guest_count
+// (typed directly, the source of truth) + children + max(vegan) + max(glatt)
+// + max(reserves). Unlike calculateAdultPortions this ADDS vegan/glatt/
+// reserves on top rather than subtracting them — it's a full headcount
+// tally, not a standard-menu planning figure.
+export function calculateTotalGuests(guestCount, childrenCount, veganCount, glattCount, reserves) {
+  const adults = parseInt(guestCount, 10) || 0;
+  const children = parseInt(childrenCount, 10) || 0;
+  return adults + children + parseRangeMax(veganCount) + parseRangeMax(glattCount) + parseRangeMax(reserves);
+}

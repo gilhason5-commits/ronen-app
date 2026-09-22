@@ -23,7 +23,7 @@ import EventSummary from "../events/EventSummary";
 import EventPrintDialog from "../events/EventPrintDialog";
 import DepartmentPrintDialog from "../events/DepartmentPrintDialog";
 import { fmtCurrency } from "../utils/formatNumbers";
-import { calculateAdultCommitment, calculateAdultPortions, parseRangeMax } from "@/lib/dinerCount";
+import { calculateTotalGuests, calculateAdultPortions, parseRangeMax } from "@/lib/dinerCount";
 import { applyWasteToValue, wasteLabel } from "@/lib/foodWaste";
 
 export default function EventForm({ event, onClose }) {
@@ -45,11 +45,13 @@ export default function EventForm({ event, onClose }) {
     food_cost_pct: 0
   });
 
-  // Keep guest_count (סה״כ מבוגרים להתחייבות) in sync = total_guests − children_count
+  // total_guests (סה״כ אורחים) is a derived display total — guest_count is
+  // now the field typed directly (מבוגרים להתחייבות), and total_guests =
+  // guest_count + children + vegan + glatt + reserves.
   const updateGuestData = (changes) => {
     setFormData((prev) => {
       const next = { ...prev, ...changes };
-      next.guest_count = calculateAdultCommitment(next.total_guests, next.children_count);
+      next.total_guests = calculateTotalGuests(next.guest_count, next.children_count, next.vegan_count, next.glatt_count, next.reserves);
       return next;
     });
   };
@@ -115,10 +117,9 @@ export default function EventForm({ event, onClose }) {
           ...prev,
           ...event,
           price_per_plate: event.price_per_plate != null ? String(event.price_per_plate) : '',
-          total_guests: event.total_guests ?? event.guest_count ?? 0,
           children_count: event.children_count ?? ''
         };
-        merged.guest_count = calculateAdultCommitment(merged.total_guests, merged.children_count);
+        merged.total_guests = calculateTotalGuests(merged.guest_count, merged.children_count, merged.vegan_count, merged.glatt_count, merged.reserves);
         return merged;
       });
     }
@@ -455,170 +456,201 @@ export default function EventForm({ event, onClose }) {
                     }
                   </div>
 
-                  <div className="col-span-2 grid grid-cols-4 gap-4">
-                    <div>
-                      <Label>סה״כ אורחים *</Label>
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        value={formData.total_guests || ''}
-                        onChange={(e) => updateGuestData({ total_guests: parseInt(e.target.value) || 0 })}
-                        placeholder="0"
-                        required />
-                    </div>
-                    <div>
-                      <Label>ילדים</Label>
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        value={formData.children_count ?? ''}
-                        onChange={(e) => updateGuestData({ children_count: parseInt(e.target.value) || 0 })}
-                        placeholder="0" />
-                    </div>
-                    <div>
-                      <Label>סה״כ מבוגרים להתחייבות</Label>
-                      <Input
-                        type="text"
-                        value={formData.guest_count || ''}
-                        disabled
-                        readOnly />
-                      {wasteLabel(formData.guest_count) ? (
-                        <p className="text-xs text-amber-700 mt-1">
-                          פחת אוכל: {wasteLabel(formData.guest_count)}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-stone-400 mt-1">ללא פחת (מתחת ל-150)</p>
-                      )}
-                    </div>
-                    <div>
-                      <Label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"> מחיר מנה כולל מע״מ (₪)
-                      </Label>
-                      <Input type="text"
-                        inputMode="decimal"
-                        value={formData.price_per_plate}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setFormData({ ...formData, price_per_plate: value });
-                        }}
-                        placeholder="0"
-                        required />
-                      <p className="text-sm text-stone-500 mt-1">
-                        הכנסה מאוכל: {fmtCurrency((parseFloat(formData.price_per_plate) || 0) * (formData.guest_count || 0))}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="col-span-2 grid grid-cols-4 gap-4">
-                    <div>
-                      <Label>רזרבות</Label>
-                      <Input
-                        type="text"
-                        value={formData.reserves || ''}
-                        onChange={(e) => setFormData({ ...formData, reserves: e.target.value })}
-                        placeholder="טווח (10-20)" />
-                      {(() => {
-                        const reservesMax = parseRangeMax(formData.reserves);
-                        const guestCount = formData.guest_count || 0;
-                        const pct = guestCount > 0 ? (reservesMax / guestCount) * 100 : 0;
-                        return pct > 5 ? (
-                          <p className="text-xs text-amber-700 mt-1">
-                            מעל 5% מהאורחים — יש לבקש אישור מרונן
-                          </p>
-                        ) : null;
-                      })()}
-                    </div>
-                    <div>
-                      <Label>טבעונים</Label>
-                      <Input
-                        type="text"
-                        value={formData.vegan_count || ''}
-                        onChange={(e) => setFormData({ ...formData, vegan_count: e.target.value })}
-                        placeholder="0 או טווח" />
-                    </div>
-                    <div>
-                      <Label>גלאט</Label>
-                      <div className="flex gap-2">
+                  <div className="col-span-2 grid grid-cols-2 gap-6 divide-x divide-x-reverse divide-stone-200">
+                    {/* כמויות */}
+                    <div className="pr-6 grid grid-cols-2 gap-4">
+                      <div className="col-span-2">
+                        <Label>סה״כ מבוגרים להתחייבות *</Label>
                         <Input
                           type="text"
                           inputMode="numeric"
-                          className="w-16 shrink-0 text-center font-semibold"
-                          value={formData.glatt_count || ''}
-                          onChange={(e) => setFormData({ ...formData, glatt_count: e.target.value })}
-                          placeholder="0" />
+                          value={formData.guest_count || ''}
+                          onChange={(e) => updateGuestData({ guest_count: parseInt(e.target.value) || 0 })}
+                          placeholder="0"
+                          required />
+                        {wasteLabel(formData.guest_count) ? (
+                          <p className="text-xs text-amber-700 mt-1">
+                            פחת אוכל: {wasteLabel(formData.guest_count)}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-stone-400 mt-1">ללא פחת (מתחת ל-150)</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <Label>טבעונים</Label>
                         <Input
                           type="text"
-                          className="flex-1"
-                          value={formData.kashrut_note || ''}
-                          onChange={(e) => setFormData({ ...formData, kashrut_note: e.target.value })}
-                          placeholder="סוג כשרות..." />
+                          value={formData.vegan_count || ''}
+                          onChange={(e) => updateGuestData({ vegan_count: e.target.value })}
+                          placeholder="0 או טווח" />
+                      </div>
+                      <div>
+                        <Label>ילדים</Label>
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          value={formData.children_count ?? ''}
+                          onChange={(e) => updateGuestData({ children_count: parseInt(e.target.value) || 0 })}
+                          placeholder="0" />
+                      </div>
+
+                      <div>
+                        <Label>רזרבות</Label>
+                        <Input
+                          type="text"
+                          value={formData.reserves || ''}
+                          onChange={(e) => updateGuestData({ reserves: e.target.value })}
+                          placeholder="טווח (10-20)" />
+                        {(() => {
+                          const reservesMax = parseRangeMax(formData.reserves);
+                          const guestCount = formData.guest_count || 0;
+                          const pct = guestCount > 0 ? (reservesMax / guestCount) * 100 : 0;
+                          return pct > 5 ? (
+                            <p className="text-xs text-amber-700 mt-1">
+                              מעל 5% מהאורחים — יש לבקש אישור מרונן
+                            </p>
+                          ) : null;
+                        })()}
+                      </div>
+                      <div>
+                        <Label>גלאט</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            className="w-16 shrink-0 text-center font-semibold"
+                            value={formData.glatt_count || ''}
+                            onChange={(e) => updateGuestData({ glatt_count: e.target.value })}
+                            placeholder="0" />
+                          <Input
+                            type="text"
+                            className="flex-1"
+                            value={formData.kashrut_note || ''}
+                            onChange={(e) => setFormData({ ...formData, kashrut_note: e.target.value })}
+                            placeholder="סוג כשרות..." />
+                        </div>
+                      </div>
+
+                      <div className="col-span-2 text-center">
+                        <Label className="block">סה״כ אורחים</Label>
+                        <p className="text-2xl font-bold text-stone-900">{formData.total_guests || 0}</p>
+                      </div>
+                      <div className="col-span-2 text-center">
+                        <Label className="block">סה״כ מנות למוצר</Label>
+                        <p className="text-2xl font-bold text-stone-900">{formData.total_guests || 0}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <Label>מנות מבוגר</Label>
+                        <Input
+                          type="text"
+                          value={calculateAdultPortions(formData.guest_count, formData.vegan_count, formData.glatt_count) || ''}
+                          disabled
+                          readOnly />
                       </div>
                     </div>
-                    <div>
-                      <Label>מנות מבוגר</Label>
-                      <Input
-                        type="text"
-                        value={calculateAdultPortions(formData.guest_count, formData.vegan_count, formData.glatt_count) || ''}
-                        disabled
-                        readOnly />
+
+                    {/* סכומים */}
+                    <div className="pl-6 space-y-4">
+                      <div>
+                        <Label className="text-sm font-medium leading-none"> מחיר מנה כולל מע״מ (₪)
+                        </Label>
+                        <Input type="text"
+                          inputMode="decimal"
+                          value={formData.price_per_plate}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setFormData({ ...formData, price_per_plate: value });
+                          }}
+                          placeholder="0"
+                          required />
+                      </div>
+                      <div>
+                        <Label>תאורה והגברה (₪)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={formData.lighting_sound_cost ?? ''}
+                          onChange={(e) => setFormData({ ...formData, lighting_sound_cost: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                          placeholder="0" />
+                      </div>
+                      <div>
+                        <Label>אוכל אפטר (₪)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={formData.after_party_food_cost ?? ''}
+                          onChange={(e) => setFormData({ ...formData, after_party_food_cost: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                          placeholder="0" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>תוספת נוספת</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="text"
+                            className="flex-1"
+                            value={formData.custom_addition_1_name || ''}
+                            onChange={(e) => setFormData({ ...formData, custom_addition_1_name: e.target.value })}
+                            placeholder="שם התוספת..." />
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="w-28 shrink-0"
+                            value={formData.custom_addition_1_amount ?? ''}
+                            onChange={(e) => setFormData({ ...formData, custom_addition_1_amount: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                            placeholder="₪" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>תוספת נוספת</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="text"
+                            className="flex-1"
+                            value={formData.custom_addition_2_name || ''}
+                            onChange={(e) => setFormData({ ...formData, custom_addition_2_name: e.target.value })}
+                            placeholder="שם התוספת..." />
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="w-28 shrink-0"
+                            value={formData.custom_addition_2_amount ?? ''}
+                            onChange={(e) => setFormData({ ...formData, custom_addition_2_amount: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
+                            placeholder="₪" />
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="col-span-2 grid grid-cols-4 gap-4">
-                    <div>
-                      <Label>תאורה והגברה (₪)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={formData.lighting_sound_cost ?? ''}
-                        onChange={(e) => setFormData({ ...formData, lighting_sound_cost: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                        placeholder="0" />
+                  <div className="col-span-2 grid grid-cols-3 gap-4 pt-2">
+                    <div className="rounded-lg bg-stone-50 border border-stone-200 p-4 text-center">
+                      <Label className="block">הכנסה מאוכל כולל מע״מ</Label>
+                      <p className="text-xl font-bold text-stone-900">
+                        {fmtCurrency((parseFloat(formData.price_per_plate) || 0) * (formData.guest_count || 0))}
+                      </p>
                     </div>
-                    <div>
-                      <Label>אוכל אפטר (₪)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={formData.after_party_food_cost ?? ''}
-                        onChange={(e) => setFormData({ ...formData, after_party_food_cost: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                        placeholder="0" />
+                    <div className="rounded-lg bg-stone-50 border border-stone-200 p-4 text-center">
+                      <Label className="block">הכנסה מתוספות כולל מע״מ</Label>
+                      <p className="text-xl font-bold text-stone-900">
+                        {fmtCurrency(
+                          (parseFloat(formData.lighting_sound_cost) || 0) +
+                          (parseFloat(formData.after_party_food_cost) || 0) +
+                          (parseFloat(formData.custom_addition_1_amount) || 0) +
+                          (parseFloat(formData.custom_addition_2_amount) || 0)
+                        )}
+                      </p>
                     </div>
-                    <div className="space-y-2">
-                      <div>
-                        <Label>תוספת נוספת</Label>
-                        <Input
-                          type="text"
-                          value={formData.custom_addition_1_name || ''}
-                          onChange={(e) => setFormData({ ...formData, custom_addition_1_name: e.target.value })}
-                          placeholder="שם התוספת..." />
-                      </div>
-                      <div>
-                        <Label>מחיר (₪)</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={formData.custom_addition_1_amount ?? ''}
-                          onChange={(e) => setFormData({ ...formData, custom_addition_1_amount: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                          placeholder="0" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div>
-                        <Label>תוספת נוספת</Label>
-                        <Input
-                          type="text"
-                          value={formData.custom_addition_2_name || ''}
-                          onChange={(e) => setFormData({ ...formData, custom_addition_2_name: e.target.value })}
-                          placeholder="שם התוספת..." />
-                      </div>
-                      <div>
-                        <Label>מחיר (₪)</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={formData.custom_addition_2_amount ?? ''}
-                          onChange={(e) => setFormData({ ...formData, custom_addition_2_amount: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-                          placeholder="0" />
-                      </div>
+                    <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
+                      <Label className="block">הכנסה כוללת</Label>
+                      <p className="text-xl font-bold text-emerald-700">
+                        {fmtCurrency(
+                          ((parseFloat(formData.price_per_plate) || 0) * (formData.guest_count || 0)) +
+                          (parseFloat(formData.lighting_sound_cost) || 0) +
+                          (parseFloat(formData.after_party_food_cost) || 0) +
+                          (parseFloat(formData.custom_addition_1_amount) || 0) +
+                          (parseFloat(formData.custom_addition_2_amount) || 0)
+                        )}
+                      </p>
                     </div>
                   </div>
 
