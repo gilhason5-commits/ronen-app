@@ -84,7 +84,7 @@ export default function Dishes() {
   const categories = categoriesForEventType.filter(cat => (cat.group_type || 'food') === filterGroup);
   const subCategories = allSubCategories.filter(sc => sc.event_type === eventTypeFilter);
 
-  const GROUP_LABELS = { food: 'אוכל', drink: 'שתייה', consumables: 'מתכלים' };
+  const GROUP_LABELS = { food: 'אוכל', drink: 'שתייה', consumables: 'מתכלים', general: 'כלליות' };
 
   // Auto-open edit dialog if edit param exists
   useEffect(() => {

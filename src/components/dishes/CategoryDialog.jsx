@@ -25,6 +25,7 @@ const GROUP_LABELS = {
   food: 'אוכל',
   drink: 'שתייה',
   consumables: 'מתכלים',
+  general: 'כלליות',
 };
 
 export default function CategoryDialog({ category, eventType = 'serving', groupType = 'food', open, onClose }) {

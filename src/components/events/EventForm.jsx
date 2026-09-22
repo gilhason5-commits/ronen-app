@@ -18,6 +18,7 @@ import {
 import { ArrowLeft, AlertCircle, Printer } from "lucide-react";
 import { toast } from "sonner";
 import EventStages from "../events/EventStages";
+import EventGeneralExpenses from "../events/EventGeneralExpenses";
 import EventSummary from "../events/EventSummary";
 
 import EventPrintDialog from "../events/EventPrintDialog";
@@ -71,7 +72,15 @@ export default function EventForm({ event, onClose }) {
     initialData: []
   });
 
-  const categories = allCategories.filter((cat) => cat.event_type === formData.event_type);
+  // Excludes group_type 'general' categories — those are per-event flat
+  // expenses (see EventGeneralExpenses below), not part of the guest-count
+  // driven dish tree that EventStages/print reports walk.
+  const categories = allCategories.filter(
+    (cat) => cat.event_type === formData.event_type && (cat.group_type || "food") !== "general"
+  );
+  const generalCategories = allCategories.filter(
+    (cat) => cat.event_type === formData.event_type && cat.group_type === "general"
+  );
 
   const { data: allDishes = [] } = useQuery({
     queryKey: ['dishes'],
@@ -689,7 +698,13 @@ export default function EventForm({ event, onClose }) {
                 queryClient.invalidateQueries({ queryKey: ["event_form_dishes", event?.id] });
               }} />
 
-
+              <EventGeneralExpenses
+              event={event}
+              generalDishes={allDishes.filter(
+                (dish) => dish.event_type === formData.event_type &&
+                  dish.categories?.some((cid) => generalCategories.some((c) => c.id === cid))
+              )}
+              generalCategories={generalCategories} />
 
             </>
           }
