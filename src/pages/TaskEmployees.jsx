@@ -571,7 +571,7 @@ export default function TaskEmployees() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <h3 className="font-bold text-lg text-stone-900 truncate">{employee.full_name}</h3>
-                            <p className="text-sm text-stone-500 font-mono">{employee.phone_e164 || '-'}</p>
+                            <p className="inline-block mt-0.5 text-sm text-stone-600 font-mono border border-stone-200 rounded-full px-3 py-0.5">{employee.phone_e164 || '-'}</p>
                           </div>
                           <Badge className={employee.is_active ? "bg-emerald-100 text-emerald-700 shrink-0" : "bg-stone-100 text-stone-700 shrink-0"}>
                             {employee.is_active ? 'פעיל' : 'לא פעיל'}
@@ -586,11 +586,13 @@ export default function TaskEmployees() {
                           </Badge>
                         </div>
 
-                        <div className="text-sm text-stone-600 space-y-1">
-                          {employee.manager_name && <p>מנהל: {employee.manager_name}</p>}
-                          {employee.backup_employee_name && <p>עובד חלופי: {employee.backup_employee_name}</p>}
-                          {payLabel(employee) && <p className="font-medium text-stone-900">שכר: {payLabel(employee)}</p>}
-                        </div>
+                        {(employee.manager_name || employee.backup_employee_name || payLabel(employee)) && (
+                          <div className="text-sm text-stone-600 space-y-1 border border-stone-200 rounded-lg px-3 py-2">
+                            {employee.manager_name && <p>מנהל: {employee.manager_name}</p>}
+                            {employee.backup_employee_name && <p>עובד חלופי: {employee.backup_employee_name}</p>}
+                            {payLabel(employee) && <p className="font-medium text-stone-900">שכר: {payLabel(employee)}</p>}
+                          </div>
+                        )}
 
                         {(employee.work_agreement || employee.note) && (
                           <div className="text-xs text-stone-500 border-t border-stone-100 pt-2 space-y-1">
