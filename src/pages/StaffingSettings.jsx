@@ -341,14 +341,33 @@ function TipRulesTab() {
 }
 
 // ---------- kitchen roster tab ----------
-function KitchenRosterTab() {
-  const { data: members = [] } = useQuery({
+// group distinguishes two independent weekly tables on מפת כוח אדם: the
+// original "kitchen" roster (cooking/prep/pot-washing) and the newer "ops"
+// roster (בר / ניקיון כללי / מדיח) — same UI, same underlying entity, just
+// filtered by roster_group so the two never mix.
+function KitchenRosterTab({ group = "kitchen", title = "צוות מטבח", description }) {
+  const { data: allMembers = [] } = useQuery({
     queryKey: ["kitchenRoster"],
     queryFn: () => base44.entities.KitchenRosterMember.list("sort_order"),
     initialData: [],
   });
+  const members = useMemo(
+    () => allMembers.filter((m) => (m.roster_group || "kitchen") === group),
+    [allMembers, group]
+  );
+  const { data: allEmployees = [] } = useQuery({
+    queryKey: ["taskEmployees"],
+    queryFn: () => base44.entities.TaskEmployee.list(),
+    initialData: [],
+  });
+  const activeEmployees = useMemo(
+    () => allEmployees.filter((e) => e.is_active && e.full_name?.trim())
+      .sort((a, b) => (a.full_name || "").localeCompare(b.full_name || "", "he")),
+    [allEmployees]
+  );
   const crud = useEntityCrud("KitchenRosterMember", "kitchenRoster", "איש צוות");
   const queryClient = useQueryClient();
+  const [newSelection, setNewSelection] = useState({});
   const [newName, setNewName] = useState({});
   const [newStationName, setNewStationName] = useState("");
 
@@ -358,11 +377,24 @@ function KitchenRosterTab() {
   const addMember = useMutation({
     mutationFn: async ({ full_name, station, sort_order }) => {
       const employee = await base44.entities.TaskEmployee.create({ full_name, is_active: true });
-      return base44.entities.KitchenRosterMember.create({ full_name, station, sort_order, employee_id: employee.id });
+      return base44.entities.KitchenRosterMember.create({ full_name, station, sort_order, employee_id: employee.id, roster_group: group });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kitchenRoster"] });
       queryClient.invalidateQueries({ queryKey: ["taskEmployees"] });
+      toast.success("איש צוות נוסף");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  // Picking an existing employee from the dropdown reuses their record —
+  // no duplicate TaskEmployee, just a new roster row pointing at them (the
+  // same person can appear in more than one station/table).
+  const addExistingMember = useMutation({
+    mutationFn: async ({ employee, station, sort_order }) =>
+      base44.entities.KitchenRosterMember.create({ full_name: employee.full_name, station, sort_order, employee_id: employee.id, roster_group: group }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kitchenRoster"] });
       toast.success("איש צוות נוסף");
     },
     onError: (e) => toast.error(e.message),
@@ -385,8 +417,9 @@ function KitchenRosterTab() {
 
   return (
     <div className="space-y-4">
+      <h3 className="text-lg font-bold text-stone-900">{title}</h3>
       <p className="text-sm text-slate-500">
-        לוח המשמרות השבועי של צוות המטבח והניקיון (במפת כוח אדם) לא מחושב מהתקנים — כל אדם שומר בערך על אותן שעות כל שבוע, וכאן קובעים מי קיים, לאיזו עמדה הוא שייך ומה השעות הרגילות שלו (ניתן לשנות שעות לכל יום בנפרד ישירות בלוח).
+        {description || "לוח המשמרות השבועי (במפת כוח אדם) לא מחושב מהתקנים — כל אדם שומר בערך על אותן שעות כל שבוע, וכאן קובעים מי קיים, לאיזו עמדה הוא שייך ומה השעות הרגילות שלו (ניתן לשנות שעות לכל יום בנפרד ישירות בלוח)."}
       </p>
       <div className="grid md:grid-cols-2 gap-4 items-start">
         {stations.map((station) => {
@@ -413,14 +446,44 @@ function KitchenRosterTab() {
                     </div>
                   ))}
                 </div>
-                <div className="flex gap-2 mt-3">
-                  <Input placeholder="שם עובד חדש" className="h-8" value={newName[station] || ""} onChange={(e) => setNewName({ ...newName, [station]: e.target.value })} />
+                <div className="flex gap-2 mt-3 flex-wrap items-center">
+                  <Select
+                    value={newSelection[station] || ""}
+                    onValueChange={(v) => setNewSelection({ ...newSelection, [station]: v })}
+                  >
+                    <SelectTrigger className="h-8 flex-1 min-w-[140px]">
+                      <SelectValue placeholder="בחר עובד..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeEmployees.map((e) => (
+                        <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>
+                      ))}
+                      <SelectItem value="__new__">+ עובד חדש...</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {newSelection[station] === "__new__" && (
+                    <Input
+                      placeholder="שם העובד החדש"
+                      className="h-8 w-32"
+                      value={newName[station] || ""}
+                      onChange={(e) => setNewName({ ...newName, [station]: e.target.value })}
+                    />
+                  )}
                   <Button size="sm" onClick={() => {
-                    const name = (newName[station] || "").trim();
-                    if (!name) return;
+                    const sel = newSelection[station];
+                    if (!sel) return;
                     const maxOrder = Math.max(0, ...stationMembers.map((m) => m.sort_order || 0));
-                    addMember.mutate({ full_name: name, station, sort_order: maxOrder + 1 });
-                    setNewName({ ...newName, [station]: "" });
+                    if (sel === "__new__") {
+                      const name = (newName[station] || "").trim();
+                      if (!name) return;
+                      addMember.mutate({ full_name: name, station, sort_order: maxOrder + 1 });
+                      setNewName({ ...newName, [station]: "" });
+                    } else {
+                      const employee = activeEmployees.find((e) => e.id === sel);
+                      if (!employee) return;
+                      addExistingMember.mutate({ employee, station, sort_order: maxOrder + 1 });
+                    }
+                    setNewSelection({ ...newSelection, [station]: "" });
                   }}><Plus className="w-4 h-4" /></Button>
                 </div>
               </CardContent>
@@ -466,7 +529,16 @@ export default function StaffingSettings() {
         </TabsList>
         <TabsContent value="rules"><StaffingRulesTab /></TabsContent>
         <TabsContent value="agencies"><AgenciesTab /></TabsContent>
-        <TabsContent value="kitchen"><KitchenRosterTab /></TabsContent>
+        <TabsContent value="kitchen" className="space-y-8">
+          <KitchenRosterTab group="kitchen" title="צוות מטבח" />
+          <div className="border-t border-stone-200 pt-6">
+            <KitchenRosterTab
+              group="ops"
+              title="תפעול"
+              description="לוח המשמרות השבועי של צוות התפעול (בר, ניקיון כללי, מדיח) במפת כוח אדם — טבלה נפרדת מצוות המטבח, מוצגת מתחתיה."
+            />
+          </div>
+        </TabsContent>
         <TabsContent value="tips"><TipRulesTab /></TabsContent>
       </Tabs>
     </div>

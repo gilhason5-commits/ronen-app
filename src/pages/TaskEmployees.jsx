@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Users, Phone, Shield, Settings, Briefcase, Edit, Check, X, Trash2, FileText } from "lucide-react";
+import { Plus, Search, Users, Phone, Shield, Settings, Briefcase, Edit, Check, X, Trash2, FileText, Upload } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -31,7 +31,36 @@ export default function TaskEmployees() {
   const [searchTerm, setSearchTerm] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const [uploadingAgreement, setUploadingAgreement] = useState(false);
   const queryClient = useQueryClient();
+
+  const handleAgreementUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      toast.error('אנא העלה קובץ PDF');
+      return;
+    }
+    setUploadingAgreement(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setEditForm((prev) => ({ ...prev, work_agreement: file_url }));
+    } catch (error) {
+      toast.error('העלאת הקובץ נכשלה');
+    } finally {
+      setUploadingAgreement(false);
+      e.target.value = '';
+    }
+  };
+
+  const agreementFileName = (url) => {
+    try {
+      const last = decodeURIComponent(url.split('/').pop() || '');
+      return last.replace(/^\d+-/, '') || 'הסכם עבודה';
+    } catch {
+      return 'הסכם עבודה';
+    }
+  };
 
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ['taskEmployees'],
@@ -277,11 +306,51 @@ export default function TaskEmployees() {
       <p className="text-sm text-stone-600">מחלקה: {editForm.department_name || '-'}</p>
       {renderBackupSelect()}
       {renderPayFields()}
-      <Input
-        value={editForm.work_agreement || ''}
-        onChange={(e) => setEditForm({ ...editForm, work_agreement: e.target.value })}
-        placeholder="הסכם עבודה"
-      />
+      <div className="space-y-1.5 border border-stone-200 rounded-md p-2">
+        <p className="text-xs font-medium text-stone-500">הסכם עבודה</p>
+        {editForm.work_agreement ? (
+          <div className="flex items-center gap-2">
+            <a
+              href={editForm.work_agreement}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 text-sm text-blue-600 hover:underline truncate"
+            >
+              {agreementFileName(editForm.work_agreement)}
+            </a>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => setEditForm({ ...editForm, work_agreement: '' })}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        ) : (
+          <div>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={handleAgreementUpload}
+              disabled={uploadingAgreement}
+              className="hidden"
+              id="work-agreement-upload"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => document.getElementById('work-agreement-upload')?.click()}
+              disabled={uploadingAgreement}
+            >
+              <Upload className="w-4 h-4 ml-2" />
+              {uploadingAgreement ? 'מעלה...' : 'העלה PDF'}
+            </Button>
+          </div>
+        )}
+      </div>
       <Input
         value={editForm.note || ''}
         onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
@@ -422,7 +491,7 @@ export default function TaskEmployees() {
                 />
               </div>
               <Button onClick={handleAddNew} className="bg-emerald-600 hover:bg-emerald-700">
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 ml-2" />
                 עובד חדש
               </Button>
             </div>
@@ -515,7 +584,20 @@ export default function TaskEmployees() {
 
                         {(employee.work_agreement || employee.note) && (
                           <div className="text-xs text-stone-500 border-t border-stone-100 pt-2 space-y-1">
-                            {employee.work_agreement && <p className="truncate" title={employee.work_agreement}>הסכם: {employee.work_agreement}</p>}
+                            {employee.work_agreement && (
+                              <p className="truncate">
+                                הסכם:{' '}
+                                <a
+                                  href={employee.work_agreement}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {agreementFileName(employee.work_agreement)}
+                                </a>
+                              </p>
+                            )}
                             {employee.note && <p className="truncate" title={employee.note}>הערה: {employee.note}</p>}
                           </div>
                         )}
@@ -564,7 +646,7 @@ export default function TaskEmployees() {
               <div className="flex justify-between items-center">
                 <CardTitle>מחלקות</CardTitle>
                 <Button onClick={() => { setSelectedDepartment(null); setShowDeptDialog(true); }} size="sm">
-                  <Plus className="w-4 h-4 mr-2" />
+                  <Plus className="w-4 h-4 ml-2" />
                   מחלקה חדשה
                 </Button>
               </div>
@@ -620,7 +702,7 @@ export default function TaskEmployees() {
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold">ניהול תפקידים</h2>
             <Button onClick={() => { setSelectedRole(null); setTimeout(() => setShowRoleDialog(true), 0); }}>
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-4 h-4 ml-2" />
               תפקיד חדש
             </Button>
           </div>

@@ -14,6 +14,10 @@ const STATION_COLORS = {
   "דגים": "bg-rose-200 text-rose-900",
   "קונדיטוריה": "bg-purple-200 text-purple-900",
   "שטיפת סירים/ניקיון מטבח": "bg-sky-200 text-sky-900",
+  "תפעול": "bg-white text-stone-900",
+  "בר": "bg-blue-200 text-blue-900",
+  "ניקיון": "bg-red-200 text-red-900",
+  "מדיח": "bg-green-200 text-green-900",
 };
 
 const FALLBACK_PALETTE = [

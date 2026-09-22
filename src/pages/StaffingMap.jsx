@@ -334,7 +334,7 @@ function KitchenShiftCell({ member, shift, onSave }) {
 // any StaffingRule formula. Each person keeps roughly the same hours every
 // week (managed in ספר התקנים ← צוות מטבח); this just lets the manager
 // override a specific day when someone comes in earlier/later or is off.
-function KitchenScheduleTable({ month }) {
+function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מטבח וניקיון" }) {
   const queryClient = useQueryClient();
   const days = useMemo(() => monthDates(month), [month]);
   const dayStrs = useMemo(() => days.map(toDateStr), [days]);
@@ -344,7 +344,10 @@ function KitchenScheduleTable({ month }) {
     queryFn: () => base44.entities.KitchenRosterMember.list("sort_order"),
     initialData: [],
   });
-  const activeMembers = useMemo(() => members.filter((m) => m.is_active), [members]);
+  const activeMembers = useMemo(
+    () => members.filter((m) => m.is_active && (m.roster_group || "kitchen") === group),
+    [members, group]
+  );
   const stations = useMemo(() => {
     const seen = [];
     for (const m of activeMembers) if (!seen.includes(m.station)) seen.push(m.station);
@@ -453,7 +456,7 @@ function KitchenScheduleTable({ month }) {
     <div className="bg-white border border-stone-300 overflow-x-auto">
       <div className="px-3 py-2 border-b border-stone-200 flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
-          <UtensilsCrossed className="w-4 h-4 text-emerald-700" /> צוות מטבח וניקיון — {monthLabel}
+          <UtensilsCrossed className="w-4 h-4 text-emerald-700" /> {title} — {monthLabel}
         </h2>
       </div>
       <table className="w-full table-fixed text-sm border-collapse">
@@ -566,7 +569,7 @@ function KitchenScheduleTable({ month }) {
           {stations.length === 0 && (
             <tr>
               <td colSpan={2 + visibleDays.length} className="text-center text-stone-400 py-6 text-sm">
-                אין אנשי צוות מוגדרים — ניתן להוסיף ב"ספר התקנים" ← "צוות מטבח"
+                אין אנשי צוות מוגדרים — ניתן להוסיף ב"ספר התקנים" ← "{title}"
               </td>
             </tr>
           )}
@@ -794,7 +797,9 @@ export default function StaffingMap() {
             </table>
           </div>
 
-          <KitchenScheduleTable month={month} />
+          <KitchenScheduleTable month={month} group="kitchen" title="צוות מטבח וניקיון" />
+
+          <KitchenScheduleTable month={month} group="ops" title="תפעול" />
 
           <ChangeLog month={month} />
         </>
