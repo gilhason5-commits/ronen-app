@@ -66,6 +66,19 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
     enabled: !!ingredient?.id
   });
 
+  const { data: allDishes = [] } = useQuery({
+    queryKey: ['dishes'],
+    queryFn: () => base44.entities.Dish.list(),
+    enabled: !!ingredient?.id
+  });
+
+  // Dishes whose ingredient list references this ingredient — so changing a
+  // price here shows exactly what it affects, right above the history of
+  // past changes.
+  const dishesUsingIngredient = ingredient?.id
+    ? allDishes.filter((dish) => dish.ingredients?.some((item) => item.ingredient_id === ingredient.id))
+    : [];
+
   useEffect(() => {
     if (ingredient) {
       const purchaseUnit = ingredient.purchase_unit || 1;
@@ -373,6 +386,35 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
               />
             </div>
           </div>
+
+          {ingredient?.id && dishesUsingIngredient.length > 0 && (
+            <div className="pt-4 border-t border-stone-200">
+              <Label className="text-base mb-3 block">מנות המשתמשות ברכיב זה</Label>
+              <div className="border border-stone-200 rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>מנה</TableHead>
+                      <TableHead className="text-right">כמות</TableHead>
+                      <TableHead className="text-right">יחידה</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dishesUsingIngredient.map((dish) => {
+                      const item = dish.ingredients.find((i) => i.ingredient_id === ingredient.id);
+                      return (
+                        <TableRow key={dish.id}>
+                          <TableCell className="text-sm">{dish.name}</TableCell>
+                          <TableCell className="text-right text-sm">{fmtNum(item?.qty || 0)}</TableCell>
+                          <TableCell className="text-right text-sm">{item?.unit || '-'}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
 
           {ingredient?.id && priceHistory.length > 0 && (
             <div className="pt-4 border-t border-stone-200">
