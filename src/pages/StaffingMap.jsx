@@ -334,8 +334,30 @@ function KitchenShiftCell({ member, shift, onSave }) {
 // any StaffingRule formula. Each person keeps roughly the same hours every
 // week (managed in ספר התקנים ← צוות מטבח); this just lets the manager
 // override a specific day when someone comes in earlier/later or is off.
-function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מטבח וניקיון" }) {
+function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מטבח וניקיון", departmentName }) {
   const queryClient = useQueryClient();
+
+  // Name cells are swappable: click one to pick a different active employee
+  // from the department that matches this table, without touching ספר
+  // התקנים. Scoped to that department so the kitchen table can't offer ops
+  // people and vice versa.
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: () => base44.entities.Department.list(),
+    initialData: [],
+  });
+  const { data: allEmployeesForSwap = [] } = useQuery({
+    queryKey: ["taskEmployees"],
+    queryFn: () => base44.entities.TaskEmployee.list(),
+    initialData: [],
+  });
+  const departmentEmployees = useMemo(() => {
+    const dept = departments.find((d) => d.name === departmentName);
+    if (!dept) return [];
+    return allEmployeesForSwap
+      .filter((e) => e.is_active && e.department_id === dept.id)
+      .sort((a, b) => (a.full_name || "").localeCompare(b.full_name || "", "he"));
+  }, [departments, allEmployeesForSwap, departmentName]);
   const days = useMemo(() => monthDates(month), [month]);
   const dayStrs = useMemo(() => days.map(toDateStr), [days]);
 
@@ -450,6 +472,16 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
     onError: (e) => toast.error(e.message),
   });
 
+  const swapMember = useMutation({
+    mutationFn: async ({ member, employee }) =>
+      base44.entities.KitchenRosterMember.update(member.id, { employee_id: employee.id, full_name: employee.full_name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kitchenRoster"] });
+      toast.success("העובד הוחלף");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const monthLabel = month.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
 
   return (
@@ -544,11 +576,29 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                     {station}
                   </td>
                 )}
-                <td
-                  className={`border border-stone-300 px-1.5 py-0.5 text-xs font-medium truncate ${color} ${i === 0 ? groupBorder : ""}`}
-                  title={member.full_name}
-                >
-                  {member.full_name}
+                <td className={`border border-stone-300 p-0 ${color} ${i === 0 ? groupBorder : ""}`}>
+                  <Select
+                    key={`${member.id}-${member.full_name}`}
+                    onValueChange={(employeeId) => {
+                      const employee = departmentEmployees.find((e) => e.id === employeeId);
+                      if (employee) swapMember.mutate({ member, employee });
+                    }}
+                  >
+                    <SelectTrigger
+                      title={member.full_name}
+                      className="h-full w-full border-0 bg-transparent shadow-none ring-0 focus:ring-0 px-1.5 py-0.5 justify-start gap-0.5 text-xs font-medium truncate [&>svg]:opacity-40 [&>svg]:w-3 [&>svg]:h-3 [&>svg]:shrink-0"
+                    >
+                      <SelectValue placeholder={member.full_name} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departmentEmployees.length === 0 && (
+                        <div className="px-2 py-1.5 text-xs text-stone-400">אין עובדים פעילים במחלקה זו</div>
+                      )}
+                      {departmentEmployees.map((e) => (
+                        <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </td>
                 {visibleDays.map((d) => {
                   const ds = toDateStr(d);
@@ -797,9 +847,9 @@ export default function StaffingMap() {
             </table>
           </div>
 
-          <KitchenScheduleTable month={month} group="kitchen" title="צוות מטבח וניקיון" />
+          <KitchenScheduleTable month={month} group="kitchen" title="צוות מטבח וניקיון" departmentName="מטבח וניקיון ערב" />
 
-          <KitchenScheduleTable month={month} group="ops" title="תפעול" />
+          <KitchenScheduleTable month={month} group="ops" title="תפעול" departmentName="תפעול והקמה" />
 
           <ChangeLog month={month} />
         </>
