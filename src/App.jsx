@@ -24,6 +24,7 @@ const EventAttendance = lazy(() => import('./pages/EventAttendance'));
 const StaffingReports = lazy(() => import('./pages/StaffingReports'));
 const TipsDistribution = lazy(() => import('./pages/TipsDistribution'));
 const StaffingSettings = lazy(() => import('./pages/StaffingSettings'));
+const DishQuantities = lazy(() => import('./pages/DishQuantities'));
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -123,6 +124,11 @@ const AuthenticatedApp = () => {
       <Route path="/StaffingSettings" element={
         <LayoutWrapper currentPageName="StaffingSettings">
           <StaffingSettings />
+        </LayoutWrapper>
+      } />
+      <Route path="/DishQuantities" element={
+        <LayoutWrapper currentPageName="DishQuantities">
+          <DishQuantities />
         </LayoutWrapper>
       } />
       <Route path="*" element={<PageNotFound />} />

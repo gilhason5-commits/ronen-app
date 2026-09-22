@@ -123,6 +123,12 @@ const navigationItems = [
     section: "staffing"
   },
   {
+    title: "כמויות מנות",
+    url: createPageUrl("DishQuantities"),
+    icon: ClipboardList,
+    section: "staffing"
+  },
+  {
     title: "סיכומים ודוחות",
     url: createPageUrl("StaffingReports"),
     icon: FileText,
@@ -195,9 +201,11 @@ export default function Layout({ children, currentPageName }) {
     }
   }
 
-  // Event manager role: attendance screen only (iPad, day-of-event use).
+  // Event manager role: attendance screen (iPad, day-of-event use) and the
+  // read-only per-event dish-quantity view — nothing else.
+  const EVENT_MANAGER_PAGES = ["EventAttendance", "DishQuantities"];
   if (userRole === 'event_manager') {
-    if (currentPageName !== "EventAttendance") {
+    if (!EVENT_MANAGER_PAGES.includes(currentPageName)) {
       return <Navigate to={createPageUrl("EventAttendance")} replace />;
     }
   }
@@ -220,7 +228,7 @@ export default function Layout({ children, currentPageName }) {
       return item.url.includes("MenuViewer");
     }
     if (userRole === 'event_manager') {
-      return item.url.includes("EventAttendance");
+      return item.url.includes("EventAttendance") || item.url.includes("DishQuantities");
     }
     if (adminOnlyPages.some(p => item.url.includes(p)) && userRole !== 'admin') {
       return false;
