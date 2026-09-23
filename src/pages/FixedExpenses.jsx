@@ -2,24 +2,22 @@ import React, { useEffect, useMemo, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { fmtCurrency } from "../components/utils/formatNumbers";
 
-// The 4 section titles and the 2 freeform memo blocks are user-editable —
-// stored as AppSetting key/value rows rather than a new table, matching the
-// existing pattern (see RoleEditDialog.jsx's paused-employee flags).
+// The 4 section titles are user-editable — stored as AppSetting key/value
+// rows rather than a new table, matching the existing pattern (see
+// RoleEditDialog.jsx's paused-employee flags).
 const TITLE_KEYS = {
   cat1: "fixed_expenses_title_cat1",
   cat2: "fixed_expenses_title_cat2",
   cat3: "fixed_expenses_title_cat3",
   cat4: "fixed_expenses_title_cat4",
 };
-const MEMO_KEYS = { cat3: "fixed_expenses_memo_cat3", cat4: "fixed_expenses_memo_cat4" };
 const DEFAULT_TITLES = { cat1: "קטגוריה 1", cat2: "קטגוריה 2", cat3: "קטגוריה 3", cat4: "קטגוריה 4" };
-const SETTING_KEYS = [...Object.values(TITLE_KEYS), ...Object.values(MEMO_KEYS)];
+const SETTING_KEYS = Object.values(TITLE_KEYS);
 
 // Debounced free-text field bound to an AppSetting row — local state so
 // typing doesn't fire a request per keystroke, saved on blur.
@@ -143,26 +141,6 @@ function ExpenseTable({ title, category, expenses, onSaveTitle, onAdd, onUpdate,
   );
 }
 
-function MemoBlock({ title, memo, onSaveTitle, onSaveMemo }) {
-  return (
-    <div className="border border-stone-300 rounded-lg overflow-hidden bg-white flex flex-col h-full">
-      <div className="border-b border-stone-300 bg-stone-50 px-4 py-2">
-        <EditableSetting
-          value={title}
-          className="font-bold text-stone-900 border-0 bg-transparent px-0 h-auto text-base focus-visible:ring-0"
-          onSave={onSaveTitle}
-        />
-      </div>
-      <Textarea
-        defaultValue={memo}
-        placeholder="כתיבה חופשית..."
-        className="flex-1 min-h-[180px] border-0 rounded-none resize-none focus-visible:ring-0"
-        onBlur={(e) => { if (e.target.value !== memo) onSaveMemo(e.target.value); }}
-      />
-    </div>
-  );
-}
-
 export default function FixedExpenses() {
   const queryClient = useQueryClient();
 
@@ -211,11 +189,8 @@ export default function FixedExpenses() {
   });
 
   const titleOf = (cat) => settingByKey[TITLE_KEYS[cat]]?.value ?? DEFAULT_TITLES[cat];
-  const memoOf = (cat) => settingByKey[MEMO_KEYS[cat]]?.value ?? "";
 
-  const grandTotal = expenses
-    .filter((e) => e.category === "cat1" || e.category === "cat2")
-    .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+  const grandTotal = expenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
 
   return (
     <div className="p-6 lg:p-8 space-y-6" dir="rtl">
@@ -246,17 +221,23 @@ export default function FixedExpenses() {
         </div>
 
         <div className="space-y-6">
-          <MemoBlock
+          <ExpenseTable
             title={titleOf("cat3")}
-            memo={memoOf("cat3")}
+            category="cat3"
+            expenses={expenses}
             onSaveTitle={(v) => saveSetting.mutate({ key: TITLE_KEYS.cat3, value: v })}
-            onSaveMemo={(v) => saveSetting.mutate({ key: MEMO_KEYS.cat3, value: v })}
+            onAdd={(data) => addExpense.mutate(data)}
+            onUpdate={(id, data) => updateExpense.mutate({ id, data })}
+            onRemove={(id) => removeExpense.mutate(id)}
           />
-          <MemoBlock
+          <ExpenseTable
             title={titleOf("cat4")}
-            memo={memoOf("cat4")}
+            category="cat4"
+            expenses={expenses}
             onSaveTitle={(v) => saveSetting.mutate({ key: TITLE_KEYS.cat4, value: v })}
-            onSaveMemo={(v) => saveSetting.mutate({ key: MEMO_KEYS.cat4, value: v })}
+            onAdd={(data) => addExpense.mutate(data)}
+            onUpdate={(id, data) => updateExpense.mutate({ id, data })}
+            onRemove={(id) => removeExpense.mutate(id)}
           />
         </div>
       </div>
