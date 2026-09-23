@@ -81,6 +81,12 @@ const navigationItems = [
     section: "main"
   },
   {
+    title: "הוצאות קבועות",
+    url: createPageUrl("FixedExpenses"),
+    icon: Receipt,
+    section: "main"
+  },
+  {
     title: "מאגר משימות",
     url: createPageUrl("TaskManagement"),
     icon: FileText,
@@ -178,7 +184,7 @@ export default function Layout({ children, currentPageName }) {
   const { user, logout } = useAuth();
   const userRole = user?.role || null;
 
-  const adminOnlyPages = ["Reports", "PurchaseOrders", "Inventory"];
+  const adminOnlyPages = ["Reports", "PurchaseOrders", "Inventory", "FixedExpenses"];
 
   // Purchase role can only see KitchenView
   if (userRole === 'purchase') {
@@ -211,9 +217,10 @@ export default function Layout({ children, currentPageName }) {
   }
 
   // Financials-restricted admin (e.g. info@raytlv.co.il): keeps normal admin
-  // access to everything except the Reports page and event profitability
-  // figures (those are hidden inline in the components that show them).
-  if (user?.hide_financials && currentPageName === "Reports") {
+  // access to everything except the Reports/FixedExpenses pages and event
+  // profitability figures (those are hidden inline in the components that
+  // show them).
+  if (user?.hide_financials && (currentPageName === "Reports" || currentPageName === "FixedExpenses")) {
     return <Navigate to={createPageUrl("Dashboard")} replace />;
   }
 
@@ -233,7 +240,7 @@ export default function Layout({ children, currentPageName }) {
     if (adminOnlyPages.some(p => item.url.includes(p)) && userRole !== 'admin') {
       return false;
     }
-    if (item.url.includes("Reports") && user?.hide_financials) {
+    if ((item.url.includes("Reports") || item.url.includes("FixedExpenses")) && user?.hide_financials) {
       return false;
     }
     return true;

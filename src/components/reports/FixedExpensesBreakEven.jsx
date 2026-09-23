@@ -1,12 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { ChevronLeft, ChevronRight, Plus, Trash2, Wallet } from "lucide-react";
-import { toast } from "sonner";
+import { ChevronLeft, ChevronRight, Wallet } from "lucide-react";
+import { Link } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 import { fmtCurrency } from "../utils/formatNumbers";
 
 function monthKey(d) {
@@ -30,38 +29,12 @@ function eventTotalRevenue(e) {
 }
 
 export default function FixedExpensesBreakEven({ events = [] }) {
-  const queryClient = useQueryClient();
   const [month, setMonth] = useState(() => new Date());
-  const [newName, setNewName] = useState("");
-  const [newAmount, setNewAmount] = useState("");
 
   const { data: expenses = [] } = useQuery({
     queryKey: ["fixedExpenses"],
     queryFn: () => base44.entities.FixedExpense.list("sort_order"),
     initialData: [],
-  });
-
-  const create = useMutation({
-    mutationFn: (data) => base44.entities.FixedExpense.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["fixedExpenses"] });
-      setNewName("");
-      setNewAmount("");
-      toast.success("ההוצאה נוספה");
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const update = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.FixedExpense.update(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["fixedExpenses"] }),
-    onError: (e) => toast.error(e.message),
-  });
-
-  const remove = useMutation({
-    mutationFn: (id) => base44.entities.FixedExpense.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["fixedExpenses"] }),
-    onError: (e) => toast.error(e.message),
   });
 
   const activeTotal = useMemo(
@@ -83,49 +56,16 @@ export default function FixedExpensesBreakEven({ events = [] }) {
 
   return (
     <Card className="border-stone-200">
-      <CardHeader className="p-5 border-b border-stone-200">
+      <CardHeader className="p-5 border-b border-stone-200 flex-row items-center justify-between">
         <CardTitle className="text-lg font-semibold text-stone-900 flex items-center gap-2">
           <Wallet className="w-5 h-5 text-stone-500" /> הוצאות קבועות ונקודת איזון
         </CardTitle>
+        <Link to={createPageUrl("FixedExpenses")}>
+          <Button variant="outline" size="sm">ניהול הוצאות קבועות ←</Button>
+        </Link>
       </CardHeader>
       <CardContent className="p-5 space-y-5">
-        <div className="space-y-2">
-          {expenses.map((exp) => (
-            <div key={exp.id} className="flex items-center gap-2">
-              <Switch checked={exp.is_active} onCheckedChange={(v) => update.mutate({ id: exp.id, data: { is_active: v } })} />
-              <Input
-                className="flex-1"
-                defaultValue={exp.name}
-                onBlur={(e) => { if (e.target.value !== exp.name) update.mutate({ id: exp.id, data: { name: e.target.value } }); }}
-              />
-              <Input
-                type="number"
-                step="0.01"
-                className="w-32"
-                defaultValue={exp.amount}
-                onBlur={(e) => {
-                  const v = parseFloat(e.target.value) || 0;
-                  if (v !== exp.amount) update.mutate({ id: exp.id, data: { amount: v } });
-                }}
-              />
-              <Button variant="ghost" size="icon" className="text-red-500" onClick={() => { if (confirm(`למחוק את "${exp.name}"?`)) remove.mutate(exp.id); }}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          ))}
-          {expenses.length === 0 && <p className="text-sm text-stone-400">אין הוצאות קבועות מוגדרות</p>}
-        </div>
-
-        <div className="flex gap-2">
-          <Input placeholder="שם ההוצאה (למשל שכירות)" className="flex-1" value={newName} onChange={(e) => setNewName(e.target.value)} />
-          <Input type="number" step="0.01" placeholder="סכום" className="w-32" value={newAmount} onChange={(e) => setNewAmount(e.target.value)} />
-          <Button
-            disabled={!newName.trim() || !newAmount}
-            onClick={() => create.mutate({ name: newName.trim(), amount: parseFloat(newAmount) || 0, is_active: true, sort_order: expenses.length })}
-          >
-            <Plus className="w-4 h-4 ml-1" /> הוספה
-          </Button>
-        </div>
+        {expenses.length === 0 && <p className="text-sm text-stone-400">אין הוצאות קבועות מוגדרות</p>}
 
         <div className="pt-4 border-t border-stone-200">
           <div className="flex items-center justify-between mb-3">
