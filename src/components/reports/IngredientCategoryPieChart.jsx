@@ -11,14 +11,19 @@ const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899'
 export default function IngredientCategoryPieChart() {
   const oneMonthAgo = useMemo(() => format(subMonths(new Date(), 1), 'yyyy-MM-dd'), []);
 
-  // 1. Fetch Events from last month (regardless of status, but typically not cancelled if we want "existing")
-  const { data: events = [] } = useQuery({
-    queryKey: ['events', 'lastMonth'],
-    queryFn: () => base44.entities.Event.filter({
-      event_date: { "$gte": oneMonthAgo }
-    }),
+  // 1. Fetch Events from last month (regardless of status, but typically not
+  // cancelled if we want "existing"). entityFactory.filter() only supports
+  // equality (or an array via .in()), not Mongo-style operators — filter
+  // client-side instead of passing an unsupported $gte object.
+  const { data: allEvents = [] } = useQuery({
+    queryKey: ['events', 'all'],
+    queryFn: () => base44.entities.Event.list(),
     initialData: []
   });
+  const events = useMemo(
+    () => allEvents.filter((e) => e.event_date >= oneMonthAgo),
+    [allEvents, oneMonthAgo]
+  );
 
   // 2. Fetch Events_Dish to get planned dishes
   const { data: eventsDishes = [] } = useQuery({

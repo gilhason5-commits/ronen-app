@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BookOpen, Users, Coins, Plus, Trash2, Check, X, Pencil, UtensilsCrossed, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { FORMAT_LABELS } from "@/lib/staffingEngine";
+import { formatTimeDigits } from "@/lib/kitchenSchedule";
 
 const RULE_TYPE_LABELS = {
   REQUIRED_ROLE: "בעלי תפקידים חובה",
@@ -439,8 +440,24 @@ function KitchenRosterTab({ group = "kitchen", title = "צוות מטבח", desc
                       </div>
                       <Input className="h-8 flex-1 min-w-0" value={m.full_name} onChange={(e) => crud.update.mutate({ id: m.id, data: { full_name: e.target.value } })} />
                       <Input className="h-8 w-20 shrink-0" value={m.station} onChange={(e) => crud.update.mutate({ id: m.id, data: { station: e.target.value } })} />
-                      <Input className="h-8 w-16 shrink-0" placeholder="כניסה" value={m.default_clock_in || ""} onChange={(e) => crud.update.mutate({ id: m.id, data: { default_clock_in: e.target.value } })} />
-                      <Input className="h-8 w-16 shrink-0" placeholder="יציאה" value={m.default_clock_out || ""} onChange={(e) => crud.update.mutate({ id: m.id, data: { default_clock_out: e.target.value } })} />
+                      <Input
+                        className="h-8 w-16 shrink-0"
+                        placeholder="כניסה"
+                        defaultValue={m.default_clock_in || ""}
+                        onBlur={(e) => {
+                          const formatted = formatTimeDigits(e.target.value);
+                          if (formatted !== (m.default_clock_in || "")) crud.update.mutate({ id: m.id, data: { default_clock_in: formatted || null } });
+                        }}
+                      />
+                      <Input
+                        className="h-8 w-16 shrink-0"
+                        placeholder="יציאה"
+                        defaultValue={m.default_clock_out || ""}
+                        onBlur={(e) => {
+                          const formatted = formatTimeDigits(e.target.value);
+                          if (formatted !== (m.default_clock_out || "")) crud.update.mutate({ id: m.id, data: { default_clock_out: formatted || null } });
+                        }}
+                      />
                       <Switch checked={m.is_active} onCheckedChange={(v) => crud.update.mutate({ id: m.id, data: { is_active: v } })} />
                       <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500 shrink-0" onClick={() => { if (confirm(`למחוק את ${m.full_name}?`)) crud.remove.mutate(m.id); }}><Trash2 className="w-3 h-3" /></Button>
                     </div>

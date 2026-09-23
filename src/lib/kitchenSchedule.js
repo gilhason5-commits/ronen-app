@@ -57,8 +57,14 @@ export function toDateStr(d) {
 // Turn digits-only shorthand into "HH:MM" so a shift time can be typed as
 // plain numbers, e.g. "1615" -> "16:15", "915" -> "09:15", "8" -> "08:00".
 // Anything already containing a colon (or empty) passes through unchanged.
+// A shift time of 00:00 isn't a real clock-in/out — it's what happens when
+// someone types "0000" (meant as "nothing"/off) or leaves stray zeros.
+// Treat it the same as blank everywhere, both fresh entry and existing data.
+const isZeroTime = (v) => v === "00:00";
+
 export function formatTimeDigits(raw) {
   const trimmed = (raw || "").trim();
+  if (isZeroTime(trimmed)) return "";
   if (!trimmed || trimmed.includes(":")) return trimmed;
   const digits = trimmed.replace(/\D/g, "");
   if (!digits) return trimmed;
@@ -73,5 +79,6 @@ export function formatTimeDigits(raw) {
     hour = digits.slice(0, -2);
     minute = digits.slice(-2);
   }
-  return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
+  const result = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
+  return isZeroTime(result) ? "" : result;
 }
