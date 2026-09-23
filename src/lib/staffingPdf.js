@@ -1,6 +1,7 @@
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { computeStaffing } from "@/lib/staffingEngine";
+import { calculateStaffingGuestCount } from "@/lib/dinerCount";
 
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const FORMAT_LABELS = { serving: "הגשה", flipped: "הפוכה", connected: "מחוברת", party: "מסיבה", tasting: "טעימות" };
@@ -182,7 +183,10 @@ export function exportFloorReportPdf({ events, rules, roleColumns, monthLabel, a
         day: dayName(event.event_date),
         time: event.event_time || "-",
         brief: staffing.briefTime || "-",
-        guests: event.total_guests ?? event.guest_count ?? 0,
+        // Confirmed headcount only — same as the live map, no reserves.
+        guests: event.guest_count != null
+          ? calculateStaffingGuestCount(event.guest_count, event.children_count, event.vegan_count, event.glatt_count)
+          : (event.total_guests ?? 0),
         format: FORMAT_LABELS[event.staffing_format] || "-",
       };
       roleColumns.forEach((roleName) => {
