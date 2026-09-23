@@ -639,7 +639,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                   >
                     <SelectTrigger
                       title={member.full_name}
-                      className="h-full w-full border-0 bg-transparent shadow-none ring-0 focus:ring-0 px-1.5 py-0.5 justify-start gap-0.5 text-xs font-bold text-black truncate [&>svg]:opacity-60 [&>svg]:text-black [&>svg]:w-3 [&>svg]:h-3 [&>svg]:shrink-0"
+                      className="h-full w-full border-0 bg-transparent shadow-none ring-0 focus:ring-0 px-1.5 py-0.5 justify-start gap-0.5 text-xs font-bold !text-black data-[placeholder]:!text-black truncate [&>svg]:opacity-60 [&>svg]:text-black [&>svg]:w-3 [&>svg]:h-3 [&>svg]:shrink-0"
                     >
                       <SelectValue placeholder={member.full_name} />
                     </SelectTrigger>
