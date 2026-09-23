@@ -22,6 +22,17 @@ const LEGEND = {
   "מור": "FFC6C6",
   "אלינה": "F8CBAD",
   "יאנה": "ED7D31",
+  // "נועם (דרך שאנל)" is a different person from "נועם רוימי" — both would
+  // otherwise collide on the "נועם" first-word key and render identically
+  // in the floor table.
+  "נועםדרךשאנל": "70AD47",
+  // Four distinct people all first-word-collide on "מור": bare "מור" (a
+  // תפעול roster member) keeps the original legend color; the three named
+  // ones below (מור מפיקה, מור פיסחוב, and מור סהר, who only appears as a
+  // historical assigned_name, not a TaskEmployee) each get their own.
+  "מורמפיקה": "FFE699",
+  "מורפיסחוב": "9DC3E6",
+  "מורסהר": "C55A11",
 };
 // Backgrounds dark/saturated enough to need white text instead of dark text.
 const LIGHT_TEXT_NAMES = new Set(["ורוניקה", "נועם", "יאנה"]);
@@ -71,6 +82,12 @@ export function getStaffColor(name) {
   let legendKey = firstWord;
   if (firstWord === "סשה" && normalize(trimmed).startsWith("סשהי")) {
     legendKey = "סשהי";
+  } else if (firstWord === "נועם" && trimmed.includes("דרך שאנל")) {
+    legendKey = "נועםדרךשאנל";
+  } else if (firstWord === "מור" && trimmed !== "מור") {
+    if (trimmed.includes("מפיקה")) legendKey = "מורמפיקה";
+    else if (trimmed.includes("פיסחוב")) legendKey = "מורפיסחוב";
+    else if (trimmed.includes("סהר")) legendKey = "מורסהר";
   }
 
   const hex = LEGEND[legendKey];
