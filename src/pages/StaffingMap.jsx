@@ -672,6 +672,9 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
     if (current.some(Boolean)) result.push(current);
     return result;
   }, [days]);
+  // A week made only of empty days has nothing to give the leftover width
+  // to, so its days share the whole row evenly instead of leaving a void.
+  const weekHasWide = weeks.map((week) => week.some((d) => d && isWideDay(toDateStr(d))));
 
   const handleSaveNote = useCallback(async (dateStr, label) => {
     try {
@@ -855,17 +858,16 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
               {week.map((d, di) => (
                 <col
                   key={di}
-                  style={!d ? { width: "10px" } : isWideDay(toDateStr(d)) ? undefined : { width: "30px" }}
+                  style={!d ? { width: "10px" } : isWideDay(toDateStr(d)) || !weekHasWide[wi] ? undefined : { width: "30px" }}
                 />
               ))}
-              {!week.some((d) => d && isWideDay(toDateStr(d))) && <col />}
             </colgroup>
             <thead>
               <tr className="bg-stone-200">
                 <th className="border border-stone-300 bg-white" colSpan={2} />
                 {week.map((d, di) => d ? (
                   <th key={toDateStr(d)} className="border border-stone-300 px-0 py-0 h-[16px] leading-none text-center font-bold text-stone-800 text-[11px] overflow-hidden">
-                    {isWideDay(toDateStr(d)) ? `${String(d.getDate()).padStart(2, "0")}-${MONTH_ABBR[d.getMonth()]}` : String(d.getDate()).padStart(2, "0")}
+                    {isWideDay(toDateStr(d)) || !weekHasWide[wi] ? `${String(d.getDate()).padStart(2, "0")}-${MONTH_ABBR[d.getMonth()]}` : String(d.getDate()).padStart(2, "0")}
                   </th>
                 ) : <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />)}
               </tr>
@@ -873,7 +875,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                 <th className="border border-stone-300 bg-white" colSpan={2} />
                 {week.map((d, di) => d ? (
                   <th key={toDateStr(d)} className="border border-stone-300 px-0 py-0 h-[16px] leading-none text-center font-medium text-stone-600 text-[10px] overflow-hidden">
-                    {isWideDay(toDateStr(d)) ? DAY_NAMES[d.getDay()] : DAY_LETTERS[d.getDay()]}
+                    {isWideDay(toDateStr(d)) || !weekHasWide[wi] ? DAY_NAMES[d.getDay()] : DAY_LETTERS[d.getDay()]}
                   </th>
                 ) : <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />)}
               </tr>
@@ -893,7 +895,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                       {hasEvent ? (
                         names.join(" / ") || "-"
                       ) : (
-                        <DayNoteInput dateStr={ds} note={noteByDay.get(ds)} onSave={handleSaveNote} registry={cellRegistry.current} onFocusDay={handleFocusDay} narrow={!isWideDay(ds)} />
+                        <DayNoteInput dateStr={ds} note={noteByDay.get(ds)} onSave={handleSaveNote} registry={cellRegistry.current} onFocusDay={handleFocusDay} narrow={!isWideDay(ds) && weekHasWide[wi]} />
                       )}
                     </th>
                   );
