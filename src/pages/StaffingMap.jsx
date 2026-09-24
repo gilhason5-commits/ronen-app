@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { exportConstraintsPdf, exportSupplierOrdersPdf, exportFloorReportPdf } f
 import { getStaffColor } from "@/lib/staffColors";
 import { getStationColor, monthDates, toDateStr, formatTimeDigits } from "@/lib/kitchenSchedule";
 import { calculateStaffingGuestCount } from "@/lib/dinerCount";
+import { fetchKitchenShifts, saveKitchenShift } from "@/lib/kitchenShifts";
 
 // A single shared reference for "no rows" so a missing lookup key never
 // hands a memoized row component a freshly-allocated (and thus always
@@ -323,33 +324,72 @@ const EventTableRow = React.memo(function EventTableRow({ event, rules, agencies
 // Memoized for the same reason as EventTableRow — there's one of these per
 // person per day across the whole month, so an un-memoized version re-renders
 // the entire grid on every keystroke in any single cell.
+//
+// Nothing the person typed is ever overwritten by a server echo: while the
+// cell holds an edit that isn't saved yet (or whose save failed) the props
+// are ignored, and a failed save keeps the typed value, turns the cell red
+// and is retried on the next blur instead of vanishing behind a toast.
 const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, dateStr, onSave }) {
-  const [clockIn, setClockIn] = useState(shift?.clock_in ?? member.default_clock_in ?? "");
-  const [clockOut, setClockOut] = useState(shift?.clock_out ?? member.default_clock_out ?? "");
+  // What the cell shows when nothing is typed: the saved shift if there is
+  // one (even a saved *blank* — that is an explicit day off), else the
+  // person's default hours.
+  const baseIn = shift ? shift.clock_in ?? "" : member.default_clock_in ?? "";
+  const baseOut = shift ? shift.clock_out ?? "" : member.default_clock_out ?? "";
+  const [clockIn, setClockIn] = useState(baseIn);
+  const [clockOut, setClockOut] = useState(baseOut);
+  const [failed, setFailed] = useState(false);
+  const unsavedRef = useRef(false);
+  const savingRef = useRef(0);
+  const editCountRef = useRef(0);
 
   useEffect(() => {
-    setClockIn(shift?.clock_in ?? member.default_clock_in ?? "");
-    setClockOut(shift?.clock_out ?? member.default_clock_out ?? "");
-  }, [shift?.id, shift?.clock_in, shift?.clock_out, member.default_clock_in, member.default_clock_out]);
+    if (unsavedRef.current || savingRef.current > 0) return;
+    setClockIn(baseIn);
+    setClockOut(baseOut);
+  }, [baseIn, baseOut]);
 
-  const commit = () => {
+  const commit = async () => {
     const formattedIn = formatTimeDigits(clockIn);
     const formattedOut = formatTimeDigits(clockOut);
     setClockIn(formattedIn);
     setClockOut(formattedOut);
-    const savedIn = shift?.clock_in ?? "";
-    const savedOut = shift?.clock_out ?? "";
-    if (formattedIn === savedIn && formattedOut === savedOut) return;
-    onSave(member, dateStr, { clock_in: formattedIn, clock_out: formattedOut });
+    if (formattedIn === baseIn && formattedOut === baseOut) {
+      unsavedRef.current = false;
+      setFailed(false);
+      return;
+    }
+    unsavedRef.current = true;
+    savingRef.current += 1;
+    const editsAtSave = editCountRef.current;
+    try {
+      await onSave(member, dateStr, { clock_in: formattedIn, clock_out: formattedOut });
+      setFailed(false);
+      // Only "clean" if nothing newer was typed while this save was in flight.
+      if (editCountRef.current === editsAtSave) unsavedRef.current = false;
+    } catch {
+      setFailed(true);
+    } finally {
+      savingRef.current -= 1;
+    }
+  };
+
+  const edit = (setter) => (e) => {
+    unsavedRef.current = true;
+    editCountRef.current += 1;
+    setter(e.target.value);
   };
 
   const isOff = !clockIn.trim() && !clockOut.trim();
   const inputClass = `w-1/2 h-full min-w-0 text-[10px] text-center border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-inset focus:ring-emerald-700 ${isOff ? "opacity-40" : "font-semibold"}`;
 
   return (
-    <div dir="rtl" className="flex items-stretch h-full divide-x divide-x-reverse divide-black/10">
-      <input type="text" value={clockIn} placeholder="X" className={inputClass} onChange={(e) => setClockIn(e.target.value)} onBlur={commit} />
-      <input type="text" value={clockOut} placeholder="X" className={inputClass} onChange={(e) => setClockOut(e.target.value)} onBlur={commit} />
+    <div
+      dir="rtl"
+      title={failed ? "השמירה נכשלה — הערך עדיין לא נשמר. לחץ מחוץ לתא כדי לנסות שוב" : undefined}
+      className={`flex items-stretch h-full divide-x divide-x-reverse divide-black/10 ${failed ? "ring-2 ring-inset ring-red-600 bg-red-100/70" : ""}`}
+    >
+      <input type="text" value={clockIn} placeholder="X" className={inputClass} onChange={edit(setClockIn)} onBlur={commit} />
+      <input type="text" value={clockOut} placeholder="X" className={inputClass} onChange={edit(setClockOut)} onBlur={commit} />
     </div>
   );
 });
@@ -401,10 +441,16 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
     return seen;
   }, [activeMembers]);
 
+  // Only the visible month, fetched in pages (see kitchenShifts.js) — the old
+  // "list all, oldest first, limit 5000" call was silently cut off at 1000
+  // rows by the API, which would have hidden the newest shifts. Refetches on
+  // tab focus so a second person's edits show up instead of a stale grid.
+  const shiftsKey = ["kitchenShifts", dayStrs[0], dayStrs[dayStrs.length - 1]];
   const { data: shifts = [] } = useQuery({
-    queryKey: ["kitchenShifts"],
-    queryFn: () => base44.entities.KitchenShift.list("shift_date", 5000),
+    queryKey: shiftsKey,
+    queryFn: () => fetchKitchenShifts(dayStrs[0], dayStrs[dayStrs.length - 1]),
     initialData: [],
+    refetchOnWindowFocus: true,
   });
   const weekShifts = useMemo(() => shifts.filter((s) => dayStrs.includes(s.shift_date)), [shifts, dayStrs]);
 
@@ -474,56 +520,55 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
     return map;
   }, [rules, dayStrs, guestsByDay, weekShifts, activeMembers]);
 
-  const saveShift = useMutation({
-    mutationFn: async ({ member, dateStr, clock_in, clock_out }) => {
-      const existing = shifts.find((s) => s.member_id === member.id && s.shift_date === dateStr);
-      const bothEmpty = !clock_in.trim() && !clock_out.trim();
-      if (bothEmpty) {
-        if (existing) {
-          await base44.entities.KitchenShift.delete(existing.id);
-          return { deletedId: existing.id };
-        }
-        return null;
-      }
-      const data = {
-        member_id: member.id,
-        member_name: member.full_name,
-        station: member.station,
-        shift_date: dateStr,
-        clock_in: clock_in.trim(),
-        clock_out: clock_out.trim(),
-      };
-      if (existing) {
-        const updated = await base44.entities.KitchenShift.update(existing.id, data);
-        return { saved: updated };
-      }
-      const created = await base44.entities.KitchenShift.create(data);
-      return { saved: created };
-    },
-    // Patch the one changed shift into the cached list in place instead of
-    // invalidating (refetching) the whole table — a full refetch hands every
-    // row a brand-new shift object, which defeats KitchenShiftCell's memo
-    // and re-renders every cell in the grid on a single edit.
-    onSuccess: (result) => {
-      if (!result) return;
-      queryClient.setQueryData(["kitchenShifts"], (old = []) => {
-        if (result.deletedId) return old.filter((s) => s.id !== result.deletedId);
-        const idx = old.findIndex((s) => s.id === result.saved.id);
-        if (idx === -1) return [...old, result.saved];
-        const next = old.slice();
-        next[idx] = result.saved;
-        return next;
-      });
-    },
-    onError: (e) => toast.error(e.message),
-  });
+  // Saves are one atomic upsert per (member, date), chained per cell so two
+  // quick edits to the same cell (Tab from one box to the other) land in the
+  // order they were made. A blank/blank cell is stored as an explicit "day
+  // off" row — deleting it would make the person's default hours reappear.
+  const saveQueues = useRef(new Map());
+  const [pendingSaves, setPendingSaves] = useState(0);
+  const applySaved = useCallback((saved) => {
+    queryClient.setQueryData(shiftsKey, (old = []) => {
+      const idx = old.findIndex((s) => s.member_id === saved.member_id && s.shift_date === saved.shift_date);
+      if (idx === -1) return [...old, saved];
+      const next = old.slice();
+      next[idx] = saved;
+      return next;
+    });
+  }, [queryClient, shiftsKey[1], shiftsKey[2]]);
 
-  // Stable across re-renders (mutate's identity doesn't change) so it never
-  // busts KitchenShiftCell's memo the way a fresh inline closure per cell
-  // would.
-  const handleSaveShift = useCallback((member, dateStr, payload) => {
-    saveShift.mutate({ member, dateStr, ...payload });
-  }, [saveShift.mutate]);
+  const handleSaveShift = useCallback((member, dateStr, { clock_in, clock_out }) => {
+    const key = `${member.id}|${dateStr}`;
+    const row = {
+      member_id: member.id,
+      member_name: member.full_name,
+      station: member.station,
+      shift_date: dateStr,
+      clock_in: (clock_in || "").trim(),
+      clock_out: (clock_out || "").trim(),
+    };
+    setPendingSaves((n) => n + 1);
+    const previous = saveQueues.current.get(key) || Promise.resolve();
+    const run = previous.catch(() => {}).then(() => saveKitchenShift(row));
+    saveQueues.current.set(key, run);
+    return run
+      .then((saved) => { applySaved(saved); })
+      .catch((e) => {
+        toast.error(`השעות של ${member.full_name} ב-${dateStr} לא נשמרו: ${e.message}`);
+        throw e;
+      })
+      .finally(() => {
+        setPendingSaves((n) => n - 1);
+        if (saveQueues.current.get(key) === run) saveQueues.current.delete(key);
+      });
+  }, [applySaved]);
+
+  // Don't let the tab close/reload while a save is still in flight.
+  useEffect(() => {
+    if (pendingSaves <= 0) return undefined;
+    const warn = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [pendingSaves]);
 
   const swapMember = useMutation({
     mutationFn: async ({ member, employee }) =>
