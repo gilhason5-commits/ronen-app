@@ -39,6 +39,7 @@ function staffingGuestsOf(event) {
 
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+const MONTH_ABBR = ["ינו׳", "פבר׳", "מרץ", "אפר׳", "מאי", "יוני", "יולי", "אוג׳", "ספט׳", "אוק׳", "נוב׳", "דצמ׳"];
 
 // Fixed display order for the flat table's role columns — matches the paper
 // sheet Ronen's team reads. Roles that exist in the rule book but aren't in
@@ -446,6 +447,7 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
   return (
     <div
       dir="rtl"
+      data-cell={`${member.id}|${dateStr}`}
       title={failed ? "השמירה נכשלה — הערך עדיין לא נשמר. לחץ על כפתור השמירה כדי לנסות שוב" : undefined}
       className={`flex items-stretch h-full divide-x divide-x-reverse divide-black/10 ${failed ? "ring-2 ring-inset ring-red-600 bg-red-100/70" : ""}`}
     >
@@ -633,14 +635,22 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
     return map;
   }, [allEvents, dayStrs]);
 
-  // Every day of the month is shown, half a month at a time (1–14, then
-  // 15–end) so the columns stay readable. A day with no event shows "X" in
-  // every hours cell and an editable name instead of an event name.
+  // Every day of the month is shown, one Sunday–Saturday week per block,
+  // the weeks stacked one under the other like the paper sheet. The first/last
+  // week is padded with empty cells for days outside the month. A day with no
+  // event shows "X" in every hours cell and an editable name instead of an
+  // event name.
   const eventDaySet = useMemo(() => new Set(allEvents.filter((e) => e.status !== "cancelled").map((e) => e.event_date)), [allEvents]);
-  const [half, setHalf] = useState(0);
-  useEffect(() => { setHalf(0); }, [dayStrs[0]]);
-  const visibleDays = useMemo(() => days.filter((d) => (half === 0 ? d.getDate() <= 14 : d.getDate() >= 15)), [days, half]);
-  const rangeLabel = visibleDays.length ? `${visibleDays[0].getDate()}–${visibleDays[visibleDays.length - 1].getDate()}` : "";
+  const weeks = useMemo(() => {
+    const result = [];
+    let current = new Array(7).fill(null);
+    for (const d of days) {
+      current[d.getDay()] = d;
+      if (d.getDay() === 6) { result.push(current); current = new Array(7).fill(null); }
+    }
+    if (current.some(Boolean)) result.push(current);
+    return result;
+  }, [days]);
 
   const handleSaveNote = useCallback(async (dateStr, label) => {
     try {
@@ -800,29 +810,6 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
         <h2 className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
           <UtensilsCrossed className="w-4 h-4 text-emerald-700" /> {title} — {monthLabel}
         </h2>
-        <div className="flex items-center gap-1" dir="rtl">
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            disabled={half === 0}
-            onClick={() => setHalf(0)}
-            title="חזרה לתחילת החודש"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-          <span className="text-xs font-semibold text-stone-700 min-w-[3.5rem] text-center">{rangeLabel}</span>
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            disabled={half === 1}
-            onClick={() => setHalf(1)}
-            title="המשך החודש"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-        </div>
         {lastSavedAt && (
           <span className="text-[11px] text-stone-500 ms-auto">
             נשמר לאחרונה ב-{lastSavedAt.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
@@ -838,79 +825,83 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
           {saving ? "שומר…" : saveState.status === "saved" ? "נשמר" : saveState.status === "error" ? `${saveState.failed} לא נשמרו — נסה שוב` : "שמור"}
         </Button>
       </div>
-      <table className="w-full table-fixed text-sm border-collapse">
-        <colgroup>
-          <col style={{ width: "5%" }} />
-          <col style={{ width: "13%" }} />
-          {visibleDays.map((d) => <col key={toDateStr(d)} style={{ width: `${82 / Math.max(visibleDays.length, 1)}%` }} />)}
-        </colgroup>
-        <thead>
-          <tr className="bg-stone-200">
-            <th className="border border-stone-300" colSpan={2} />
-            {visibleDays.map((d) => (
-              <th key={toDateStr(d)} className="border border-stone-300 px-1 py-1 text-center font-bold text-stone-800 text-[10px]">
-                {d.getDate()}.{d.getMonth() + 1}
-              </th>
-            ))}
-          </tr>
-          <tr className="bg-stone-100">
-            <th className="border border-stone-300" colSpan={2} />
-            {visibleDays.map((d) => (
-              <th key={toDateStr(d)} className="border border-stone-300 px-1 py-1 text-center font-medium text-stone-600 text-[10px]">
-                {DAY_NAMES[d.getDay()]}
-              </th>
-            ))}
-          </tr>
-          <tr className="bg-stone-100">
-            <th className="border border-stone-300 text-[10px] font-bold text-stone-700" colSpan={2}>שם האירוע</th>
-            {visibleDays.map((d) => {
-              const ds = toDateStr(d);
-              const names = eventNamesByDay.get(ds) || [];
-              const hasEvent = eventDaySet.has(ds);
-              return (
-                <th
-                  key={ds}
-                  className={`border border-stone-300 text-center font-medium text-stone-700 text-[10px] leading-tight break-words ${hasEvent ? "px-1 py-1" : "p-0"}`}
-                  title={hasEvent ? names.join(" / ") : undefined}
-                >
-                  {hasEvent ? (
-                    names.join(" / ") || "-"
-                  ) : (
-                    <DayNoteInput dateStr={ds} note={noteByDay.get(ds)} onSave={handleSaveNote} registry={cellRegistry.current} />
-                  )}
-                </th>
-              );
-            })}
-          </tr>
-          <tr className="bg-stone-50">
-            <th className="border border-stone-300 text-[10px] font-bold text-stone-700" colSpan={2}>סועדים</th>
-            {visibleDays.map((d) => {
-              const ds = toDateStr(d);
-              const g = guestsByDay.get(ds) || 0;
-              const shortfall = chefShortfallByDay.get(ds);
-              return (
-                <th
-                  key={ds}
-                  className={`border border-stone-300 px-1 py-1 text-center font-semibold text-[10px] ${shortfall ? "bg-red-50" : ""}`}
-                  title={
-                    shortfall
-                      ? `נדרש ${shortfall.required} טבחים לפי התקן (${g} סועדים), מתוכננים ${shortfall.scheduled}` +
-                        (shortfall.available.length ? ` — אפשר לשבץ את ${shortfall.available.join(", ")}` : "")
-                      : undefined
-                  }
-                >
-                  <div className={shortfall ? "text-red-700" : "text-stone-700"}>{g > 0 ? g : "X"}</div>
-                  {shortfall && (
-                    <div className="flex items-center justify-center gap-0.5 text-red-600 font-bold leading-tight">
-                      <AlertTriangle className="w-2.5 h-2.5 shrink-0" /> טבח נוסף
-                    </div>
-                  )}
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
+      <div className="space-y-3 p-2">
+        {weeks.map((week, wi) => (
+          <table key={wi} className="w-full table-fixed text-sm border-collapse">
+            <colgroup>
+              <col style={{ width: "6%" }} />
+              <col style={{ width: "12%" }} />
+              {week.map((_, di) => <col key={di} style={{ width: `${82 / 7}%` }} />)}
+            </colgroup>
+            <thead>
+              <tr className="bg-stone-200">
+                <th className="border border-stone-300 bg-white" colSpan={2} />
+                {week.map((d, di) => d ? (
+                  <th key={toDateStr(d)} className="border border-stone-300 px-1 py-1 text-center font-bold text-stone-800 text-[11px]">
+                    {String(d.getDate()).padStart(2, "0")}-{MONTH_ABBR[d.getMonth()]}
+                  </th>
+                ) : <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />)}
+              </tr>
+              <tr className="bg-stone-100">
+                <th className="border border-stone-300 bg-white" colSpan={2} />
+                {week.map((d, di) => d ? (
+                  <th key={toDateStr(d)} className="border border-stone-300 px-1 py-1 text-center font-medium text-stone-600 text-[10px]">
+                    {DAY_NAMES[d.getDay()]}
+                  </th>
+                ) : <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />)}
+              </tr>
+              <tr className="bg-stone-100">
+                <th className="border border-stone-300 text-[10px] font-bold text-stone-700" colSpan={2}>שם האירוע</th>
+                {week.map((d, di) => {
+                  if (!d) return <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />;
+                  const ds = toDateStr(d);
+                  const names = eventNamesByDay.get(ds) || [];
+                  const hasEvent = eventDaySet.has(ds);
+                  return (
+                    <th
+                      key={ds}
+                      className={`border border-stone-300 text-center font-medium text-stone-700 text-[10px] leading-tight break-words ${hasEvent ? "px-1 py-1" : "p-0"}`}
+                      title={hasEvent ? names.join(" / ") : undefined}
+                    >
+                      {hasEvent ? (
+                        names.join(" / ") || "-"
+                      ) : (
+                        <DayNoteInput dateStr={ds} note={noteByDay.get(ds)} onSave={handleSaveNote} registry={cellRegistry.current} />
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+              <tr className="bg-stone-50">
+                <th className="border border-stone-300 text-[10px] font-bold text-stone-700" colSpan={2}>סועדים</th>
+                {week.map((d, di) => {
+                  if (!d) return <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />;
+                  const ds = toDateStr(d);
+                  const g = guestsByDay.get(ds) || 0;
+                  const shortfall = chefShortfallByDay.get(ds);
+                  return (
+                    <th
+                      key={ds}
+                      className={`border border-stone-300 px-1 py-1 text-center font-semibold text-[10px] ${shortfall ? "bg-red-50" : ""}`}
+                      title={
+                        shortfall
+                          ? `נדרש ${shortfall.required} טבחים לפי התקן (${g} סועדים), מתוכננים ${shortfall.scheduled}` +
+                            (shortfall.available.length ? ` — אפשר לשבץ את ${shortfall.available.join(", ")}` : "")
+                          : undefined
+                      }
+                    >
+                      <div className={shortfall ? "text-red-700" : "text-stone-700"}>{g > 0 ? g : "X"}</div>
+                      {shortfall && (
+                        <div className="flex items-center justify-center gap-0.5 text-red-600 font-bold leading-tight">
+                          <AlertTriangle className="w-2.5 h-2.5 shrink-0" /> טבח נוסף
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
           {stations.map((station, si) => {
             const color = getStationColor(station);
             const stationMembers = activeMembers.filter((m) => m.station === station);
@@ -952,7 +943,8 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                     </SelectContent>
                   </Select>
                 </td>
-                {visibleDays.map((d) => {
+                {week.map((d, di) => {
+                  if (!d) return <td key={`blank-${di}`} className={`border border-stone-300 bg-stone-100 ${i === 0 ? groupBorder : ""}`} />;
                   const ds = toDateStr(d);
                   const shift = weekShifts.find((s) => s.member_id === member.id && s.shift_date === ds);
                   return (
@@ -971,15 +963,17 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
               </tr>
             ));
           })}
-          {stations.length === 0 && (
-            <tr>
-              <td colSpan={2 + visibleDays.length} className="text-center text-stone-400 py-6 text-sm">
-                אין אנשי צוות מוגדרים — ניתן להוסיף ב"ספר התקנים" ← "{title}"
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+              {stations.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="text-center text-stone-400 py-6 text-sm">
+                    אין אנשי צוות מוגדרים — ניתן להוסיף ב"ספר התקנים" ← "{title}"
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        ))}
+      </div>
     </div>
   );
 }
