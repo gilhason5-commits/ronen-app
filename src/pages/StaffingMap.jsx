@@ -39,6 +39,7 @@ function staffingGuestsOf(event) {
 
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+const DAY_LETTERS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const MONTH_ABBR = ["ינו׳", "פבר׳", "מרץ", "אפר׳", "מאי", "יוני", "יולי", "אוג׳", "ספט׳", "אוק׳", "נוב׳", "דצמ׳"];
 
 // Fixed display order for the flat table's role columns — matches the paper
@@ -330,7 +331,7 @@ const EventTableRow = React.memo(function EventTableRow({ event, rules, agencies
 // cell holds an edit that isn't saved yet (or whose save failed) the props
 // are ignored, and a failed save keeps the typed value, turns the cell red
 // and is retried on the next blur instead of vanishing behind a toast.
-const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, dateStr, onSave, registry, isEventDay = true }) {
+const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, dateStr, onSave, registry, isEventDay = true, onFocusDay }) {
   // What the cell shows when nothing is typed: the saved shift if there is
   // one (even a saved *blank* — that is an explicit day off), else the
   // person's default hours.
@@ -427,7 +428,7 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => commitRef.current(true), AUTOSAVE_DELAY_MS);
   };
-  const handleFocus = () => { focusedRef.current = true; };
+  const handleFocus = () => { focusedRef.current = true; onFocusDay?.(dateStr); };
   const handleBlur = () => {
     focusedRef.current = false;
     clearTimeout(timerRef.current);
@@ -461,7 +462,7 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
 // KitchenDayNote). Same no-blur-needed autosave as the hour cells: saves ~1s
 // after the last keystroke, on Enter/blur, on unmount, and when the page's
 // שמור button flushes it.
-const DayNoteInput = React.memo(function DayNoteInput({ dateStr, note, onSave, registry }) {
+const DayNoteInput = React.memo(function DayNoteInput({ dateStr, note, onSave, registry, onFocusDay, narrow = false }) {
   const base = note?.label ?? "";
   const [text, setText] = useState(base);
   const [failed, setFailed] = useState(false);
@@ -526,7 +527,7 @@ const DayNoteInput = React.memo(function DayNoteInput({ dateStr, note, onSave, r
       type="text"
       dir="rtl"
       value={text}
-      placeholder="שם האירוע"
+      placeholder={narrow ? "" : "שם האירוע"}
       title={failed ? "השמירה נכשלה — הטקסט עדיין לא נשמר" : "יום ללא אירוע — אפשר לכתוב כאן שם"}
       className={`w-full min-w-0 h-[16px] p-0 leading-none bg-transparent text-center text-[10px] font-medium text-stone-700 placeholder:text-stone-300 border-0 focus:outline-none focus:ring-1 focus:ring-emerald-700 ${failed ? "ring-2 ring-red-600 bg-red-100/70" : ""}`}
       onChange={(e) => {
@@ -536,7 +537,7 @@ const DayNoteInput = React.memo(function DayNoteInput({ dateStr, note, onSave, r
         clearTimeout(timerRef.current);
         timerRef.current = setTimeout(() => saveRef.current(), 1000);
       }}
-      onFocus={() => { focusedRef.current = true; }}
+      onFocus={() => { focusedRef.current = true; onFocusDay?.(dateStr); }}
       onBlur={() => { focusedRef.current = false; clearTimeout(timerRef.current); save(); }}
       onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
     />
@@ -615,6 +616,16 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
     initialData: [],
   });
   const noteByDay = useMemo(() => new Map(dayNotes.map((n) => [n.shift_date, n])), [dayNotes]);
+
+  // A day with no event and no hours/name entered is squeezed down to the
+  // width of its "X" (empty days are most of a typical month) and grows as
+  // soon as anything is entered — saved hours or a saved name keep it wide,
+  // and clicking into it widens it at once so it can be typed into.
+  const [openDays, setOpenDays] = useState(() => new Set());
+  useEffect(() => { setOpenDays(new Set()); }, [dayStrs[0]]);
+  const handleFocusDay = useCallback((ds) => {
+    setOpenDays((prev) => (prev.has(ds) ? prev : new Set(prev).add(ds)));
+  }, []);
   const guestsByDay = useMemo(() => {
     const map = new Map();
     for (const e of allEvents) {
@@ -641,6 +652,16 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   // event shows "X" in every hours cell and an editable name instead of an
   // event name.
   const eventDaySet = useMemo(() => new Set(allEvents.filter((e) => e.status !== "cancelled").map((e) => e.event_date)), [allEvents]);
+  const hoursDaySet = useMemo(() => {
+    const memberIds = new Set(activeMembers.map((m) => m.id));
+    return new Set(
+      weekShifts
+        .filter((sh) => memberIds.has(sh.member_id) && ((sh.clock_in || "").trim() || (sh.clock_out || "").trim()))
+        .map((sh) => sh.shift_date)
+    );
+  }, [weekShifts, activeMembers]);
+  const isWideDay = (ds) =>
+    eventDaySet.has(ds) || hoursDaySet.has(ds) || Boolean((noteByDay.get(ds)?.label || "").trim()) || openDays.has(ds);
   const weeks = useMemo(() => {
     const result = [];
     let current = new Array(7).fill(null);
@@ -831,22 +852,28 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
             <colgroup>
               <col style={{ width: "6%" }} />
               <col style={{ width: "10%" }} />
-              {week.map((_, di) => <col key={di} style={{ width: `${84 / 7}%` }} />)}
+              {week.map((d, di) => (
+                <col
+                  key={di}
+                  style={!d ? { width: "10px" } : isWideDay(toDateStr(d)) ? undefined : { width: "30px" }}
+                />
+              ))}
+              {!week.some((d) => d && isWideDay(toDateStr(d))) && <col />}
             </colgroup>
             <thead>
               <tr className="bg-stone-200">
                 <th className="border border-stone-300 bg-white" colSpan={2} />
                 {week.map((d, di) => d ? (
-                  <th key={toDateStr(d)} className="border border-stone-300 px-1 py-0 h-[16px] leading-none text-center font-bold text-stone-800 text-[11px]">
-                    {String(d.getDate()).padStart(2, "0")}-{MONTH_ABBR[d.getMonth()]}
+                  <th key={toDateStr(d)} className="border border-stone-300 px-0 py-0 h-[16px] leading-none text-center font-bold text-stone-800 text-[11px] overflow-hidden">
+                    {isWideDay(toDateStr(d)) ? `${String(d.getDate()).padStart(2, "0")}-${MONTH_ABBR[d.getMonth()]}` : String(d.getDate()).padStart(2, "0")}
                   </th>
                 ) : <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />)}
               </tr>
               <tr className="bg-stone-100">
                 <th className="border border-stone-300 bg-white" colSpan={2} />
                 {week.map((d, di) => d ? (
-                  <th key={toDateStr(d)} className="border border-stone-300 px-1 py-0 h-[16px] leading-none text-center font-medium text-stone-600 text-[10px]">
-                    {DAY_NAMES[d.getDay()]}
+                  <th key={toDateStr(d)} className="border border-stone-300 px-0 py-0 h-[16px] leading-none text-center font-medium text-stone-600 text-[10px] overflow-hidden">
+                    {isWideDay(toDateStr(d)) ? DAY_NAMES[d.getDay()] : DAY_LETTERS[d.getDay()]}
                   </th>
                 ) : <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />)}
               </tr>
@@ -866,7 +893,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                       {hasEvent ? (
                         names.join(" / ") || "-"
                       ) : (
-                        <DayNoteInput dateStr={ds} note={noteByDay.get(ds)} onSave={handleSaveNote} registry={cellRegistry.current} />
+                        <DayNoteInput dateStr={ds} note={noteByDay.get(ds)} onSave={handleSaveNote} registry={cellRegistry.current} onFocusDay={handleFocusDay} narrow={!isWideDay(ds)} />
                       )}
                     </th>
                   );
@@ -958,6 +985,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                         onSave={handleSaveShift}
                         registry={cellRegistry.current}
                         isEventDay={eventDaySet.has(ds)}
+                        onFocusDay={handleFocusDay}
                       />
                     </td>
                   );
