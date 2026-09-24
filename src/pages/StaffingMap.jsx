@@ -850,8 +850,8 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
         {weeks.map((week, wi) => (
           <table key={wi} className={`w-full table-fixed text-sm border-collapse ${wi > 0 ? "-mt-px" : ""}`}>
             <colgroup>
-              <col style={{ width: "6%" }} />
-              <col style={{ width: "10%" }} />
+              <col style={{ width: "58px" }} />
+              <col style={{ width: "108px" }} />
               {week.map((d, di) => (
                 <col
                   key={di}
