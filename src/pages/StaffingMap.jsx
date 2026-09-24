@@ -647,8 +647,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   }, [allEvents, dayStrs]);
 
   // Every day of the month is shown, one Sunday–Saturday week per block,
-  // the weeks stacked one under the other like the paper sheet. The first/last
-  // week is padded with empty cells for days outside the month. A day with no
+  // the weeks stacked one under the other like the paper sheet. A day with no
   // event shows "X" in every hours cell and an editable name instead of an
   // event name.
   const eventDaySet = useMemo(() => new Set(allEvents.filter((e) => e.status !== "cancelled").map((e) => e.event_date)), [allEvents]);
@@ -665,11 +664,13 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   const weeks = useMemo(() => {
     const result = [];
     let current = new Array(7).fill(null);
+    // Only this month's days get a column — the first/last week is shorter
+    // instead of being padded with cells for neighbouring months.
     for (const d of days) {
       current[d.getDay()] = d;
-      if (d.getDay() === 6) { result.push(current); current = new Array(7).fill(null); }
+      if (d.getDay() === 6) { result.push(current.filter(Boolean)); current = new Array(7).fill(null); }
     }
-    if (current.some(Boolean)) result.push(current);
+    if (current.some(Boolean)) result.push(current.filter(Boolean));
     return result;
   }, [days]);
   // A week made only of empty days has nothing to give the leftover width
