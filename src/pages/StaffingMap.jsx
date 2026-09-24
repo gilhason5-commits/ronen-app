@@ -442,14 +442,14 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
   }, []);
 
   const isOff = !clockIn.trim() && !clockOut.trim();
-  const inputClass = `w-1/2 h-full min-w-0 text-[10px] text-center border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-inset focus:ring-emerald-700 ${isOff ? "opacity-40" : "font-semibold"}`;
+  const inputClass = `w-1/2 h-[16px] p-0 leading-none min-w-0 text-[11px] text-center border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-inset focus:ring-emerald-700 ${isOff ? "opacity-40" : "font-semibold"}`;
 
   return (
     <div
       dir="rtl"
       data-cell={`${member.id}|${dateStr}`}
       title={failed ? "השמירה נכשלה — הערך עדיין לא נשמר. לחץ על כפתור השמירה כדי לנסות שוב" : undefined}
-      className={`flex items-stretch h-full divide-x divide-x-reverse divide-black/10 ${failed ? "ring-2 ring-inset ring-red-600 bg-red-100/70" : ""}`}
+      className={`flex items-stretch h-[16px] divide-x divide-x-reverse divide-black/10 ${failed ? "ring-2 ring-inset ring-red-600 bg-red-100/70" : ""}`}
     >
       <input type="text" value={clockIn} placeholder="X" className={inputClass} onChange={edit(setClockIn)} onFocus={handleFocus} onBlur={handleBlur} onKeyDown={handleKeyDown} />
       <input type="text" value={clockOut} placeholder="X" className={inputClass} onChange={edit(setClockOut)} onFocus={handleFocus} onBlur={handleBlur} onKeyDown={handleKeyDown} />
@@ -528,7 +528,7 @@ const DayNoteInput = React.memo(function DayNoteInput({ dateStr, note, onSave, r
       value={text}
       placeholder="שם האירוע"
       title={failed ? "השמירה נכשלה — הטקסט עדיין לא נשמר" : "יום ללא אירוע — אפשר לכתוב כאן שם"}
-      className={`w-full min-w-0 bg-transparent text-center text-[10px] font-medium text-stone-700 placeholder:text-stone-300 border-0 focus:outline-none focus:ring-1 focus:ring-emerald-700 ${failed ? "ring-2 ring-red-600 bg-red-100/70" : ""}`}
+      className={`w-full min-w-0 h-[16px] p-0 leading-none bg-transparent text-center text-[10px] font-medium text-stone-700 placeholder:text-stone-300 border-0 focus:outline-none focus:ring-1 focus:ring-emerald-700 ${failed ? "ring-2 ring-red-600 bg-red-100/70" : ""}`}
       onChange={(e) => {
         textRef.current = e.target.value;
         unsavedRef.current = true;
@@ -830,14 +830,14 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
           <table key={wi} className={`w-full table-fixed text-sm border-collapse ${wi > 0 ? "-mt-px" : ""}`}>
             <colgroup>
               <col style={{ width: "6%" }} />
-              <col style={{ width: "12%" }} />
-              {week.map((_, di) => <col key={di} style={{ width: `${82 / 7}%` }} />)}
+              <col style={{ width: "10%" }} />
+              {week.map((_, di) => <col key={di} style={{ width: `${84 / 7}%` }} />)}
             </colgroup>
             <thead>
               <tr className="bg-stone-200">
                 <th className="border border-stone-300 bg-white" colSpan={2} />
                 {week.map((d, di) => d ? (
-                  <th key={toDateStr(d)} className="border border-stone-300 px-1 py-1 text-center font-bold text-stone-800 text-[11px]">
+                  <th key={toDateStr(d)} className="border border-stone-300 px-1 py-0 h-[16px] leading-none text-center font-bold text-stone-800 text-[11px]">
                     {String(d.getDate()).padStart(2, "0")}-{MONTH_ABBR[d.getMonth()]}
                   </th>
                 ) : <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />)}
@@ -845,13 +845,13 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
               <tr className="bg-stone-100">
                 <th className="border border-stone-300 bg-white" colSpan={2} />
                 {week.map((d, di) => d ? (
-                  <th key={toDateStr(d)} className="border border-stone-300 px-1 py-1 text-center font-medium text-stone-600 text-[10px]">
+                  <th key={toDateStr(d)} className="border border-stone-300 px-1 py-0 h-[16px] leading-none text-center font-medium text-stone-600 text-[10px]">
                     {DAY_NAMES[d.getDay()]}
                   </th>
                 ) : <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />)}
               </tr>
               <tr className="bg-stone-100">
-                <th className="border border-stone-300 text-[10px] font-bold text-stone-700" colSpan={2}>שם האירוע</th>
+                <th className="border border-stone-300 h-[16px] py-0 leading-none text-[10px] font-bold text-stone-700" colSpan={2}>שם האירוע</th>
                 {week.map((d, di) => {
                   if (!d) return <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />;
                   const ds = toDateStr(d);
@@ -860,7 +860,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                   return (
                     <th
                       key={ds}
-                      className={`border border-stone-300 text-center font-medium text-stone-700 text-[10px] leading-tight break-words ${hasEvent ? "px-1 py-1" : "p-0"}`}
+                      className={`border border-stone-300 text-center font-medium text-stone-700 text-[10px] leading-none h-[16px] overflow-hidden text-ellipsis whitespace-nowrap ${hasEvent ? "px-1 py-0" : "p-0"}`}
                       title={hasEvent ? names.join(" / ") : undefined}
                     >
                       {hasEvent ? (
@@ -873,7 +873,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                 })}
               </tr>
               <tr className="bg-stone-50">
-                <th className="border border-stone-300 text-[10px] font-bold text-stone-700" colSpan={2}>סועדים</th>
+                <th className="border border-stone-300 h-[16px] py-0 leading-none text-[10px] font-bold text-stone-700" colSpan={2}>סועדים</th>
                 {week.map((d, di) => {
                   if (!d) return <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />;
                   const ds = toDateStr(d);
@@ -882,7 +882,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                   return (
                     <th
                       key={ds}
-                      className={`border border-stone-300 px-1 py-1 text-center font-semibold text-[10px] ${shortfall ? "bg-red-50" : ""}`}
+                      className={`border border-stone-300 px-1 py-0 h-[16px] leading-none text-center font-semibold text-[10px] ${shortfall ? "bg-red-50" : ""}`}
                       title={
                         shortfall
                           ? `נדרש ${shortfall.required} טבחים לפי התקן (${g} סועדים), מתוכננים ${shortfall.scheduled}` +
@@ -890,12 +890,14 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                           : undefined
                       }
                     >
-                      <div className={shortfall ? "text-red-700" : "text-stone-700"}>{g > 0 ? g : "X"}</div>
-                      {shortfall && (
-                        <div className="flex items-center justify-center gap-0.5 text-red-600 font-bold leading-tight">
-                          <AlertTriangle className="w-2.5 h-2.5 shrink-0" /> טבח נוסף
-                        </div>
-                      )}
+                      <div className="flex items-center justify-center gap-1 whitespace-nowrap">
+                        <span className={shortfall ? "text-red-700" : "text-stone-700"}>{g > 0 ? g : "X"}</span>
+                        {shortfall && (
+                          <span className="flex items-center gap-0.5 text-red-600 font-bold">
+                            <AlertTriangle className="w-2.5 h-2.5 shrink-0" /> טבח נוסף
+                          </span>
+                        )}
+                      </div>
                     </th>
                   );
                 })}
@@ -914,7 +916,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                 {i === 0 && (
                   <td
                     rowSpan={stationMembers.length}
-                    className={`border border-stone-300 px-0.5 text-center text-[10px] font-bold align-middle bg-white text-stone-800 ${groupBorder}`}
+                    className={`border border-stone-300 px-0.5 text-center text-[10px] leading-none font-bold align-middle bg-white text-stone-800 ${groupBorder}`}
                   >
                     {station}
                   </td>
@@ -929,7 +931,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                   >
                     <SelectTrigger
                       title={member.full_name}
-                      className="h-full w-full border-0 bg-transparent shadow-none ring-0 focus:ring-0 px-1.5 py-0.5 justify-start gap-0.5 text-xs font-bold !text-black data-[placeholder]:!text-black truncate [&>svg]:opacity-60 [&>svg]:text-black [&>svg]:w-3 [&>svg]:h-3 [&>svg]:shrink-0"
+                      className="h-[16px] min-h-0 w-full border-0 bg-transparent shadow-none ring-0 focus:ring-0 px-1.5 py-0 leading-none justify-start gap-0.5 text-[11px] font-bold !text-black data-[placeholder]:!text-black truncate [&>svg]:opacity-60 [&>svg]:text-black [&>svg]:w-3 [&>svg]:h-3 [&>svg]:shrink-0"
                     >
                       <SelectValue placeholder={member.full_name} />
                     </SelectTrigger>
