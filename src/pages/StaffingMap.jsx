@@ -825,9 +825,9 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
           {saving ? "שומר…" : saveState.status === "saved" ? "נשמר" : saveState.status === "error" ? `${saveState.failed} לא נשמרו — נסה שוב` : "שמור"}
         </Button>
       </div>
-      <div className="space-y-3 p-2">
+      <div>
         {weeks.map((week, wi) => (
-          <table key={wi} className="w-full table-fixed text-sm border-collapse">
+          <table key={wi} className={`w-full table-fixed text-sm border-collapse ${wi > 0 ? "-mt-px" : ""}`}>
             <colgroup>
               <col style={{ width: "6%" }} />
               <col style={{ width: "12%" }} />
