@@ -18,7 +18,7 @@ import { exportConstraintsPdf, exportSupplierOrdersPdf, exportFloorReportPdf } f
 import { getStaffColor } from "@/lib/staffColors";
 import { getStationColor, monthDates, toDateStr, formatTimeDigits } from "@/lib/kitchenSchedule";
 import { calculateStaffingGuestCount } from "@/lib/dinerCount";
-import { fetchKitchenShifts, saveKitchenShift } from "@/lib/kitchenShifts";
+import { fetchKitchenShifts, saveKitchenShift, fetchEventsInRange, fetchDayNotes, saveDayNote } from "@/lib/kitchenShifts";
 
 // A single shared reference for "no rows" so a missing lookup key never
 // hands a memoized row component a freshly-allocated (and thus always
@@ -329,12 +329,15 @@ const EventTableRow = React.memo(function EventTableRow({ event, rules, agencies
 // cell holds an edit that isn't saved yet (or whose save failed) the props
 // are ignored, and a failed save keeps the typed value, turns the cell red
 // and is retried on the next blur instead of vanishing behind a toast.
-const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, dateStr, onSave, registry }) {
+const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, dateStr, onSave, registry, isEventDay = true }) {
   // What the cell shows when nothing is typed: the saved shift if there is
   // one (even a saved *blank* — that is an explicit day off), else the
   // person's default hours.
-  const baseIn = shift ? shift.clock_in ?? "" : member.default_clock_in ?? "";
-  const baseOut = shift ? shift.clock_out ?? "" : member.default_clock_out ?? "";
+  // A day with no event has nothing to staff, so with no saved row it shows
+  // as off ("X") instead of the default hours. A saved row always wins —
+  // hours already stored are shown exactly as stored on any day.
+  const baseIn = shift ? shift.clock_in ?? "" : isEventDay ? member.default_clock_in ?? "" : "";
+  const baseOut = shift ? shift.clock_out ?? "" : isEventDay ? member.default_clock_out ?? "" : "";
   const [clockIn, setClockIn] = useState(baseIn);
   const [clockOut, setClockOut] = useState(baseOut);
   const [failed, setFailed] = useState(false);
@@ -452,6 +455,92 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
   );
 });
 
+// Editable "שם האירוע" for a day that has no event (stored per table in
+// KitchenDayNote). Same no-blur-needed autosave as the hour cells: saves ~1s
+// after the last keystroke, on Enter/blur, on unmount, and when the page's
+// שמור button flushes it.
+const DayNoteInput = React.memo(function DayNoteInput({ dateStr, note, onSave, registry }) {
+  const base = note?.label ?? "";
+  const [text, setText] = useState(base);
+  const [failed, setFailed] = useState(false);
+  const textRef = useRef(base);
+  const baseRef = useRef(base);
+  const unsavedRef = useRef(false);
+  const focusedRef = useRef(false);
+  const timerRef = useRef(null);
+  const lastRef = useRef(Promise.resolve(true));
+  baseRef.current = base;
+
+  useEffect(() => {
+    if (unsavedRef.current || focusedRef.current) return;
+    textRef.current = base;
+    setText(base);
+  }, [base]);
+
+  const save = () => {
+    const run = (async () => {
+      const value = textRef.current.trim();
+      if (value === baseRef.current) { unsavedRef.current = false; setFailed(false); return true; }
+      unsavedRef.current = true;
+      const sent = textRef.current;
+      try {
+        await onSave(dateStr, value);
+        setFailed(false);
+        if (textRef.current === sent) unsavedRef.current = false;
+        return !unsavedRef.current;
+      } catch {
+        setFailed(true);
+        return false;
+      }
+    })();
+    lastRef.current = run;
+    return run;
+  };
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
+  useEffect(() => {
+    if (!registry) return undefined;
+    const key = `note|${dateStr}`;
+    registry.set(key, {
+      isUnsaved: () => unsavedRef.current,
+      flush: async () => {
+        clearTimeout(timerRef.current);
+        await lastRef.current;
+        if (!unsavedRef.current) return true;
+        return saveRef.current();
+      },
+    });
+    return () => registry.delete(key);
+  }, [registry, dateStr]);
+
+  useEffect(() => () => {
+    clearTimeout(timerRef.current);
+    if (unsavedRef.current) saveRef.current();
+  }, []);
+
+  return (
+    <input
+      type="text"
+      dir="rtl"
+      value={text}
+      placeholder="שם האירוע"
+      title={failed ? "השמירה נכשלה — הטקסט עדיין לא נשמר" : "יום ללא אירוע — אפשר לכתוב כאן שם"}
+      className={`w-full min-w-0 bg-transparent text-center text-[10px] font-medium text-stone-700 placeholder:text-stone-300 border-0 focus:outline-none focus:ring-1 focus:ring-emerald-700 ${failed ? "ring-2 ring-red-600 bg-red-100/70" : ""}`}
+      onChange={(e) => {
+        textRef.current = e.target.value;
+        unsavedRef.current = true;
+        setText(e.target.value);
+        clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => saveRef.current(), 1000);
+      }}
+      onFocus={() => { focusedRef.current = true; }}
+      onBlur={() => { focusedRef.current = false; clearTimeout(timerRef.current); save(); }}
+      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+    />
+  );
+});
+
 // Fixed weekly roster grid for kitchen/cleaning staff — unlike the floor
 // table above, these shifts aren't derived from an event's guest count or
 // any StaffingRule formula. Each person keeps roughly the same hours every
@@ -513,10 +602,17 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   const weekShifts = useMemo(() => shifts.filter((s) => dayStrs.includes(s.shift_date)), [shifts, dayStrs]);
 
   const { data: allEvents = [] } = useQuery({
-    queryKey: ["kitchenScheduleEvents"],
-    queryFn: () => base44.entities.Event.list("event_date", 3000),
+    queryKey: ["kitchenScheduleEvents", dayStrs[0], dayStrs[dayStrs.length - 1]],
+    queryFn: () => fetchEventsInRange(dayStrs[0], dayStrs[dayStrs.length - 1]),
     initialData: [],
   });
+  const notesKey = ["kitchenDayNotes", group, dayStrs[0], dayStrs[dayStrs.length - 1]];
+  const { data: dayNotes = [] } = useQuery({
+    queryKey: notesKey,
+    queryFn: () => fetchDayNotes(dayStrs[0], dayStrs[dayStrs.length - 1], group),
+    initialData: [],
+  });
+  const noteByDay = useMemo(() => new Map(dayNotes.map((n) => [n.shift_date, n])), [dayNotes]);
   const guestsByDay = useMemo(() => {
     const map = new Map();
     for (const e of allEvents) {
@@ -537,11 +633,31 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
     return map;
   }, [allEvents, dayStrs]);
 
-  // Only show a column for a day that actually has an event — a day with no
-  // event ("X" in the סועדים row) carries nothing for the kitchen/cleaning
-  // crew to plan around, so it's dropped rather than shown empty.
+  // Every day of the month is shown, half a month at a time (1–14, then
+  // 15–end) so the columns stay readable. A day with no event shows "X" in
+  // every hours cell and an editable name instead of an event name.
   const eventDaySet = useMemo(() => new Set(allEvents.filter((e) => e.status !== "cancelled").map((e) => e.event_date)), [allEvents]);
-  const visibleDays = useMemo(() => days.filter((d) => eventDaySet.has(toDateStr(d))), [days, eventDaySet]);
+  const [half, setHalf] = useState(0);
+  useEffect(() => { setHalf(0); }, [dayStrs[0]]);
+  const visibleDays = useMemo(() => days.filter((d) => (half === 0 ? d.getDate() <= 14 : d.getDate() >= 15)), [days, half]);
+  const rangeLabel = visibleDays.length ? `${visibleDays[0].getDate()}–${visibleDays[visibleDays.length - 1].getDate()}` : "";
+
+  const handleSaveNote = useCallback(async (dateStr, label) => {
+    try {
+      const saved = await saveDayNote({ shift_date: dateStr, roster_group: group, label });
+      queryClient.setQueryData(notesKey, (old = []) => {
+        const idx = old.findIndex((n) => n.shift_date === saved.shift_date);
+        if (idx === -1) return [...old, saved];
+        const next = old.slice();
+        next[idx] = saved;
+        return next;
+      });
+      setLastSavedAt(new Date());
+    } catch (e) {
+      toast.error(`שם האירוע ב-${dateStr} לא נשמר: ${e.message}`);
+      throw e;
+    }
+  }, [queryClient, group, dayStrs[0], dayStrs[dayStrs.length - 1]]);
 
   // The "מטבח חם" station covers the OPS-standard "טבח" base headcount (4 up
   // to 250 guests). "אקסטרה" (סטיבן — no default hours, called in only when
@@ -684,6 +800,29 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
         <h2 className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
           <UtensilsCrossed className="w-4 h-4 text-emerald-700" /> {title} — {monthLabel}
         </h2>
+        <div className="flex items-center gap-1" dir="rtl">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            disabled={half === 0}
+            onClick={() => setHalf(0)}
+            title="חזרה לתחילת החודש"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+          <span className="text-xs font-semibold text-stone-700 min-w-[3.5rem] text-center">{rangeLabel}</span>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-7 w-7"
+            disabled={half === 1}
+            onClick={() => setHalf(1)}
+            title="המשך החודש"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+        </div>
         {lastSavedAt && (
           <span className="text-[11px] text-stone-500 ms-auto">
             נשמר לאחרונה ב-{lastSavedAt.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
@@ -727,13 +866,18 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
             {visibleDays.map((d) => {
               const ds = toDateStr(d);
               const names = eventNamesByDay.get(ds) || [];
+              const hasEvent = eventDaySet.has(ds);
               return (
                 <th
                   key={ds}
-                  className="border border-stone-300 px-1 py-1 text-center font-medium text-stone-700 text-[10px] leading-tight break-words"
-                  title={names.join(" / ")}
+                  className={`border border-stone-300 text-center font-medium text-stone-700 text-[10px] leading-tight break-words ${hasEvent ? "px-1 py-1" : "p-0"}`}
+                  title={hasEvent ? names.join(" / ") : undefined}
                 >
-                  {names.join(" / ") || "-"}
+                  {hasEvent ? (
+                    names.join(" / ") || "-"
+                  ) : (
+                    <DayNoteInput dateStr={ds} note={noteByDay.get(ds)} onSave={handleSaveNote} registry={cellRegistry.current} />
+                  )}
                 </th>
               );
             })}
@@ -819,6 +963,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                         dateStr={ds}
                         onSave={handleSaveShift}
                         registry={cellRegistry.current}
+                        isEventDay={eventDaySet.has(ds)}
                       />
                     </td>
                   );
@@ -830,13 +975,6 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
             <tr>
               <td colSpan={2 + visibleDays.length} className="text-center text-stone-400 py-6 text-sm">
                 אין אנשי צוות מוגדרים — ניתן להוסיף ב"ספר התקנים" ← "{title}"
-              </td>
-            </tr>
-          )}
-          {stations.length > 0 && visibleDays.length === 0 && (
-            <tr>
-              <td colSpan={2 + Math.max(days.length, 1)} className="text-center text-stone-400 py-6 text-sm">
-                אין אירועים בשבוע זה
               </td>
             </tr>
           )}

@@ -37,3 +37,44 @@ export async function saveKitchenShift(row) {
   if (error) throw error;
   return data;
 }
+
+// Same 1000-row API cap applies to the events list, so the monthly tables
+// load just the visible month's events instead of "all events, oldest first".
+export async function fetchEventsInRange(fromDate, toDate) {
+  const rows = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("Event")
+      .select("*")
+      .gte("event_date", fromDate)
+      .lte("event_date", toDate)
+      .order("event_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    rows.push(...data);
+    if (data.length < PAGE_SIZE) return rows;
+  }
+}
+
+// Free-text label for a day that has no event (see KitchenDayNote migration).
+export async function fetchDayNotes(fromDate, toDate, group) {
+  const { data, error } = await supabase
+    .from("KitchenDayNote")
+    .select("*")
+    .eq("roster_group", group)
+    .gte("shift_date", fromDate)
+    .lte("shift_date", toDate);
+  if (error) throw error;
+  return data;
+}
+
+export async function saveDayNote(row) {
+  const { data, error } = await supabase
+    .from("KitchenDayNote")
+    .upsert(row, { onConflict: "shift_date,roster_group" })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
