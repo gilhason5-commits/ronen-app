@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, ChevronDown, Map as MapIcon, AlertTriangle, Clock, UtensilsCrossed, FileDown, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Map as MapIcon, AlertTriangle, Clock, UtensilsCrossed, FileDown, Users, Save, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import {
   computeStaffing,
@@ -329,7 +329,7 @@ const EventTableRow = React.memo(function EventTableRow({ event, rules, agencies
 // cell holds an edit that isn't saved yet (or whose save failed) the props
 // are ignored, and a failed save keeps the typed value, turns the cell red
 // and is retried on the next blur instead of vanishing behind a toast.
-const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, dateStr, onSave }) {
+const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, dateStr, onSave, registry }) {
   // What the cell shows when nothing is typed: the saved shift if there is
   // one (even a saved *blank* — that is an explicit day off), else the
   // person's default hours.
@@ -341,6 +341,8 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
   const unsavedRef = useRef(false);
   const savingRef = useRef(0);
   const editCountRef = useRef(0);
+  const lastCommitRef = useRef(Promise.resolve(true));
+  const commitRef = useRef(null);
 
   useEffect(() => {
     if (unsavedRef.current || savingRef.current > 0) return;
@@ -348,7 +350,16 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
     setClockOut(baseOut);
   }, [baseIn, baseOut]);
 
-  const commit = async () => {
+  // Resolves true when the cell holds nothing unsaved afterwards, false if
+  // its save failed.
+  const commit = () => {
+    const run = doCommit();
+    lastCommitRef.current = run;
+    return run;
+  };
+  commitRef.current = commit;
+
+  const doCommit = async () => {
     const formattedIn = formatTimeDigits(clockIn);
     const formattedOut = formatTimeDigits(clockOut);
     setClockIn(formattedIn);
@@ -356,7 +367,7 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
     if (formattedIn === baseIn && formattedOut === baseOut) {
       unsavedRef.current = false;
       setFailed(false);
-      return;
+      return true;
     }
     unsavedRef.current = true;
     savingRef.current += 1;
@@ -366,12 +377,28 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
       setFailed(false);
       // Only "clean" if nothing newer was typed while this save was in flight.
       if (editCountRef.current === editsAtSave) unsavedRef.current = false;
+      return !unsavedRef.current;
     } catch {
       setFailed(true);
+      return false;
     } finally {
       savingRef.current -= 1;
     }
   };
+
+  // Lets the table's "שמור" button flush this cell: wait for its in-flight
+  // save, then save again if anything is still unsaved (a failed save, or
+  // something typed meanwhile).
+  useEffect(() => {
+    if (!registry) return undefined;
+    const key = `${member.id}|${dateStr}`;
+    registry.set(key, async () => {
+      await lastCommitRef.current;
+      if (!unsavedRef.current) return true;
+      return commitRef.current();
+    });
+    return () => registry.delete(key);
+  }, [registry, member.id, dateStr]);
 
   const edit = (setter) => (e) => {
     unsavedRef.current = true;
@@ -562,6 +589,31 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
       });
   }, [applySaved]);
 
+  // Explicit "שמור" button. Autosave on blur stays; this forces every cell
+  // with something unsaved (including ones whose save failed) to save now,
+  // waits for all of it, and tells the person plainly whether everything
+  // landed.
+  const cellRegistry = useRef(new Map());
+  const [saveState, setSaveState] = useState({ status: "idle", failed: 0 });
+  const savedTimerRef = useRef(null);
+  useEffect(() => () => clearTimeout(savedTimerRef.current), []);
+  const saveAll = async () => {
+    clearTimeout(savedTimerRef.current);
+    setSaveState({ status: "saving", failed: 0 });
+    const results = await Promise.all([...cellRegistry.current.values()].map((flush) => flush()));
+    await Promise.allSettled([...saveQueues.current.values()]);
+    const failed = results.filter((ok) => ok === false).length;
+    if (failed > 0) {
+      setSaveState({ status: "error", failed });
+      toast.error(`${failed} תאים לא נשמרו — מסומנים באדום, אפשר ללחוץ שוב על שמור`);
+      return;
+    }
+    setSaveState({ status: "saved", failed: 0 });
+    toast.success("כל השעות נשמרו");
+    savedTimerRef.current = setTimeout(() => setSaveState({ status: "idle", failed: 0 }), 3000);
+  };
+  const saving = saveState.status === "saving" || pendingSaves > 0;
+
   // Don't let the tab close/reload while a save is still in flight.
   useEffect(() => {
     if (pendingSaves <= 0) return undefined;
@@ -588,6 +640,15 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
         <h2 className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
           <UtensilsCrossed className="w-4 h-4 text-emerald-700" /> {title} — {monthLabel}
         </h2>
+        <Button
+          size="sm"
+          onClick={saveAll}
+          disabled={saving}
+          className={`h-7 gap-1.5 text-xs ${saveState.status === "error" ? "bg-red-600 hover:bg-red-700" : "bg-emerald-700 hover:bg-emerald-800"} text-white`}
+        >
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saveState.status === "saved" ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
+          {saving ? "שומר…" : saveState.status === "saved" ? "נשמר" : saveState.status === "error" ? `${saveState.failed} לא נשמרו — נסה שוב` : "שמור"}
+        </Button>
       </div>
       <table className="w-full table-fixed text-sm border-collapse">
         <colgroup>
@@ -708,6 +769,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                         shift={shift}
                         dateStr={ds}
                         onSave={handleSaveShift}
+                        registry={cellRegistry.current}
                       />
                     </td>
                   );
