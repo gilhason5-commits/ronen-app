@@ -343,27 +343,34 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
   const editCountRef = useRef(0);
   const lastCommitRef = useRef(Promise.resolve(true));
   const commitRef = useRef(null);
+  const focusedRef = useRef(false);
+  const timerRef = useRef(null);
 
   useEffect(() => {
-    if (unsavedRef.current || savingRef.current > 0) return;
+    // Never rewrite the boxes under someone who is typing in them.
+    if (unsavedRef.current || savingRef.current > 0 || focusedRef.current) return;
     setClockIn(baseIn);
     setClockOut(baseOut);
   }, [baseIn, baseOut]);
 
   // Resolves true when the cell holds nothing unsaved afterwards, false if
-  // its save failed.
-  const commit = () => {
-    const run = doCommit();
+  // its save failed. `keepText` (autosave-while-typing) saves the formatted
+  // value but leaves the boxes as typed so a pause mid-number doesn't
+  // rewrite it under the cursor; the tidy-up happens on blur.
+  const commit = (keepText = false) => {
+    const run = doCommit(keepText);
     lastCommitRef.current = run;
     return run;
   };
   commitRef.current = commit;
 
-  const doCommit = async () => {
+  const doCommit = async (keepText) => {
     const formattedIn = formatTimeDigits(clockIn);
     const formattedOut = formatTimeDigits(clockOut);
-    setClockIn(formattedIn);
-    setClockOut(formattedOut);
+    if (!keepText) {
+      setClockIn(formattedIn);
+      setClockOut(formattedOut);
+    }
     if (formattedIn === baseIn && formattedOut === baseOut) {
       unsavedRef.current = false;
       setFailed(false);
@@ -392,19 +399,43 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
   useEffect(() => {
     if (!registry) return undefined;
     const key = `${member.id}|${dateStr}`;
-    registry.set(key, async () => {
-      await lastCommitRef.current;
-      if (!unsavedRef.current) return true;
-      return commitRef.current();
+    registry.set(key, {
+      isUnsaved: () => unsavedRef.current,
+      flush: async () => {
+        clearTimeout(timerRef.current);
+        await lastCommitRef.current;
+        if (!unsavedRef.current) return true;
+        return commitRef.current();
+      },
     });
     return () => registry.delete(key);
   }, [registry, member.id, dateStr]);
 
+  // Saving must not depend on the person doing anything after typing (leaving
+  // the box, pressing a button): every edit schedules a save after a short
+  // pause, blur/Enter save immediately, and a cell that unmounts (month
+  // switch, navigation) with something unsaved saves on the way out.
+  const AUTOSAVE_DELAY_MS = 1000;
   const edit = (setter) => (e) => {
     unsavedRef.current = true;
     editCountRef.current += 1;
     setter(e.target.value);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => commitRef.current(true), AUTOSAVE_DELAY_MS);
   };
+  const handleFocus = () => { focusedRef.current = true; };
+  const handleBlur = () => {
+    focusedRef.current = false;
+    clearTimeout(timerRef.current);
+    commit();
+  };
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") e.currentTarget.blur();
+  };
+  useEffect(() => () => {
+    clearTimeout(timerRef.current);
+    if (unsavedRef.current) commitRef.current(true);
+  }, []);
 
   const isOff = !clockIn.trim() && !clockOut.trim();
   const inputClass = `w-1/2 h-full min-w-0 text-[10px] text-center border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-inset focus:ring-emerald-700 ${isOff ? "opacity-40" : "font-semibold"}`;
@@ -412,11 +443,11 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
   return (
     <div
       dir="rtl"
-      title={failed ? "השמירה נכשלה — הערך עדיין לא נשמר. לחץ מחוץ לתא כדי לנסות שוב" : undefined}
+      title={failed ? "השמירה נכשלה — הערך עדיין לא נשמר. לחץ על כפתור השמירה כדי לנסות שוב" : undefined}
       className={`flex items-stretch h-full divide-x divide-x-reverse divide-black/10 ${failed ? "ring-2 ring-inset ring-red-600 bg-red-100/70" : ""}`}
     >
-      <input type="text" value={clockIn} placeholder="X" className={inputClass} onChange={edit(setClockIn)} onBlur={commit} />
-      <input type="text" value={clockOut} placeholder="X" className={inputClass} onChange={edit(setClockOut)} onBlur={commit} />
+      <input type="text" value={clockIn} placeholder="X" className={inputClass} onChange={edit(setClockIn)} onFocus={handleFocus} onBlur={handleBlur} onKeyDown={handleKeyDown} />
+      <input type="text" value={clockOut} placeholder="X" className={inputClass} onChange={edit(setClockOut)} onFocus={handleFocus} onBlur={handleBlur} onKeyDown={handleKeyDown} />
     </div>
   );
 });
@@ -553,6 +584,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   // off" row — deleting it would make the person's default hours reappear.
   const saveQueues = useRef(new Map());
   const [pendingSaves, setPendingSaves] = useState(0);
+  const [lastSavedAt, setLastSavedAt] = useState(null);
   const applySaved = useCallback((saved) => {
     queryClient.setQueryData(shiftsKey, (old = []) => {
       const idx = old.findIndex((s) => s.member_id === saved.member_id && s.shift_date === saved.shift_date);
@@ -578,7 +610,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
     const run = previous.catch(() => {}).then(() => saveKitchenShift(row));
     saveQueues.current.set(key, run);
     return run
-      .then((saved) => { applySaved(saved); })
+      .then((saved) => { applySaved(saved); setLastSavedAt(new Date()); })
       .catch((e) => {
         toast.error(`השעות של ${member.full_name} ב-${dateStr} לא נשמרו: ${e.message}`);
         throw e;
@@ -600,7 +632,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   const saveAll = async () => {
     clearTimeout(savedTimerRef.current);
     setSaveState({ status: "saving", failed: 0 });
-    const results = await Promise.all([...cellRegistry.current.values()].map((flush) => flush()));
+    const results = await Promise.all([...cellRegistry.current.values()].map((cell) => cell.flush()));
     await Promise.allSettled([...saveQueues.current.values()]);
     const failed = results.filter((ok) => ok === false).length;
     if (failed > 0) {
@@ -614,13 +646,25 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   };
   const saving = saveState.status === "saving" || pendingSaves > 0;
 
-  // Don't let the tab close/reload while a save is still in flight.
+  // Don't let the tab close/reload while anything is unsaved or in flight —
+  // checked at the moment of leaving, so a half-typed cell counts too. Also
+  // push out whatever is pending when the tab is hidden or the page goes away.
   useEffect(() => {
-    if (pendingSaves <= 0) return undefined;
-    const warn = (e) => { e.preventDefault(); e.returnValue = ""; };
+    const anyUnsaved = () => [...cellRegistry.current.values()].some((cell) => cell.isUnsaved());
+    const warn = (e) => {
+      if (anyUnsaved() || saveQueues.current.size > 0) { e.preventDefault(); e.returnValue = ""; }
+    };
+    const flushNow = () => { for (const cell of cellRegistry.current.values()) if (cell.isUnsaved()) cell.flush(); };
+    const onVisibility = () => { if (document.visibilityState === "hidden") flushNow(); };
     window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [pendingSaves]);
+    window.addEventListener("pagehide", flushNow);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      window.removeEventListener("pagehide", flushNow);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
 
   const swapMember = useMutation({
     mutationFn: async ({ member, employee }) =>
@@ -640,6 +684,11 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
         <h2 className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
           <UtensilsCrossed className="w-4 h-4 text-emerald-700" /> {title} — {monthLabel}
         </h2>
+        {lastSavedAt && (
+          <span className="text-[11px] text-stone-500 ms-auto">
+            נשמר לאחרונה ב-{lastSavedAt.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          </span>
+        )}
         <Button
           size="sm"
           onClick={saveAll}
