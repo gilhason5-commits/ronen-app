@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Pencil, X, Check } from "lucide-react";
 import { toast } from "sonner";
 import { fmtCurrency } from "../components/utils/formatNumbers";
 
@@ -17,7 +17,61 @@ const TITLE_KEYS = {
   cat4: "fixed_expenses_title_cat4",
 };
 const DEFAULT_TITLES = { cat1: "קטגוריה 1", cat2: "קטגוריה 2", cat3: "קטגוריה 3", cat4: "קטגוריה 4" };
-const SETTING_KEYS = Object.values(TITLE_KEYS);
+// The 4 categories are fixed slots (FixedExpense.category CHECK), so
+// "deleting" one hides its slot until it's added back.
+const HIDDEN_KEYS = {
+  cat1: "fixed_expenses_hidden_cat1",
+  cat2: "fixed_expenses_hidden_cat2",
+  cat3: "fixed_expenses_hidden_cat3",
+  cat4: "fixed_expenses_hidden_cat4",
+};
+const SETTING_KEYS = [...Object.values(TITLE_KEYS), ...Object.values(HIDDEN_KEYS)];
+
+// Category title with a pencil to rename it in place and an X to delete it.
+function CategoryTitle({ title, onRename, onDelete }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title);
+  useEffect(() => { if (!editing) setDraft(title); }, [title, editing]);
+  const commit = () => {
+    setEditing(false);
+    const v = draft.trim();
+    if (v && v !== title) onRename(v);
+    else setDraft(title);
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <Input
+          autoFocus
+          value={draft}
+          className="h-8 font-bold text-base"
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") { setDraft(title); setEditing(false); }
+          }}
+        />
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-700" onMouseDown={(e) => e.preventDefault()} onClick={commit}>
+          <Check className="w-4 h-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1">
+      <span className="font-bold text-stone-900 text-base">{title}</span>
+      <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-400 hover:text-emerald-700" title="שינוי שם" onClick={() => setEditing(true)}>
+        <Pencil className="w-3.5 h-3.5" />
+      </Button>
+      <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-400 hover:text-red-600" title="מחיקת קטגוריה" onClick={onDelete}>
+        <X className="w-4 h-4" />
+      </Button>
+    </div>
+  );
+}
 
 // Debounced free-text field bound to an AppSetting row — local state so
 // typing doesn't fire a request per keystroke, saved on blur.
@@ -37,7 +91,7 @@ function EditableSetting({ value, placeholder, className, multiline, onSave }) {
   );
 }
 
-function ExpenseTable({ title, category, expenses, onSaveTitle, onAdd, onUpdate, onRemove }) {
+function ExpenseTable({ title, category, expenses, onSaveTitle, onDeleteCategory, onAdd, onUpdate, onRemove }) {
   const [newName, setNewName] = useState("");
   const [newAmount, setNewAmount] = useState("");
   const rows = expenses.filter((e) => (e.category || "cat1") === category);
@@ -46,11 +100,7 @@ function ExpenseTable({ title, category, expenses, onSaveTitle, onAdd, onUpdate,
   return (
     <div className="border border-stone-300 rounded-lg overflow-hidden bg-white">
       <div className="border-b border-stone-300 bg-stone-50 px-4 py-2">
-        <EditableSetting
-          value={title}
-          className="font-bold text-stone-900 border-0 bg-transparent px-0 h-auto text-base focus-visible:ring-0"
-          onSave={onSaveTitle}
-        />
+        <CategoryTitle title={title} onRename={onSaveTitle} onDelete={() => onDeleteCategory(rows)} />
       </div>
       <table className="w-full text-sm">
         <thead>
@@ -189,6 +239,46 @@ export default function FixedExpenses() {
   });
 
   const titleOf = (cat) => settingByKey[TITLE_KEYS[cat]]?.value ?? DEFAULT_TITLES[cat];
+  const isHidden = (cat) => settingByKey[HIDDEN_KEYS[cat]]?.value === "true";
+  const hiddenCats = Object.keys(TITLE_KEYS).filter(isHidden);
+
+  // Deleting a category removes its expenses too (they'd otherwise still
+  // count in the grand total while invisible) and resets its title.
+  const deleteCategory = useMutation({
+    mutationFn: async ({ cat, rows }) => {
+      await Promise.all(rows.map((r) => base44.entities.FixedExpense.delete(r.id)));
+      for (const [key, value] of [[HIDDEN_KEYS[cat], "true"], [TITLE_KEYS[cat], DEFAULT_TITLES[cat]]]) {
+        const existing = settingByKey[key];
+        if (existing) await base44.entities.AppSetting.update(existing.id, { value });
+        else await base44.entities.AppSetting.create({ key, value });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fixedExpenses"] });
+      queryClient.invalidateQueries({ queryKey: ["fixedExpensesSettings"] });
+      toast.success("הקטגוריה נמחקה");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const handleDeleteCategory = (cat, rows) => {
+    const msg = rows.length
+      ? `למחוק את הקטגוריה "${titleOf(cat)}" ואת ${rows.length} ההוצאות שבה?`
+      : `למחוק את הקטגוריה "${titleOf(cat)}"?`;
+    if (window.confirm(msg)) deleteCategory.mutate({ cat, rows });
+  };
+
+  const renderTable = (cat) => !isHidden(cat) && (
+    <ExpenseTable
+      title={titleOf(cat)}
+      category={cat}
+      expenses={expenses}
+      onSaveTitle={(v) => saveSetting.mutate({ key: TITLE_KEYS[cat], value: v })}
+      onDeleteCategory={(rows) => handleDeleteCategory(cat, rows)}
+      onAdd={(data) => addExpense.mutate(data)}
+      onUpdate={(id, data) => updateExpense.mutate({ id, data })}
+      onRemove={(id) => removeExpense.mutate(id)}
+    />
+  );
 
   const grandTotal = expenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
 
@@ -200,47 +290,24 @@ export default function FixedExpenses() {
 
       <div className="grid lg:grid-cols-2 gap-6 items-start">
         <div className="space-y-6">
-          <ExpenseTable
-            title={titleOf("cat1")}
-            category="cat1"
-            expenses={expenses}
-            onSaveTitle={(v) => saveSetting.mutate({ key: TITLE_KEYS.cat1, value: v })}
-            onAdd={(data) => addExpense.mutate(data)}
-            onUpdate={(id, data) => updateExpense.mutate({ id, data })}
-            onRemove={(id) => removeExpense.mutate(id)}
-          />
-          <ExpenseTable
-            title={titleOf("cat2")}
-            category="cat2"
-            expenses={expenses}
-            onSaveTitle={(v) => saveSetting.mutate({ key: TITLE_KEYS.cat2, value: v })}
-            onAdd={(data) => addExpense.mutate(data)}
-            onUpdate={(id, data) => updateExpense.mutate({ id, data })}
-            onRemove={(id) => removeExpense.mutate(id)}
-          />
+          {renderTable("cat1")}
+          {renderTable("cat2")}
         </div>
 
         <div className="space-y-6">
-          <ExpenseTable
-            title={titleOf("cat3")}
-            category="cat3"
-            expenses={expenses}
-            onSaveTitle={(v) => saveSetting.mutate({ key: TITLE_KEYS.cat3, value: v })}
-            onAdd={(data) => addExpense.mutate(data)}
-            onUpdate={(id, data) => updateExpense.mutate({ id, data })}
-            onRemove={(id) => removeExpense.mutate(id)}
-          />
-          <ExpenseTable
-            title={titleOf("cat4")}
-            category="cat4"
-            expenses={expenses}
-            onSaveTitle={(v) => saveSetting.mutate({ key: TITLE_KEYS.cat4, value: v })}
-            onAdd={(data) => addExpense.mutate(data)}
-            onUpdate={(id, data) => updateExpense.mutate({ id, data })}
-            onRemove={(id) => removeExpense.mutate(id)}
-          />
+          {renderTable("cat3")}
+          {renderTable("cat4")}
         </div>
       </div>
+
+      {hiddenCats.length > 0 && (
+        <Button
+          variant="outline"
+          onClick={() => saveSetting.mutate({ key: HIDDEN_KEYS[hiddenCats[0]], value: "false" })}
+        >
+          <Plus className="w-4 h-4 ml-1" /> הוספת קטגוריה
+        </Button>
+      )}
 
       <div className="border-2 border-emerald-700 rounded-lg bg-emerald-50 px-6 py-4 flex items-center justify-between">
         <span className="text-lg font-bold text-emerald-900">סך הכל הוצאות קבועות</span>
