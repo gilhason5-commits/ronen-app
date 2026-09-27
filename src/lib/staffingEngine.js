@@ -26,6 +26,40 @@ export function orderAgenciesForDisplay(agencies) {
   return [...known, ...rest];
 }
 
+// Waiters are regular TaskEmployee rows in this department, each linked to
+// the staffing agency that supplies them (agency_id/agency_name).
+export const WAITERS_DEPARTMENT = 'מלצרים';
+
+export function isWaiterEmployee(employee) {
+  return employee?.department_name === WAITERS_DEPARTMENT;
+}
+
+/** Hours between two "HH:MM" strings; a clock-out before clock-in wraps past midnight. */
+export function shiftHours(clockIn, clockOut) {
+  if (!clockIn || !clockOut) return null;
+  const [ih, im] = clockIn.split(':').map(Number);
+  const [oh, om] = clockOut.split(':').map(Number);
+  if ([ih, im, oh, om].some((n) => Number.isNaN(n))) return null;
+  let minutes = (oh * 60 + om) - (ih * 60 + im);
+  if (minutes < 0) minutes += 24 * 60;
+  return Math.round((minutes / 60) * 100) / 100;
+}
+
+/**
+ * Shift pay fields seeded from the employee card: hourly (or hourly+global)
+ * → hourly rate × clocked hours; global only → a flat per-event rate.
+ */
+export function payFromEmployee(employee) {
+  if (!employee?.pay_type) return {};
+  if ((employee.pay_type === 'hourly' || employee.pay_type === 'both') && employee.hourly_rate != null) {
+    return { pay_type: 'hourly', hourly_rate: employee.hourly_rate };
+  }
+  if (employee.pay_type === 'global' && employee.global_rate != null) {
+    return { pay_type: 'daily', daily_rate: employee.global_rate };
+  }
+  return {};
+}
+
 function inRange(rule, guests) {
   if (rule.min_guests != null && guests < rule.min_guests) return false;
   if (rule.max_guests != null && guests > rule.max_guests) return false;

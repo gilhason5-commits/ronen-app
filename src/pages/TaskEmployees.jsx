@@ -17,7 +17,7 @@ import {
 import DepartmentDialog from "../components/tasks/DepartmentDialog";
 import RoleDialog from "../components/tasks/RoleDialog";
 import RoleProceduresDialog from "../components/tasks/RoleProceduresDialog";
-import AgencyWorkerPool from "../components/staffing/AgencyWorkerPool";
+import { WAITERS_DEPARTMENT, isWaiterEmployee, orderAgenciesForDisplay } from "@/lib/staffingEngine";
 import { toast } from "sonner";
 
 export default function TaskEmployees() {
@@ -28,6 +28,7 @@ export default function TaskEmployees() {
   const [selectedRole, setSelectedRole] = useState(null);
   const [proceduresRole, setProceduresRole] = useState(null);
   const [selectedDeptFilter, setSelectedDeptFilter] = useState(null);
+  const [selectedAgencyFilter, setSelectedAgencyFilter] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -74,12 +75,6 @@ export default function TaskEmployees() {
     initialData: [],
   });
 
-  const { data: agencyWorkers = [] } = useQuery({
-    queryKey: ["agencyWorkers"],
-    queryFn: () => base44.entities.AgencyWorker.list("full_name"),
-    initialData: [],
-  });
-
   const { data: departments = [] } = useQuery({
     queryKey: ['departments'],
     queryFn: () => base44.entities.Department.list(),
@@ -92,10 +87,31 @@ export default function TaskEmployees() {
     initialData: [],
   });
 
+  // A waiter's name is copied onto their EventShift rows and locked
+  // TipAllocation rows, so a rename is pushed there too — otherwise past
+  // attendance and tips would keep showing the old name.
   const updateEmployeeMutation = useMutation({
-    mutationFn: ({ id, data }) => base44.entities.TaskEmployee.update(id, data),
+    mutationFn: async ({ id, data }) => {
+      const before = employees.find(e => e.id === id);
+      const updated = await base44.entities.TaskEmployee.update(id, data);
+      const newName = data.full_name?.trim();
+      if (before && newName && newName !== before.full_name && (isWaiterEmployee(before) || isWaiterEmployee(updated))) {
+        const shifts = await base44.entities.EventShift.filter({ worker_id: id });
+        await Promise.all(shifts.map(s => base44.entities.EventShift.update(s.id, { worker_name: newName })));
+        const allocations = await base44.entities.TipAllocation.filter({ worker_name: before.full_name });
+        await Promise.all(
+          allocations
+            .filter(a => (a.agency_name || '') === (before.agency_name || ''))
+            .map(a => base44.entities.TipAllocation.update(a.id, { worker_name: newName }))
+        );
+      }
+      return updated;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['taskEmployees'] });
+      queryClient.invalidateQueries({ queryKey: ['eventShifts'] });
+      queryClient.invalidateQueries({ queryKey: ['monthShifts'] });
+      queryClient.invalidateQueries({ queryKey: ['tipAllocations'] });
       toast.success('עובד עודכן');
       setEditingId(null);
     },
@@ -116,10 +132,16 @@ export default function TaskEmployees() {
     const search = searchTerm.toLowerCase();
     const matchesSearch = emp.full_name?.toLowerCase().includes(search) ||
            emp.phone_e164?.toLowerCase().includes(search) ||
-           emp.role?.toLowerCase().includes(search);
+           emp.role_name?.toLowerCase().includes(search) ||
+           emp.agency_name?.toLowerCase().includes(search);
     const matchesDepartment = !selectedDeptFilter || emp.department_id === selectedDeptFilter;
-    return matchesSearch && matchesDepartment;
-  }), [employees, searchTerm, selectedDeptFilter]);
+    const matchesAgency = !selectedAgencyFilter || emp.agency_id === selectedAgencyFilter;
+    return matchesSearch && matchesDepartment && matchesAgency;
+  }), [employees, searchTerm, selectedDeptFilter, selectedAgencyFilter]);
+
+  const activeAgencies = useMemo(() => orderAgenciesForDisplay(agencies.filter(a => a.is_active)), [agencies]);
+  const waitersDept = departments.find(d => d.name === WAITERS_DEPARTMENT);
+  const editIsWaiter = editForm.department_name === WAITERS_DEPARTMENT;
 
   const activeCount = employees.filter(e => e.is_active).length;
   const whatsappEnabledCount = employees.filter(e => e.whatsapp_enabled).length;
@@ -129,15 +151,21 @@ export default function TaskEmployees() {
     setEditForm(employee);
   };
 
+  // Adding while a department (and agency) filter is on pre-fills them, so
+  // "new waiter for עמי" is one click from the filtered view.
   const handleAddNew = () => {
+    const dept = departments.find(d => d.id === selectedDeptFilter);
+    const agency = agencies.find(a => a.id === selectedAgencyFilter);
     setEditingId('new');
     setEditForm({
       full_name: '',
       phone_e164: '',
-      department_id: '',
-      department_name: '',
+      department_id: dept?.id || '',
+      department_name: dept?.name || '',
       role_id: '',
       role_name: '',
+      agency_id: agency?.id || '',
+      agency_name: agency?.name || '',
       is_active: true,
       whatsapp_enabled: true,
       work_agreement: '',
@@ -158,22 +186,37 @@ export default function TaskEmployees() {
         return;
       }
     }
-    // Derive department from role
+    // A role pins the department to the role's; without one, the category
+    // picked on the card stands.
     if (dataToSave.role_id) {
       const role = roles.find(r => r.id === dataToSave.role_id);
       if (role) {
         dataToSave.department_id = role.department_id || null;
         dataToSave.department_name = role.department_name || '';
       }
-    } else {
+    }
+    if (!dataToSave.department_id) {
       dataToSave.department_id = null;
       dataToSave.department_name = '';
+    }
+    if (dataToSave.department_name === WAITERS_DEPARTMENT) {
+      if (!dataToSave.agency_id) {
+        toast.error('יש לבחור סוכנות כוח אדם למלצר');
+        return;
+      }
+    } else {
+      dataToSave.agency_id = null;
+      dataToSave.agency_name = null;
     }
     // '' fails at the DB level for uuid columns (role_id/department_id) and
     // for pay_type's CHECK constraint (must be null or one of the allowed
     // values) — an untouched field defaults to '' in form state, which used
     // to silently block creating an employee with just a name.
     if (!dataToSave.role_id) dataToSave.role_id = null;
+    if (!dataToSave.full_name?.trim()) {
+      toast.error('יש להזין שם');
+      return;
+    }
     if (!dataToSave.pay_type) dataToSave.pay_type = null;
     if (dataToSave.hourly_rate === '') dataToSave.hourly_rate = null;
     if (dataToSave.global_rate === '') dataToSave.global_rate = null;
@@ -194,9 +237,7 @@ export default function TaskEmployees() {
       setEditForm({
         ...editForm,
         role_id: '',
-        role_name: '',
-        department_id: '',
-        department_name: ''
+        role_name: ''
       });
     } else {
       const role = roles.find(r => r.id === roleId);
@@ -208,6 +249,24 @@ export default function TaskEmployees() {
         department_name: role?.department_name || ''
       });
     }
+  };
+
+  // Switching category drops a role that belongs to a different department.
+  const handleDepartmentChange = (deptId) => {
+    const dept = departments.find(d => d.id === deptId);
+    const role = roles.find(r => r.id === editForm.role_id);
+    const keepRole = role && deptId !== '__none__' && role.department_id === deptId;
+    setEditForm({
+      ...editForm,
+      department_id: deptId === '__none__' ? '' : deptId,
+      department_name: dept?.name || '',
+      ...(keepRole ? {} : { role_id: '', role_name: '' }),
+    });
+  };
+
+  const handleAgencyChange = (agencyId) => {
+    const agency = agencies.find(a => a.id === agencyId);
+    setEditForm({ ...editForm, agency_id: agencyId, agency_name: agency?.name || '' });
   };
 
   const handleBackupChange = (value) => {
@@ -271,7 +330,7 @@ export default function TaskEmployees() {
   const payLabel = (emp) => {
     const parts = [];
     if (emp.pay_type === 'hourly' || emp.pay_type === 'both') parts.push(`${emp.hourly_rate ?? 0} ₪/שעה`);
-    if (emp.pay_type === 'global' || emp.pay_type === 'both') parts.push(`${emp.global_rate ?? 0} ₪ גלובלי`);
+    if (emp.pay_type === 'global' || emp.pay_type === 'both') parts.push(`${emp.global_rate ?? 0} ₪ ${isWaiterEmployee(emp) ? 'לאירוע' : 'גלובלי'}`);
     return parts.length ? parts.join(' + ') : null;
   };
 
@@ -297,13 +356,41 @@ export default function TaskEmployees() {
         onChange={(e) => setEditForm({ ...editForm, phone_e164: e.target.value })}
         placeholder="+972501234567"
       />
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-stone-500">קטגוריה</p>
+        <Select value={editForm.department_id || "__none__"} onValueChange={handleDepartmentChange}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="קטגוריה" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">ללא קטגוריה</SelectItem>
+            {departments
+              .filter(d => d.is_active)
+              .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+              .map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      {editIsWaiter && (
+        <div className="space-y-1 rounded-md border border-amber-300 bg-amber-50 p-2">
+          <p className="text-xs font-medium text-amber-800">סוכנות כוח אדם *</p>
+          <Select value={editForm.agency_id || ""} onValueChange={handleAgencyChange}>
+            <SelectTrigger className="w-full bg-white">
+              <SelectValue placeholder="בחר סוכנות" />
+            </SelectTrigger>
+            <SelectContent>
+              {activeAgencies.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       <Select value={editForm.role_id || "__none__"} onValueChange={handleRoleChange}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder="תפקיד" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__none__">ללא תפקיד</SelectItem>
-          {roles.filter(r => r.is_active).map(role => {
+          {roles.filter(r => r.is_active && (!editForm.department_id || r.department_id === editForm.department_id)).map(role => {
             const taken = employees.some(e => e.is_active && e.role_id === role.id && e.id !== excludeEmployeeId);
             return (
               <SelectItem key={role.id} value={role.id} disabled={taken}>
@@ -313,7 +400,6 @@ export default function TaskEmployees() {
           })}
         </SelectContent>
       </Select>
-      <p className="text-sm text-stone-600">מחלקה: {editForm.department_name || '-'}</p>
       {renderBackupSelect()}
       {renderPayFields()}
       <div className="space-y-1.5 border border-stone-200 rounded-md p-2">
@@ -385,6 +471,9 @@ export default function TaskEmployees() {
     return (
       <div className="space-y-2 border border-stone-200 rounded-md p-2">
         <p className="text-xs font-medium text-stone-500">סוג שכר</p>
+        {editIsWaiter && (
+          <p className="text-[11px] text-stone-400">נמשך אוטומטית למסך הנוכחות ומחושב לפי שעות הכניסה/יציאה</p>
+        )}
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-1.5 text-sm shrink-0 w-16">
             <input type="checkbox" checked={isHourly} onChange={(e) => togglePayFlag('hourly', e.target.checked)} />
@@ -402,12 +491,12 @@ export default function TaskEmployees() {
         <div className="flex items-center gap-2">
           <label className="flex items-center gap-1.5 text-sm shrink-0 w-16">
             <input type="checkbox" checked={isGlobal} onChange={(e) => togglePayFlag('global', e.target.checked)} />
-            גלובלי
+            {editIsWaiter ? 'לאירוע' : 'גלובלי'}
           </label>
           {isGlobal && (
             <Input
               type="number"
-              placeholder="₪ גלובלי"
+              placeholder={editIsWaiter ? "₪ לאירוע" : "₪ גלובלי"}
               value={editForm.global_rate ?? ''}
               onChange={(e) => setEditForm({ ...editForm, global_rate: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
             />
@@ -436,10 +525,9 @@ export default function TaskEmployees() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="employees">עובדים</TabsTrigger>
           <TabsTrigger value="roles">תפקידים</TabsTrigger>
-          <TabsTrigger value="agencies">סוכנויות כוח אדם</TabsTrigger>
         </TabsList>
 
         <TabsContent value="employees" className="space-y-6">
@@ -508,7 +596,7 @@ export default function TaskEmployees() {
             <div className="flex flex-wrap gap-2">
               <Button
                 variant={selectedDeptFilter === null ? "default" : "outline"}
-                onClick={() => setSelectedDeptFilter(null)}
+                onClick={() => { setSelectedDeptFilter(null); setSelectedAgencyFilter(null); }}
                 size="sm"
               >
                 כל המחלקות ({employees.length})
@@ -522,7 +610,7 @@ export default function TaskEmployees() {
                     <Button
                       key={dept.id}
                       variant={selectedDeptFilter === dept.id ? "default" : "outline"}
-                      onClick={() => setSelectedDeptFilter(dept.id)}
+                      onClick={() => { setSelectedDeptFilter(dept.id); setSelectedAgencyFilter(null); }}
                       size="sm"
                     >
                       {dept.name} ({count})
@@ -530,6 +618,19 @@ export default function TaskEmployees() {
                   );
                 })}
             </div>
+            {waitersDept && selectedDeptFilter === waitersDept.id && (
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-sm text-stone-500">סוכנות:</span>
+                <Button size="sm" variant={selectedAgencyFilter === null ? "default" : "outline"} onClick={() => setSelectedAgencyFilter(null)}>
+                  הכל
+                </Button>
+                {activeAgencies.map(a => (
+                  <Button key={a.id} size="sm" variant={selectedAgencyFilter === a.id ? "default" : "outline"} onClick={() => setSelectedAgencyFilter(a.id)}>
+                    {a.name} ({employees.filter(e => e.agency_id === a.id).length})
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -581,6 +682,7 @@ export default function TaskEmployees() {
                         <div className="flex flex-wrap gap-1.5">
                           {employee.role_name && <Badge variant="outline">{employee.role_name}</Badge>}
                           {employee.department_name && <Badge className="bg-blue-100 text-blue-700">{employee.department_name}</Badge>}
+                          {employee.agency_name && <Badge className="bg-amber-100 text-amber-800">סוכנות: {employee.agency_name}</Badge>}
                           <Badge className={employee.whatsapp_enabled ? "bg-green-100 text-green-700" : "bg-stone-100 text-stone-700"}>
                             WhatsApp {employee.whatsapp_enabled ? 'מופעל' : 'כבוי'}
                           </Badge>
@@ -768,15 +870,6 @@ export default function TaskEmployees() {
           />
         </TabsContent>
 
-        <TabsContent value="agencies" className="space-y-6">
-          <div>
-            <h2 className="text-xl font-bold">מאגרי עובדים לפי סוכנות</h2>
-            <p className="text-sm text-stone-500 mt-1">
-              מאגר זה משמש לבחירת עובדים בעת סימון נוכחות אירוע — הוספה, שינוי שם או הסרה כאן משפיעה שם.
-            </p>
-          </div>
-          <AgencyWorkerPool agencies={agencies} workers={agencyWorkers} />
-        </TabsContent>
       </Tabs>
     </div>
   );

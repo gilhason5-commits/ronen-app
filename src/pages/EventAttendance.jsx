@@ -8,9 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ClipboardCheck, Plus, Trash2, Clock, UserPlus, Users, AlertTriangle, Check } from "lucide-react";
+import { ClipboardCheck, Trash2, Clock, UserPlus, Users, AlertTriangle, Check } from "lucide-react";
 import { toast } from "sonner";
-import { FORMAT_LABELS, computeStaffing, orderAgenciesForDisplay } from "@/lib/staffingEngine";
+import { FORMAT_LABELS, computeStaffing, orderAgenciesForDisplay, isWaiterEmployee, payFromEmployee, shiftHours } from "@/lib/staffingEngine";
+import { Link } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 import { fmtCurrency } from "../components/utils/formatNumbers";
 
 const todayStr = () => new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD local
@@ -171,14 +173,14 @@ function PayFields({ shift, onUpdate }) {
       </Select>
       {shift.pay_type === "hourly" && (
         <>
-          <Input type="number" step="0.25" placeholder="שעות" className="h-8 w-20"
+          <Input key={`hours-${shift.hours ?? ""}`} type="number" step="0.25" placeholder="שעות" className="h-8 w-20"
             defaultValue={shift.hours ?? ""} onBlur={(e) => onUpdate({ hours: e.target.value === "" ? null : parseFloat(e.target.value) || 0 })} />
-          <Input type="number" step="0.01" placeholder="₪/שעה" className="h-8 w-24"
+          <Input key={`rate-${shift.hourly_rate ?? ""}`} type="number" step="0.01" placeholder="₪/שעה" className="h-8 w-24"
             defaultValue={shift.hourly_rate ?? ""} onBlur={(e) => onUpdate({ hourly_rate: e.target.value === "" ? null : parseFloat(e.target.value) || 0 })} />
         </>
       )}
       {shift.pay_type === "daily" && (
-        <Input type="number" step="0.01" placeholder="₪ ליום" className="h-8 w-24"
+        <Input key={`daily-${shift.daily_rate ?? ""}`} type="number" step="0.01" placeholder="₪ ליום" className="h-8 w-24"
           defaultValue={shift.daily_rate ?? ""} onBlur={(e) => onUpdate({ daily_rate: e.target.value === "" ? null : parseFloat(e.target.value) || 0 })} />
       )}
       {shift.pay_type && total > 0 && (
@@ -188,7 +190,10 @@ function PayFields({ shift, onUpdate }) {
   );
 }
 
-function ShiftRow({ shift, onUpdate, onDelete, hideWaiterFlags = false }) {
+// Saving hours also recomputes shift.hours from the clock times, and fills
+// in the pay type/rate from the employee card if the shift has none yet
+// (e.g. the rate was entered on the card after the worker was checked in).
+function ShiftRow({ shift, employee, onUpdate, onDelete, hideWaiterFlags = false }) {
   const [draftClockIn, setDraftClockIn] = useState(shift.clock_in || "");
   const [draftClockOut, setDraftClockOut] = useState(shift.clock_out || "");
   const dirty = draftClockIn !== (shift.clock_in || "") || draftClockOut !== (shift.clock_out || "");
@@ -223,7 +228,15 @@ function ShiftRow({ shift, onUpdate, onDelete, hideWaiterFlags = false }) {
           size="sm"
           className="h-9"
           disabled={!dirty}
-          onClick={() => onUpdate({ clock_in: draftClockIn || null, clock_out: draftClockOut || null })}
+          onClick={() => {
+            const hours = shiftHours(draftClockIn, draftClockOut);
+            onUpdate({
+              clock_in: draftClockIn || null,
+              clock_out: draftClockOut || null,
+              ...(hours != null ? { hours } : {}),
+              ...(shift.pay_type ? {} : payFromEmployee(employee)),
+            });
+          }}
         >
           עדכון שעות
         </Button>
@@ -253,42 +266,30 @@ function ShiftRow({ shift, onUpdate, onDelete, hideWaiterFlags = false }) {
 }
 
 // Popup opened from an agency section's "הוספת עובד" button — quick-pick from
-// that agency's worker pool (מאגר עובדים), or type a name that isn't in the
-// pool yet (which then also gets remembered there for next time).
-function AddWorkerDialog({ event, agency, workers, shifts, open, onOpenChange }) {
-  const [name, setName] = useState("");
+// the waiters linked to that agency on עמוד עובדים. New waiters are created
+// there (category מלצרים + agency), not here, so each has a full employee
+// card; their pay rate is copied onto the shift.
+function AddWorkerDialog({ event, agency, employees, shifts, open, onOpenChange }) {
   const [isSubstitute, setIsSubstitute] = useState(false);
   const queryClient = useQueryClient();
 
   const existingIds = new Set(shifts.map((s) => s.worker_id).filter(Boolean));
-  const knownWorkers = workers.filter((w) => w.agency_id === agency.id && w.is_active && !existingIds.has(w.id));
+  const knownWorkers = employees.filter((e) => e.agency_id === agency.id && isWaiterEmployee(e) && e.is_active && !existingIds.has(e.id));
 
   const addShift = useMutation({
-    mutationFn: async ({ worker, freeName }) => {
-      let workerId = worker?.id || null;
-      let workerName = worker?.full_name || freeName?.trim();
-      if (!workerName) throw new Error("חסר שם עובד");
-      if (!worker && workerName) {
-        const created = await base44.entities.AgencyWorker.create({
-          agency_id: agency.id, agency_name: agency.name, full_name: workerName,
-        });
-        workerId = created.id;
-      }
-      await base44.entities.EventShift.create({
-        event_id: event.id,
-        event_date: event.event_date,
-        worker_id: workerId,
-        worker_name: workerName,
-        agency_id: agency.id,
-        agency_name: agency.name,
-        clock_in: nowTime(),
-        is_substitute: isSubstitute,
-      });
-    },
+    mutationFn: (employee) => base44.entities.EventShift.create({
+      event_id: event.id,
+      event_date: event.event_date,
+      worker_id: employee.id,
+      worker_name: employee.full_name,
+      agency_id: agency.id,
+      agency_name: agency.name,
+      clock_in: nowTime(),
+      is_substitute: isSubstitute,
+      ...payFromEmployee(employee),
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["eventShifts"] });
-      queryClient.invalidateQueries({ queryKey: ["agencyWorkers"] });
-      setName("");
       setIsSubstitute(false);
       onOpenChange(false);
     },
@@ -309,22 +310,22 @@ function AddWorkerDialog({ event, agency, workers, shifts, open, onOpenChange })
                   key={w.id}
                   className="rounded-full border px-3 py-1.5 text-sm bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 active:scale-95 transition"
                   disabled={addShift.isPending}
-                  onClick={() => addShift.mutate({ worker: w })}
+                  onClick={() => addShift.mutate(w)}
                 >
                   {w.full_name}
                 </button>
               ))}
             </div>
           ) : (
-            <div className="text-sm text-slate-400">כל עובדי {agency.name} מהמאגר כבר משובצים</div>
+            <div className="text-sm text-slate-400">אין מלצרים פנויים של {agency.name}</div>
           )}
 
-          <div className="flex gap-2">
-            <Input placeholder="או שם חדש…" className="h-10" value={name} onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) addShift.mutate({ freeName: name }); }} />
-            <Button className="h-10" disabled={!name.trim() || addShift.isPending} onClick={() => addShift.mutate({ freeName: name })}>
-              <Plus className="w-4 h-4" />
-            </Button>
+          <div className="text-xs text-slate-500">
+            מלצר חדש?{" "}
+            <Link to={createPageUrl("TaskEmployees")} className="text-emerald-700 underline">
+              הוסף אותו בעמוד עובדים
+            </Link>{" "}
+            בקטגוריית מלצרים עם הסוכנות {agency.name}.
           </div>
           <label className="flex items-center gap-1.5 text-sm text-slate-600">
             <Checkbox checked={isSubstitute} onCheckedChange={(v) => setIsSubstitute(!!v)} /> מחליף (מישהו לא הגיע)
@@ -338,7 +339,7 @@ function AddWorkerDialog({ event, agency, workers, shifts, open, onOpenChange })
 // One fixed section per staffing agency (קירה / עמי / איגור) — replaces the
 // single cross-agency "add worker" form + grouped list with a dedicated list
 // per supplier, each with its own add-worker popup.
-function AgencySection({ event, agency, workers, shifts, plannedCount, updateShift, deleteShift }) {
+function AgencySection({ event, agency, employees, shifts, plannedCount, updateShift, deleteShift }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const agencyShifts = shifts.filter((s) => s.agency_id === agency.id);
   const missing = Math.max(0, plannedCount - agencyShifts.length);
@@ -364,12 +365,13 @@ function AgencySection({ event, agency, workers, shifts, plannedCount, updateShi
           <ShiftRow
             key={s.id}
             shift={s}
+            employee={employees.find((e) => e.id === s.worker_id)}
             onUpdate={(data) => updateShift.mutate({ id: s.id, data })}
             onDelete={() => { if (confirm(`להסיר את ${s.worker_name}?`)) deleteShift.mutate(s.id); }}
           />
         ))}
       </CardContent>
-      <AddWorkerDialog event={event} agency={agency} workers={workers} shifts={shifts} open={dialogOpen} onOpenChange={setDialogOpen} />
+      <AddWorkerDialog event={event} agency={agency} employees={employees} shifts={shifts} open={dialogOpen} onOpenChange={setDialogOpen} />
     </Card>
   );
 }
@@ -377,7 +379,7 @@ function AgencySection({ event, agency, workers, shifts, plannedCount, updateShi
 // Kitchen/cleaning staff quick-pick — sourced from the same roster used by
 // the "צוות מטבח וניקיון" schedule (KitchenRosterMember), so a chef selected
 // here is the same linked employee record shown there and on עמוד עובדים.
-function AddKitchenWorkerDialog({ event, rosterMembers, shifts, open, onOpenChange }) {
+function AddKitchenWorkerDialog({ event, rosterMembers, employees, shifts, open, onOpenChange }) {
   const queryClient = useQueryClient();
   const existingIds = new Set(shifts.filter((s) => s.source === "kitchen").map((s) => s.kitchen_member_id).filter(Boolean));
   const available = rosterMembers.filter((m) => m.is_active !== false && !existingIds.has(m.id));
@@ -392,6 +394,7 @@ function AddKitchenWorkerDialog({ event, rosterMembers, shifts, open, onOpenChan
         source: "kitchen",
         role_name: member.station || "מטבח",
         clock_in: nowTime(),
+        ...payFromEmployee(employees.find((e) => e.id === member.employee_id)),
       });
     },
     onSuccess: () => {
@@ -430,7 +433,7 @@ function AddKitchenWorkerDialog({ event, rosterMembers, shifts, open, onOpenChan
 
 // Mirrors AgencySection but for kitchen/cleaning staff — hours + hourly or
 // daily rate instead of waiter-specific flags (ראנר/סגירה/מרפסת).
-function KitchenSection({ event, rosterMembers, shifts, updateShift, deleteShift }) {
+function KitchenSection({ event, rosterMembers, employees, shifts, updateShift, deleteShift }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const kitchenShifts = shifts.filter((s) => s.source === "kitchen");
 
@@ -451,12 +454,13 @@ function KitchenSection({ event, rosterMembers, shifts, updateShift, deleteShift
             key={s.id}
             shift={s}
             hideWaiterFlags
+            employee={employees.find((e) => e.id === rosterMembers.find((m) => m.id === s.kitchen_member_id)?.employee_id)}
             onUpdate={(data) => updateShift.mutate({ id: s.id, data })}
             onDelete={() => { if (confirm(`להסיר את ${s.worker_name}?`)) deleteShift.mutate(s.id); }}
           />
         ))}
       </CardContent>
-      <AddKitchenWorkerDialog event={event} rosterMembers={rosterMembers} shifts={shifts} open={dialogOpen} onOpenChange={setDialogOpen} />
+      <AddKitchenWorkerDialog event={event} rosterMembers={rosterMembers} employees={employees} shifts={shifts} open={dialogOpen} onOpenChange={setDialogOpen} />
     </Card>
   );
 }
@@ -493,7 +497,7 @@ export default function EventAttendance() {
     initialData: [],
   });
   const { data: agencies = [] } = useQuery({ queryKey: ["staffingAgencies"], queryFn: () => base44.entities.StaffingAgency.list("sort_order"), initialData: [] });
-  const { data: workers = [] } = useQuery({ queryKey: ["agencyWorkers"], queryFn: () => base44.entities.AgencyWorker.list("full_name"), initialData: [] });
+  const { data: employees = [] } = useQuery({ queryKey: ["taskEmployees"], queryFn: () => base44.entities.TaskEmployee.list(), initialData: [] });
   const { data: kitchenRoster = [] } = useQuery({ queryKey: ["kitchenRoster"], queryFn: () => base44.entities.KitchenRosterMember.list("sort_order"), initialData: [] });
   const { data: rules = [] } = useQuery({ queryKey: ["staffingRules"], queryFn: () => base44.entities.StaffingRule.list("sort_order"), initialData: [] });
   const { data: agencySplits = [] } = useQuery({
@@ -581,7 +585,7 @@ export default function EventAttendance() {
                 key={agency.id}
                 event={event}
                 agency={agency}
-                workers={workers}
+                employees={employees}
                 shifts={shifts}
                 plannedCount={plannedByAgencyId.get(agency.id) || 0}
                 updateShift={updateShift}
@@ -591,6 +595,7 @@ export default function EventAttendance() {
             <KitchenSection
               event={event}
               rosterMembers={kitchenRoster}
+              employees={employees}
               shifts={shifts}
               updateShift={updateShift}
               deleteShift={deleteShift}
@@ -604,6 +609,7 @@ export default function EventAttendance() {
                 <ShiftRow
                   key={s.id}
                   shift={s}
+                  employee={employees.find((e) => e.id === s.worker_id)}
                   onUpdate={(data) => updateShift.mutate({ id: s.id, data })}
                   onDelete={() => { if (confirm(`להסיר את ${s.worker_name}?`)) deleteShift.mutate(s.id); }}
                 />

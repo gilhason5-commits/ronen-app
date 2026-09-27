@@ -10,7 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BookOpen, Users, Coins, Plus, Trash2, Check, X, Pencil, UtensilsCrossed, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { FORMAT_LABELS } from "@/lib/staffingEngine";
+import { FORMAT_LABELS, isWaiterEmployee } from "@/lib/staffingEngine";
+import { Link } from "react-router-dom";
+import { createPageUrl } from "@/utils";
 import { formatTimeDigits } from "@/lib/kitchenSchedule";
 
 const RULE_TYPE_LABELS = {
@@ -181,19 +183,17 @@ function AgenciesTab() {
     queryFn: () => base44.entities.StaffingAgency.list("sort_order"),
     initialData: [],
   });
-  const { data: workers = [] } = useQuery({
-    queryKey: ["agencyWorkers"],
-    queryFn: () => base44.entities.AgencyWorker.list("full_name"),
+  const { data: employees = [] } = useQuery({
+    queryKey: ["taskEmployees"],
+    queryFn: () => base44.entities.TaskEmployee.list(),
     initialData: [],
   });
   const agencyCrud = useEntityCrud("StaffingAgency", "staffingAgencies", "חברה");
-  const workerCrud = useEntityCrud("AgencyWorker", "agencyWorkers", "עובד");
-  const [newWorkerName, setNewWorkerName] = useState({});
 
   return (
     <div className="grid md:grid-cols-2 gap-4 items-start">
       {agencies.map((a) => {
-        const agencyWorkers = workers.filter((w) => w.agency_id === a.id);
+        const agencyWaiters = employees.filter((e) => e.agency_id === a.id && isWaiterEmployee(e));
         return (
           <Card key={a.id}>
             <CardHeader className="pb-2">
@@ -206,31 +206,16 @@ function AgenciesTab() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-1 max-h-72 overflow-y-auto">
-                {agencyWorkers.map((w) => (
-                  <div key={w.id} className={`flex items-center justify-between rounded px-2 py-1 hover:bg-slate-50 ${!w.is_active ? "opacity-50" : ""}`}>
-                    <span>{w.full_name}</span>
-                    <span className="flex items-center gap-2">
-                      <label className="flex items-center gap-1 text-xs text-slate-500">
-                        טיפים
-                        <Switch checked={w.include_in_tips} onCheckedChange={(v) => workerCrud.update.mutate({ id: w.id, data: { include_in_tips: v } })} />
-                      </label>
-                      <Switch checked={w.is_active} onCheckedChange={(v) => workerCrud.update.mutate({ id: w.id, data: { is_active: v } })} />
-                      <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500" onClick={() => { if (confirm(`למחוק את ${w.full_name}?`)) workerCrud.remove.mutate(w.id); }}><Trash2 className="w-3 h-3" /></Button>
-                    </span>
-                  </div>
+              {/* Waiters are managed as employees (category מלצרים) on עמוד עובדים. */}
+              <div className="flex flex-wrap gap-1.5 max-h-72 overflow-y-auto">
+                {agencyWaiters.map((e) => (
+                  <span key={e.id} className={`rounded-full border px-2.5 py-1 text-sm bg-slate-50 ${!e.is_active ? "opacity-50" : ""}`}>{e.full_name}</span>
                 ))}
-                {agencyWorkers.length === 0 && <div className="text-sm text-slate-400 py-2">אין עובדים רשומים — יתווספו אוטומטית ממסך הנוכחות</div>}
+                {agencyWaiters.length === 0 && <div className="text-sm text-slate-400 py-2">אין מלצרים משויכים</div>}
               </div>
-              <div className="flex gap-2 mt-3">
-                <Input placeholder="שם עובד חדש" className="h-8" value={newWorkerName[a.id] || ""} onChange={(e) => setNewWorkerName({ ...newWorkerName, [a.id]: e.target.value })} />
-                <Button size="sm" onClick={() => {
-                  const name = (newWorkerName[a.id] || "").trim();
-                  if (!name) return;
-                  workerCrud.create.mutate({ agency_id: a.id, agency_name: a.name, full_name: name });
-                  setNewWorkerName({ ...newWorkerName, [a.id]: "" });
-                }}><Plus className="w-4 h-4" /></Button>
-              </div>
+              <Link to={createPageUrl("TaskEmployees")} className="inline-block mt-3 text-sm text-emerald-700 underline">
+                ניהול מלצרים בעמוד עובדים
+              </Link>
             </CardContent>
           </Card>
         );
