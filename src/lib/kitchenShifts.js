@@ -78,3 +78,15 @@ export async function saveDayNote(row) {
   if (error) throw error;
   return data;
 }
+
+// Clears one day's hours for the given roster members (a day whose name was
+// erased). Deleted rows stay recoverable in KitchenShiftHistory.
+export async function deleteKitchenShiftsForDay(memberIds, date) {
+  if (memberIds.length === 0) return;
+  const { error } = await supabase
+    .from("KitchenShift")
+    .delete()
+    .eq("shift_date", date)
+    .in("member_id", memberIds);
+  if (error) throw error;
+}

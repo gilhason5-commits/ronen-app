@@ -18,7 +18,7 @@ import { exportConstraintsPdf, exportSupplierOrdersPdf, exportFloorReportPdf } f
 import { getStaffColor } from "@/lib/staffColors";
 import { getStationColor, monthDates, toDateStr, formatTimeDigits } from "@/lib/kitchenSchedule";
 import { calculateStaffingGuestCount } from "@/lib/dinerCount";
-import { fetchKitchenShifts, saveKitchenShift, fetchEventsInRange, fetchDayNotes, saveDayNote } from "@/lib/kitchenShifts";
+import { fetchKitchenShifts, saveKitchenShift, fetchEventsInRange, fetchDayNotes, saveDayNote, deleteKitchenShiftsForDay } from "@/lib/kitchenShifts";
 
 // A single shared reference for "no rows" so a missing lookup key never
 // hands a memoized row component a freshly-allocated (and thus always
@@ -535,7 +535,10 @@ const DayNoteInput = React.memo(function DayNoteInput({ dateStr, note, onSave, r
         unsavedRef.current = true;
         setText(e.target.value);
         clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => saveRef.current(), 1000);
+        // An emptied name isn't autosaved: clearing it wipes the day's hours
+        // (see handleSaveNote), which must wait until the person leaves the
+        // box — not fire while they're about to type a new name.
+        if (e.target.value.trim()) timerRef.current = setTimeout(() => saveRef.current(), 1000);
       }}
       onFocus={() => { focusedRef.current = true; onFocusDay?.(dateStr); }}
       onBlur={() => { focusedRef.current = false; clearTimeout(timerRef.current); save(); }}
@@ -677,9 +680,25 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   // to, so its days share the whole row evenly instead of leaving a void.
   const weekHasWide = weeks.map((week) => week.some((d) => d && isWideDay(toDateStr(d))));
 
+  // Erasing a day's name also erases that day's hours in this table and
+  // collapses the column back to its "X" width.
   const handleSaveNote = useCallback(async (dateStr, label) => {
     try {
+      const hadLabel = Boolean((noteByDay.get(dateStr)?.label || "").trim());
       const saved = await saveDayNote({ shift_date: dateStr, roster_group: group, label });
+      if (hadLabel && !label) {
+        await deleteKitchenShiftsForDay(activeMembers.map((m) => m.id), dateStr);
+        const memberIds = new Set(activeMembers.map((m) => m.id));
+        queryClient.setQueryData(shiftsKey, (old = []) =>
+          old.filter((sh) => !(sh.shift_date === dateStr && memberIds.has(sh.member_id)))
+        );
+        setOpenDays((prev) => {
+          if (!prev.has(dateStr)) return prev;
+          const next = new Set(prev);
+          next.delete(dateStr);
+          return next;
+        });
+      }
       queryClient.setQueryData(notesKey, (old = []) => {
         const idx = old.findIndex((n) => n.shift_date === saved.shift_date);
         if (idx === -1) return [...old, saved];
@@ -692,7 +711,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
       toast.error(`שם האירוע ב-${dateStr} לא נשמר: ${e.message}`);
       throw e;
     }
-  }, [queryClient, group, dayStrs[0], dayStrs[dayStrs.length - 1]]);
+  }, [queryClient, group, noteByDay, activeMembers, dayStrs[0], dayStrs[dayStrs.length - 1]]);
 
   // The "מטבח חם" station covers the OPS-standard "טבח" base headcount (4 up
   // to 250 guests). "אקסטרה" (סטיבן — no default hours, called in only when
