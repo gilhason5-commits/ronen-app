@@ -384,6 +384,8 @@ export default function TaskEmployees() {
           </Select>
         </div>
       )}
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-stone-500">תפקיד</p>
       <Select value={editForm.role_id || "__none__"} onValueChange={handleRoleChange}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder="תפקיד" />
@@ -400,7 +402,11 @@ export default function TaskEmployees() {
           })}
         </SelectContent>
       </Select>
-      {renderBackupSelect()}
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-stone-500">עובד חלופי</p>
+        {renderBackupSelect()}
+      </div>
       {renderPayFields()}
       <div className="space-y-1.5 border border-stone-200 rounded-md p-2">
         <p className="text-xs font-medium text-stone-500">הסכם עבודה</p>
