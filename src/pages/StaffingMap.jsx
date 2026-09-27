@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, ChevronDown, Map as MapIcon, AlertTriangle, Clock, UtensilsCrossed, FileDown, Users, Save, Loader2, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronDown, Map as MapIcon, AlertTriangle, Clock, UtensilsCrossed, FileDown, Users, Save, Loader2, Check, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import {
   computeStaffing,
@@ -1048,7 +1048,28 @@ function ChangeLog({ month }) {
   );
 }
 
+// The page shows one table at a time, picked from the header, so each can
+// be screenshotted on its own at full width.
+const VIEWS = [
+  { key: "floor", label: "מפת כוח אדם", Icon: MapIcon },
+  { key: "kitchen", label: "טבלת מטבח וניקיון", Icon: UtensilsCrossed },
+  { key: "ops", label: "טבלת תפעול", Icon: Wrench },
+];
+const VIEW_STORAGE_KEY = "staffingMap.view";
+
 export default function StaffingMap() {
+  const [view, setView] = useState(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_STORAGE_KEY);
+      return VIEWS.some((v) => v.key === saved) ? saved : "floor";
+    } catch {
+      return "floor";
+    }
+  });
+  const selectView = (key) => {
+    setView(key);
+    try { localStorage.setItem(VIEW_STORAGE_KEY, key); } catch { /* storage unavailable */ }
+  };
   const [month, setMonth] = useState(() => { const d = new Date(); d.setDate(1); return d; });
   const mKey = monthKey(month);
   const monthStart = `${mKey}-01`;
@@ -1143,12 +1164,23 @@ export default function StaffingMap() {
   const monthLabel = month.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
 
   return (
-    <div className="p-4 md:p-6 space-y-4" dir="rtl">
+    <div className="p-2 md:p-3 space-y-3" dir="rtl">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <MapIcon className="w-6 h-6 text-emerald-700" /> מפת כוח אדם
-        </h1>
+        <div className="flex items-center gap-1 bg-white border border-stone-200 rounded-lg p-1">
+          {VIEWS.map(({ key, label, Icon }) => (
+            <Button
+              key={key}
+              size="sm"
+              variant={view === key ? "default" : "ghost"}
+              className={view === key ? "bg-emerald-700 hover:bg-emerald-800 text-white" : "text-stone-700"}
+              onClick={() => selectView(key)}
+            >
+              <Icon className="w-4 h-4 ml-1.5" /> {label}
+            </Button>
+          ))}
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {view === "floor" && (<>
           <Button variant="outline" size="sm" onClick={() => exportConstraintsPdf({ events, rules, roleColumns: displayRoleColumns, monthLabel, allPlans })}>
             <FileDown className="w-3.5 h-3.5 ml-1.5" /> אילוצים
           </Button>
@@ -1158,6 +1190,7 @@ export default function StaffingMap() {
           <Button variant="outline" size="sm" onClick={() => exportFloorReportPdf({ events, rules, roleColumns: displayRoleColumns, monthLabel, allPlans })}>
             <FileDown className="w-3.5 h-3.5 ml-1.5" /> דוח לפרסום פלור
           </Button>
+          </>)}
           <div className="flex items-center gap-2 bg-white border border-stone-200 rounded-lg p-1">
             <Button variant="ghost" size="icon" onClick={() => shift(1)}><ChevronRight className="w-4 h-4" /></Button>
             <span className="font-medium w-32 text-center">{monthLabel}</span>
@@ -1167,15 +1200,12 @@ export default function StaffingMap() {
       </div>
 
       {isLoading && <div className="text-slate-500 py-8 text-center">טוען אירועים…</div>}
-      {!isLoading && events.length === 0 && (
+      {!isLoading && view === "floor" && events.length === 0 && (
         <div className="text-slate-400 py-12 text-center">אין אירועים בחודש הזה</div>
       )}
 
-      {!isLoading && events.length > 0 && (
+      {!isLoading && view === "floor" && events.length > 0 && (
         <>
-          <h2 className="text-sm font-bold text-stone-800 flex items-center gap-1.5">
-            <Users className="w-4 h-4 text-emerald-700" /> טבלת פלור
-          </h2>
           <div className="flex items-center gap-4 text-xs text-stone-600">
             <span className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-gradient-to-br from-orange-200 via-blue-200 to-pink-200 border border-stone-300 inline-block" />
@@ -1248,12 +1278,16 @@ export default function StaffingMap() {
             </table>
           </div>
 
-          <KitchenScheduleTable month={month} group="kitchen" title="צוות מטבח וניקיון" departmentName="מטבח וניקיון ערב" />
-
-          <KitchenScheduleTable month={month} group="ops" title="תפעול" departmentName="תפעול והקמה" />
-
           <ChangeLog month={month} />
         </>
+      )}
+
+      {!isLoading && view === "kitchen" && (
+        <KitchenScheduleTable month={month} group="kitchen" title="צוות מטבח וניקיון" departmentName="מטבח וניקיון ערב" />
+      )}
+
+      {!isLoading && view === "ops" && (
+        <KitchenScheduleTable month={month} group="ops" title="תפעול" departmentName="תפעול והקמה" />
       )}
     </div>
   );
