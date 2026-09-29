@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import ProducerEventForm from "../components/producer/ProducerEventForm";
+import EventForm from "../components/events/EventForm";
 import ProducerEventCard from "../components/producer/ProducerEventCard";
 import ProducerEventPrint from "../components/producer/ProducerEventPrint";
 import {
@@ -166,7 +166,7 @@ export default function ProducerPage() {
   if (showForm) {
     return (
       <div className="p-6 lg:p-8">
-        <ProducerEventForm event={selectedEvent} onClose={handleCloseForm} />
+        <EventForm event={selectedEvent} onClose={handleCloseForm} producerMode={isProducerRole} />
       </div>
     );
   }

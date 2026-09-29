@@ -28,11 +28,14 @@ import { calculateTotalGuests, calculateAdultPortions, parseRangeMax } from "@/l
 import { useAuth } from "@/lib/AuthContext";
 import { applyWasteToValue, wasteLabel } from "@/lib/foodWaste";
 
-export default function EventForm({ event, onClose }) {
+// producerMode: the same form opened from עמוד מפיק — full event details
+// and the stage-based dish picker, but no money (price, amounts, revenue,
+// cost summary, general expenses, cost reports) and no recipe editing.
+export default function EventForm({ event, onClose, producerMode = false }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const hideFinancials = !!user?.hide_financials;
+  const hideFinancials = producerMode || !!user?.hide_financials;
 
   const [formData, setFormData] = useState({
     event_name: '',
@@ -362,7 +365,7 @@ export default function EventForm({ event, onClose }) {
             <p className="text-stone-500 mt-1">הגדר פרטי אירוע ובחר מנות לפי קטגוריה</p>
           </div>
         </div>
-        {event?.id &&
+        {event?.id && !producerMode &&
         <div className="flex gap-2">
           <Button
             onClick={handlePrint}
@@ -387,7 +390,7 @@ export default function EventForm({ event, onClose }) {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+        <div className={producerMode ? "lg:col-span-3 space-y-6" : "lg:col-span-2 space-y-6"}>
           <Card className="border-stone-200">
             <CardHeader className="border-b border-stone-200 p-5">
               <CardTitle className="text-lg">פרטי אירוע</CardTitle>
@@ -473,9 +476,9 @@ export default function EventForm({ event, onClose }) {
                     }
                   </div>
 
-                  <div className="col-span-2 grid grid-cols-2 gap-6 divide-x divide-x-reverse divide-stone-200">
+                  <div className={producerMode ? "col-span-2" : "col-span-2 grid grid-cols-2 gap-6 divide-x divide-x-reverse divide-stone-200"}>
                     {/* כמויות */}
-                    <div className="pr-6 grid grid-cols-2 gap-4">
+                    <div className={producerMode ? "grid grid-cols-2 gap-4" : "pr-6 grid grid-cols-2 gap-4"}>
                       <div className="col-span-2">
                         <Label>סה״כ מבוגרים להתחייבות *</Label>
                         <Input
@@ -581,7 +584,7 @@ export default function EventForm({ event, onClose }) {
                     </div>
 
                     {/* סכומים */}
-                    <div className="pl-6 space-y-4">
+                    {!producerMode && <div className="pl-6 space-y-4">
                       <div>
                         <Label className="text-sm font-medium leading-none"> מחיר מנה כולל מע״מ (₪)
                         </Label>
@@ -631,7 +634,7 @@ export default function EventForm({ event, onClose }) {
                           onChange={(e) => setFormData({ ...formData, custom_addition_2_amount: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
                           placeholder="0" />
                       </div>
-                    </div>
+                    </div>}
                   </div>
 
                   {!hideFinancials && (
@@ -701,15 +704,16 @@ export default function EventForm({ event, onClose }) {
               onDishToggle={handleDishToggle}
               onEventDishUpdate={(edId, data) => {
                 queryClient.invalidateQueries({ queryKey: ["event_form_dishes", event?.id] });
-              }} />
+              }}
+              producerMode={producerMode} />
 
-              <EventGeneralExpenses
+              {!producerMode && <EventGeneralExpenses
               event={event}
               generalDishes={allDishes.filter(
                 (dish) => dish.event_type === formData.event_type &&
                   dish.categories?.some((cid) => generalCategories.some((c) => c.id === cid))
               )}
-              generalCategories={generalCategories} />
+              generalCategories={generalCategories} />}
 
             </>
           }
@@ -731,7 +735,7 @@ export default function EventForm({ event, onClose }) {
           }
         </div>
 
-        <div>
+        {!producerMode && <div>
           <EventSummary
             pricePerPlate={parseFloat(formData.price_per_plate) || 0}
             foodRevenue={(parseFloat(formData.price_per_plate) || 0) * (formData.guest_count || 0)}
@@ -752,10 +756,10 @@ export default function EventForm({ event, onClose }) {
               custom_addition_2_amount: formData.custom_addition_2_amount,
             }} />
 
-        </div>
+        </div>}
       </div>
 
-      {event?.id && (
+      {event?.id && !producerMode && (
         <>
           <EventPrintDialog
             open={showPrintDialog}

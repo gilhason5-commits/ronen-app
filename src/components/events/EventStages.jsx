@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,8 +20,12 @@ export default function EventStages({
   dishes = [],
   eventDishes = [],
   onDishToggle,
-  onEventDishUpdate
+  onEventDishUpdate,
+  // Producer view: pick/remove dishes and write producer notes, but no costs
+  // and no editing of the dish recipe itself.
+  producerMode = false
 }) {
+  const queryClient = useQueryClient();
   const { data: dishNotes = [] } = useQuery({
     queryKey: ["all_dish_notes", event?.id],
     queryFn: () => base44.entities.EventDishNote.filter({ event_id: event.id }),
@@ -401,7 +405,12 @@ export default function EventStages({
                                     {dish.description && (
                                       <p className="text-xs text-stone-500 mt-0.5">{dish.description}</p>
                                     )}
-                                    {(() => {
+                                    {producerMode ? (
+                                      <DishNoteEditor
+                                        eventDish={eventDishes.find(e => e.dish_id === dish.id)}
+                                        onNoteSaved={() => queryClient.invalidateQueries({ queryKey: ["all_dish_notes", event?.id] })}
+                                      />
+                                    ) : (() => {
                                       const ed = eventDishes.find(e => e.dish_id === dish.id);
                                       const noteRec = ed ? dishNotes.find(n => n.event_dish_id === ed.id) : null;
                                       return noteRec?.note ? (
@@ -411,11 +420,13 @@ export default function EventStages({
                                       ) : null;
                                     })()}
                                   </div>
-                                  <div className="text-right">
-                                    <p className="text-sm font-semibold text-emerald-600">
-                                      {fmtCurrency(cost)}
-                                    </p>
-                                  </div>
+                                  {!producerMode && (
+                                    <div className="text-right">
+                                      <p className="text-sm font-semibold text-emerald-600">
+                                        {fmtCurrency(cost)}
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="mt-3 grid grid-cols-2 gap-3">
                                   <div>
@@ -429,7 +440,9 @@ export default function EventStages({
                                   </div>
                                   <div className="flex flex-col justify-between">
                                     <div className="text-xs text-stone-600 space-y-0.5">
-                                      {isFirstCourseDish(dish, category) ? (
+                                      {producerMode ? (
+                                        <p>אחוז הגשה: {dish.serving_percentage || 100}%</p>
+                                      ) : isFirstCourseDish(dish, category) ? (
                                         <>
                                           <p>מחיר למנה: {fmtCurrency(dish.price_per_guest || 0)}</p>
                                           <p>אחוז הגשה: {dish.serving_percentage || 100}%</p>
@@ -442,16 +455,18 @@ export default function EventStages({
                                         </>
                                       )}
                                     </div>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="mt-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                                      onClick={(e) => handleEditDish(e, dish)}
-                                    >
-                                      <Pencil className="w-3 h-3 ml-1" />
-                                      עריכת מנה
-                                    </Button>
+                                    {!producerMode && (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="mt-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                        onClick={(e) => handleEditDish(e, dish)}
+                                      >
+                                        <Pencil className="w-3 h-3 ml-1" />
+                                        עריכת מנה
+                                      </Button>
+                                    )}
                                   </div>
                                 </div>
                               </div>
