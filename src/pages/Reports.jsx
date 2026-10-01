@@ -10,7 +10,7 @@ import MonthlyRollup from "../components/reports/MonthlyRollup";
 import CategoryBreakdown from "../components/reports/CategoryBreakdown";
 import EventsFoodCostChart from "../components/reports/EventsFoodCostChart";
 import IngredientCategoryPieChart from "../components/reports/IngredientCategoryPieChart";
-import FixedExpensesBreakEven from "../components/reports/FixedExpensesBreakEven";
+import MonthlyProfitability from "../components/reports/MonthlyProfitability";
 import { fmtCurrency } from "../components/utils/formatNumbers";
 
 export default function Reports() {
@@ -200,7 +200,7 @@ export default function Reports() {
         </CardContent>
       </Card>
 
-      <FixedExpensesBreakEven events={events} />
+      <MonthlyProfitability />
 
       {/* New Charts Section */}
       <EventsFoodCostChart events={events} />

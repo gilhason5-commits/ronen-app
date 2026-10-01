@@ -18,7 +18,6 @@ import {
 import { ArrowLeft, AlertCircle, Printer } from "lucide-react";
 import { toast } from "sonner";
 import EventStages from "../events/EventStages";
-import EventGeneralExpenses from "../events/EventGeneralExpenses";
 import EventSummary from "../events/EventSummary";
 
 import EventPrintDialog from "../events/EventPrintDialog";
@@ -78,14 +77,11 @@ export default function EventForm({ event, onClose, producerMode = false }) {
     initialData: []
   });
 
-  // Excludes group_type 'general' categories — those are per-event flat
-  // expenses (see EventGeneralExpenses below), not part of the guest-count
-  // driven dish tree that EventStages/print reports walk.
+  // Excludes group_type 'general' categories — the old per-event "כלליות"
+  // catalog. Those expenses now live on עמוד הוצאות as monthly general
+  // expenses, so they must stay out of the guest-count driven dish tree.
   const categories = allCategories.filter(
     (cat) => cat.event_type === formData.event_type && (cat.group_type || "food") !== "general"
-  );
-  const generalCategories = allCategories.filter(
-    (cat) => cat.event_type === formData.event_type && cat.group_type === "general"
   );
 
   const { data: allDishes = [] } = useQuery({
@@ -707,13 +703,6 @@ export default function EventForm({ event, onClose, producerMode = false }) {
               }}
               producerMode={producerMode} />
 
-              {!producerMode && <EventGeneralExpenses
-              event={event}
-              generalDishes={allDishes.filter(
-                (dish) => dish.event_type === formData.event_type &&
-                  dish.categories?.some((cid) => generalCategories.some((c) => c.id === cid))
-              )}
-              generalCategories={generalCategories} />}
 
             </>
           }

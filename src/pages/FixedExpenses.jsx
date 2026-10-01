@@ -3,9 +3,11 @@ import { base44 } from "@/api/base44Client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Pencil, X, Check } from "lucide-react";
+import { Plus, Trash2, Pencil, X, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { fmtCurrency } from "../components/utils/formatNumbers";
+import { fetchEventsInRange } from "@/lib/kitchenShifts";
+import { monthRange, countedEventsInMonth, generalExpensesForMonth } from "@/lib/monthlyFinance";
 
 // The categories are fixed slots cat1..cat8 (FixedExpense.category CHECK).
 // Their titles are user-editable — stored as AppSetting key/value rows rather
@@ -85,17 +87,15 @@ function EditableSetting({ value, placeholder, className, multiline, onSave }) {
   );
 }
 
-function ExpenseTable({ title, category, expenses, onSaveTitle, onDeleteCategory, onAdd, onUpdate, onRemove }) {
+// One editable expenses table (name / pre-VAT amount / notes + add row),
+// shared by the fixed-expense categories and the general-expense sections.
+function ExpenseRowsTable({ header, rows, newRowDefaults, onAdd, onUpdate, onRemove, footer }) {
   const [newName, setNewName] = useState("");
   const [newAmount, setNewAmount] = useState("");
-  const rows = expenses.filter((e) => (e.category || "cat1") === category);
-  const subtotal = rows.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
 
   return (
     <div className="border border-stone-300 rounded-lg overflow-hidden bg-white">
-      <div className="border-b border-stone-300 bg-stone-50 px-4 py-2">
-        <CategoryTitle title={title} onRename={onSaveTitle} onDelete={() => onDeleteCategory(rows)} />
-      </div>
+      <div className="border-b border-stone-300 bg-stone-50 px-4 py-2">{header}</div>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-stone-200 text-stone-500 text-xs">
@@ -166,7 +166,7 @@ function ExpenseTable({ title, category, expenses, onSaveTitle, onDeleteCategory
                 variant="outline"
                 disabled={!newName.trim()}
                 onClick={() => {
-                  onAdd({ name: newName.trim(), amount: parseFloat(newAmount) || 0, category });
+                  onAdd({ ...newRowDefaults, name: newName.trim(), amount: parseFloat(newAmount) || 0 });
                   setNewName("");
                   setNewAmount("");
                 }}
@@ -177,16 +177,99 @@ function ExpenseTable({ title, category, expenses, onSaveTitle, onDeleteCategory
           </tr>
         </tbody>
       </table>
-      <div className="border-t border-stone-200 bg-stone-50 px-4 py-2 flex items-center justify-between text-sm">
+      <div className="border-t border-stone-200 bg-stone-50 px-4 py-2 flex items-center justify-between text-sm">{footer}</div>
+    </div>
+  );
+}
+
+function ExpenseTable({ title, category, expenses, onSaveTitle, onDeleteCategory, onAdd, onUpdate, onRemove }) {
+  const rows = expenses.filter((e) => (e.category || "cat1") === category);
+  const subtotal = rows.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+  return (
+    <ExpenseRowsTable
+      header={<CategoryTitle title={title} onRename={onSaveTitle} onDelete={() => onDeleteCategory(rows)} />}
+      rows={rows}
+      newRowDefaults={{ category }}
+      onAdd={onAdd}
+      onUpdate={onUpdate}
+      onRemove={onRemove}
+      footer={<>
         <span className="text-stone-500">סה״כ {title}</span>
         <span className="font-bold text-stone-900">{fmtCurrency(subtotal)}</span>
-      </div>
-    </div>
+      </>}
+    />
+  );
+}
+
+// "הוצאות כלליות פר אירוע / פר אורח": the items' amounts are per one event
+// or per one guest; the month's total multiplies them by the month's
+// approved/completed events or their total guests.
+function GeneralExpenseSection({ title, basis, items, unitLabel, count, countLabel, monthTotal, onAdd, onUpdate, onRemove }) {
+  const rows = items.filter((i) => i.basis === basis);
+  const unitSum = rows.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+  return (
+    <ExpenseRowsTable
+      header={
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <span className="font-bold text-stone-900 text-base">{title}</span>
+          <span className="text-sm text-stone-600">{countLabel}: <span className="font-bold text-stone-900">{count.toLocaleString("he-IL")}</span></span>
+        </div>
+      }
+      rows={rows}
+      newRowDefaults={{ basis }}
+      onAdd={onAdd}
+      onUpdate={onUpdate}
+      onRemove={onRemove}
+      footer={<>
+        <span className="text-stone-500">{fmtCurrency(unitSum)} {unitLabel} × {count.toLocaleString("he-IL")}</span>
+        <span className="font-bold text-stone-900">{fmtCurrency(monthTotal)}</span>
+      </>}
+    />
   );
 }
 
 export default function FixedExpenses() {
   const queryClient = useQueryClient();
+  const [month, setMonth] = useState(() => new Date());
+  const shiftMonth = (dir) => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + dir, 1));
+  const monthLabel = month.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+  const [monthFrom, monthTo] = monthRange(month);
+
+  const { data: generalItems = [] } = useQuery({
+    queryKey: ["generalExpenses"],
+    queryFn: () => base44.entities.GeneralExpense.list("sort_order"),
+    initialData: [],
+  });
+  const { data: rangeEvents = [] } = useQuery({
+    queryKey: ["financeMonthEvents", monthFrom, monthTo],
+    queryFn: () => fetchEventsInRange(monthFrom, monthTo),
+    initialData: [],
+  });
+  const general = useMemo(
+    () => generalExpensesForMonth(generalItems, countedEventsInMonth(rangeEvents, month)),
+    [generalItems, rangeEvents, month]
+  );
+
+  const generalCrud = {
+    onAdd: (data) => addGeneral.mutate(data),
+    onUpdate: (id, data) => updateGeneral.mutate({ id, data }),
+    onRemove: (id) => removeGeneral.mutate(id),
+  };
+  const addGeneral = useMutation({
+    mutationFn: (data) => base44.entities.GeneralExpense.create({ ...data, sort_order: generalItems.length }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["generalExpenses"] }),
+    onError: (e) => toast.error(e.message),
+  });
+  const updateGeneral = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.GeneralExpense.update(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["generalExpenses"] }),
+    onError: (e) => toast.error(e.message),
+  });
+  const removeGeneral = useMutation({
+    mutationFn: (id) => base44.entities.GeneralExpense.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["generalExpenses"] }),
+    onError: (e) => toast.error(e.message),
+  });
 
   const { data: expenses = [] } = useQuery({
     queryKey: ["fixedExpenses"],
@@ -302,6 +385,46 @@ export default function FixedExpenses() {
       <div className="border-2 border-emerald-700 rounded-lg bg-emerald-50 px-6 py-4 flex items-center justify-between">
         <span className="text-lg font-bold text-emerald-900">סך הכל הוצאות קבועות <span className="text-base font-medium text-emerald-700">(ללא מע״מ)</span></span>
         <span className="text-2xl font-bold text-emerald-700">{fmtCurrency(grandTotal)}</span>
+      </div>
+
+      {/* Event-dependent general expenses — they only enter the monthly
+          balance (see the reports page), never an event's food cost. */}
+      <div className="border-2 border-stone-800 rounded-lg py-3 px-4 bg-white flex items-center justify-between flex-wrap gap-3 mt-4">
+        <h2 className="text-2xl font-bold text-stone-900">הוצאות כלליות תלויות אירוע</h2>
+        <div className="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-lg p-1">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => shiftMonth(1)}><ChevronRight className="w-4 h-4" /></Button>
+          <span className="text-sm font-medium w-28 text-center">{monthLabel}</span>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => shiftMonth(-1)}><ChevronLeft className="w-4 h-4" /></Button>
+        </div>
+      </div>
+      <p className="text-xs text-stone-500 -mt-3">נספרים רק אירועים מאושרים והושלמו בחודש הנבחר. הסכומים לפני מע״מ.</p>
+
+      <div className="grid lg:grid-cols-2 gap-6 items-start">
+        <GeneralExpenseSection
+          title="הוצאות כלליות פר אירוע"
+          basis="per_event"
+          items={generalItems}
+          unitLabel="לאירוע"
+          count={general.eventCount}
+          countLabel="אירועים בחודש"
+          monthTotal={general.perEventTotal}
+          {...generalCrud}
+        />
+        <GeneralExpenseSection
+          title="הוצאות כלליות פר אורח"
+          basis="per_guest"
+          items={generalItems}
+          unitLabel="לאורח"
+          count={general.guestCount}
+          countLabel="אורחים בחודש"
+          monthTotal={general.perGuestTotal}
+          {...generalCrud}
+        />
+      </div>
+
+      <div className="border-2 border-emerald-700 rounded-lg bg-emerald-50 px-6 py-4 flex items-center justify-between">
+        <span className="text-lg font-bold text-emerald-900">סך הכל הוצאות כלליות ב{monthLabel} <span className="text-base font-medium text-emerald-700">(ללא מע״מ)</span></span>
+        <span className="text-2xl font-bold text-emerald-700">{fmtCurrency(general.total)}</span>
       </div>
     </div>
   );
