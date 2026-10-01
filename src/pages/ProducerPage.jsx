@@ -7,12 +7,7 @@ import { toast } from "sonner";
 import EventForm from "../components/events/EventForm";
 import ProducerEventCard from "../components/producer/ProducerEventCard";
 import ProducerEventPrint from "../components/producer/ProducerEventPrint";
-import {
-  generateEventTasks,
-  businessDaysUntilEvent,
-  APPROVAL_MIN_BUSINESS_DAYS,
-  APPROVAL_MAX_BUSINESS_DAYS,
-} from "@/lib/eventTaskGeneration";
+import { generateEventTasks } from "@/lib/eventTaskGeneration";
 import { useAuth } from "@/lib/AuthContext";
 
 export default function ProducerPage() {
@@ -69,18 +64,12 @@ export default function ProducerPage() {
 
   const approveMutation = useMutation({
     mutationFn: async (event) => {
-      // Defensive: only the producer role may approve, and only within the
-      // 4-7 business-day window — the button is disabled otherwise, but the
-      // mutation re-checks in case of a stale render or a direct call.
+      // Defensive: only the producer role may approve — the button is
+      // disabled otherwise, but the mutation re-checks in case of a stale
+      // render or a direct call. There's no time window: an event can be
+      // approved at any point before it.
       if (!canApprove) {
         throw new Error("רק המפיק יכול לאשר אירועים");
-      }
-      const days = businessDaysUntilEvent(event.event_date);
-      if (days < APPROVAL_MIN_BUSINESS_DAYS) {
-        throw new Error("אנא אשר מול רונן");
-      }
-      if (days > APPROVAL_MAX_BUSINESS_DAYS) {
-        throw new Error(`ניתן לאשר רק החל מ-${APPROVAL_MAX_BUSINESS_DAYS} ימי עסקים לפני האירוע`);
       }
       await base44.entities.Event.update(event.id, {
         producer_approved: true,

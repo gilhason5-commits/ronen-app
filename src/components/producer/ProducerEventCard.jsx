@@ -4,11 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Users, Pencil, Send, CheckCircle2, Printer, Trash2, Download } from "lucide-react";
 import { format } from "date-fns";
-import {
-  businessDaysUntilEvent,
-  APPROVAL_MIN_BUSINESS_DAYS,
-  APPROVAL_MAX_BUSINESS_DAYS,
-} from "@/lib/eventTaskGeneration";
 
 const eventTypeLabels = {
   serving: "אירוע הגשה",
@@ -18,12 +13,6 @@ const eventTypeLabels = {
 
 export default function ProducerEventCard({ event, dishCount, onEdit, onApprove, onPrint, onDelete, onSavePdf, canApprove = true, canDelete = true }) {
   const isApproved = event.producer_approved;
-  const days = businessDaysUntilEvent(event.event_date);
-  // Approval window: only allowed between 4 and 7 business days before the
-  // event. Too close and staffing/kitchen quantities must already be
-  // locked in; too early and plans aren't final enough yet.
-  const tooLate = days < APPROVAL_MIN_BUSINESS_DAYS;
-  const tooEarly = days > APPROVAL_MAX_BUSINESS_DAYS;
 
   return (
     <Card className={`border-stone-200 ${isApproved ? "bg-emerald-50 border-emerald-200" : ""}`}>
@@ -86,10 +75,8 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
                   {canApprove ? (
                     <Button
                       size="sm"
-                      className={(tooLate || tooEarly) ? "bg-stone-300 hover:bg-stone-300 cursor-not-allowed text-stone-600" : "bg-emerald-600 hover:bg-emerald-700"}
-                      disabled={tooLate || tooEarly}
-                      title={tooLate ? "אנא אשר מול רונן" : tooEarly ? `ניתן לאשר רק החל מ-${APPROVAL_MAX_BUSINESS_DAYS} ימי עסקים לפני האירוע` : ""}
-                      onClick={() => !(tooLate || tooEarly) && onApprove(event)}
+                      className="bg-emerald-600 hover:bg-emerald-700"
+                      onClick={() => onApprove(event)}
                     >
                       <Send className="w-4 h-4 ml-1" />
                       אושר - העבר להנהלה
@@ -106,16 +93,6 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
                   {!canApprove && (
                     <p className="text-[11px] text-amber-700 leading-snug text-right">
                       רק המפיק יכול לאשר אירועים.
-                    </p>
-                  )}
-                  {canApprove && tooLate && (
-                    <p className="text-[11px] text-amber-700 leading-snug text-right">
-                      אנא אשר מול רונן.
-                    </p>
-                  )}
-                  {canApprove && !tooLate && tooEarly && (
-                    <p className="text-[11px] text-amber-700 leading-snug text-right">
-                      ניתן לאשר את האירוע רק בין {APPROVAL_MIN_BUSINESS_DAYS} ל-{APPROVAL_MAX_BUSINESS_DAYS} ימי עסקים לפני תחילתו.
                     </p>
                   )}
                 </div>
