@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -62,7 +63,7 @@ export default function ProducerPage() {
     initialData: []
   });
 
-  const approveMutation = useMutation({
+  const approveMutation = useSingleFlightMutation({
     mutationFn: async (event) => {
       // Defensive: only the producer role may approve — the button is
       // disabled otherwise, but the mutation re-checks in case of a stale
@@ -134,6 +135,7 @@ export default function ProducerPage() {
   };
 
   const handleApprove = (event) => {
+    if (approveMutation.isPending) return; // approving twice would create the event's tasks twice
     if (confirm(`האם אתה בטוח שברצונך לאשר את האירוע "${event.event_name}" ולהעביר אותו להנהלה?`)) {
       approveMutation.mutate(event);
     }

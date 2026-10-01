@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import {
   Dialog,
   DialogContent,
@@ -61,7 +62,7 @@ export default function SupplierDialog({ supplier, open, onClose }) {
     }
   }, [supplier]);
 
-  const saveMutation = useMutation({
+  const saveMutation = useSingleFlightMutation({
     mutationFn: (data) => {
       if (supplier?.id) {
         return base44.entities.Supplier.update(supplier.id, data);
@@ -200,6 +201,7 @@ export default function SupplierDialog({ supplier, open, onClose }) {
   const [validationError, setValidationError] = useState('');
 
   const handleSubmit = (e) => {
+    if (saveMutation.isPending) return; // already saving — ignore a second click/Enter
     if (e?.preventDefault) e.preventDefault();
     if (!formData.name?.trim()) {
       setValidationError('שדה חובה חסר: שם ספק');
@@ -464,7 +466,7 @@ export default function SupplierDialog({ supplier, open, onClose }) {
                 <Button type="button" variant="outline" onClick={onClose}>
                   ביטול
                 </Button>
-                <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
+                <Button type="button" onClick={() => handleSubmit()} disabled={saveMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
                   {supplier ? 'עדכון' : 'יצירת'} ספק
                 </Button>
               </div>

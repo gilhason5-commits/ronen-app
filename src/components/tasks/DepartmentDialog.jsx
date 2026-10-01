@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import {
   Dialog,
   DialogContent,
@@ -37,7 +38,7 @@ export default function DepartmentDialog({ department, open, onClose }) {
     }
   }, [department]);
 
-  const saveMutation = useMutation({
+  const saveMutation = useSingleFlightMutation({
     mutationFn: (data) => {
       if (department?.id) {
         return base44.entities.Department.update(department.id, data);
@@ -56,6 +57,7 @@ export default function DepartmentDialog({ department, open, onClose }) {
   });
 
   const handleSubmit = (e) => {
+    if (saveMutation.isPending) return; // already saving — ignore a second click/Enter
     if (e?.preventDefault) e.preventDefault();
     saveMutation.mutate(formData);
   };
@@ -107,7 +109,7 @@ export default function DepartmentDialog({ department, open, onClose }) {
             <Button type="button" variant="outline" onClick={onClose}>
               ביטול
             </Button>
-            <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="button" onClick={() => handleSubmit()} disabled={saveMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
               {department ? 'עדכון' : 'יצירה'}
             </Button>
           </DialogFooter>

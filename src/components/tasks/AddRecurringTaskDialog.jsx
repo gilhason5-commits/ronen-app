@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import {
   Dialog,
   DialogContent,
@@ -112,6 +113,11 @@ export default function AddRecurringTaskDialog({ open, onClose, editingAssignmen
     }
   }, [editingAssignment, open, templates, allEmployees]);
 
+  // One click creates a whole series of rows; a second click while it's
+  // saving would create the series twice.
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+
   const createAssignmentMutation = useMutation({
     mutationFn: (data) => base44.entities.TaskAssignment.create(data),
     onSuccess: () => {
@@ -121,7 +127,7 @@ export default function AddRecurringTaskDialog({ open, onClose, editingAssignmen
     },
   });
 
-  const updateAssignmentMutation = useMutation({
+  const updateAssignmentMutation = useSingleFlightMutation({
     mutationFn: ({ id, data }) => base44.entities.TaskAssignment.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['taskAssignments'] });
@@ -161,6 +167,7 @@ export default function AddRecurringTaskDialog({ open, onClose, editingAssignmen
   };
 
   const handleAddTask = () => {
+    if (submittingRef.current || updateAssignmentMutation.isPending) return;
     const isEditing = !!editingAssignment;
     const hasEmployees = isEditing ? !!selectedEmployee : selectedEmployees.length > 0;
     if (!selectedTemplate || !hasEmployees || !recurrenceType) {
@@ -366,8 +373,10 @@ export default function AddRecurringTaskDialog({ open, onClose, editingAssignmen
       }
     }
 
-    // Create all assignments
-    Promise.all(assignments.map(a => base44.entities.TaskAssignment.create(a)))
+    // Create all assignments in one request (all-or-nothing)
+    submittingRef.current = true;
+    setSubmitting(true);
+    base44.entities.TaskAssignment.bulkCreate(assignments)
       .then(() => {
         queryClient.invalidateQueries({ queryKey: ['taskAssignments'] });
         toast.success(`נוספו ${assignments.length} משימות`);
@@ -376,6 +385,10 @@ export default function AddRecurringTaskDialog({ open, onClose, editingAssignmen
       .catch((err) => {
         console.error('Create error:', err);
         toast.error('שגיאה: ' + (err?.message || JSON.stringify(err)));
+      })
+      .finally(() => {
+        submittingRef.current = false;
+        setSubmitting(false);
       });
   };
 
@@ -739,7 +752,7 @@ export default function AddRecurringTaskDialog({ open, onClose, editingAssignmen
                 </Button>
                 <Button 
                   onClick={handleAddTask}
-                  disabled={editingAssignment ? !selectedEmployee : (selectedEmployees.length === 0 || !recurrenceType)}
+                  disabled={submitting || updateAssignmentMutation.isPending || (editingAssignment ? !selectedEmployee : (selectedEmployees.length === 0 || !recurrenceType))}
                   className="bg-emerald-600 hover:bg-emerald-700"
                 >
                   <Plus className="w-4 h-4 mr-2" />

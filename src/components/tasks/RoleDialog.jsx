@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import {
   Dialog,
   DialogContent,
@@ -61,7 +62,7 @@ export default function RoleDialog({ role, departments, open, onClose }) {
     }
   }, [role]);
 
-  const saveMutation = useMutation({
+  const saveMutation = useSingleFlightMutation({
     mutationFn: (data) => {
       if (role?.id) {
         return base44.entities.EmployeeRole.update(role.id, data);
@@ -80,6 +81,7 @@ export default function RoleDialog({ role, departments, open, onClose }) {
   });
 
   const handleSubmit = (e) => {
+    if (saveMutation.isPending) return; // already saving — ignore a second click/Enter
     if (e?.preventDefault) e.preventDefault();
 
     if (!formData.role_name?.trim()) {
@@ -212,7 +214,7 @@ export default function RoleDialog({ role, departments, open, onClose }) {
             <Button type="button" variant="outline" onClick={onClose}>
               ביטול
             </Button>
-            <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="button" onClick={() => handleSubmit()} disabled={saveMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
               {role ? 'עדכון' : 'יצירה'}
             </Button>
           </DialogFooter>

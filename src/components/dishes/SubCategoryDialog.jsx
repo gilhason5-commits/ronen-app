@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import {
   Dialog,
   DialogContent,
@@ -38,7 +39,7 @@ export default function SubCategoryDialog({ subCategory, categoryId, eventType =
     }
   }, [subCategory, categoryId, eventType]);
 
-  const saveMutation = useMutation({
+  const saveMutation = useSingleFlightMutation({
     mutationFn: (data) => {
       if (subCategory?.id) {
         return base44.entities.SubCategory.update(subCategory.id, data);
@@ -57,6 +58,7 @@ export default function SubCategoryDialog({ subCategory, categoryId, eventType =
   });
 
   const handleSubmit = (e) => {
+    if (saveMutation.isPending) return; // already saving — ignore a second click/Enter
     if (e?.preventDefault) e.preventDefault();
     saveMutation.mutate(formData);
   };
@@ -100,7 +102,7 @@ export default function SubCategoryDialog({ subCategory, categoryId, eventType =
             <Button type="button" variant="outline" onClick={onClose}>
               ביטול
             </Button>
-            <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="button" onClick={() => handleSubmit()} disabled={saveMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
               {subCategory ? 'עדכון' : 'יצירת'} תת קטגוריה
             </Button>
           </DialogFooter>

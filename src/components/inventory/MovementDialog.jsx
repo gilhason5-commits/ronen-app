@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import {
   Dialog,
   DialogContent,
@@ -29,7 +30,7 @@ export default function MovementDialog({ ingredient, open, onClose }) {
     notes: ''
   });
 
-  const moveMutation = useMutation({
+  const moveMutation = useSingleFlightMutation({
     mutationFn: async (data) => {
       const movement = {
         ingredient_id: ingredient.id,
@@ -62,6 +63,7 @@ export default function MovementDialog({ ingredient, open, onClose }) {
   });
 
   const handleSubmit = (e) => {
+    if (moveMutation.isPending) return; // already saving — ignore a second click/Enter
     if (e?.preventDefault) e.preventDefault();
     moveMutation.mutate(formData);
   };
@@ -130,7 +132,7 @@ export default function MovementDialog({ ingredient, open, onClose }) {
             <Button type="button" variant="outline" onClick={onClose}>
               ביטול
             </Button>
-            <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="button" onClick={() => handleSubmit()} disabled={moveMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
               ביצוע התאמה
             </Button>
           </DialogFooter>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -90,7 +91,7 @@ export default function TaskEmployees() {
   // A waiter's name is copied onto their EventShift rows and locked
   // TipAllocation rows, so a rename is pushed there too — otherwise past
   // attendance and tips would keep showing the old name.
-  const updateEmployeeMutation = useMutation({
+  const updateEmployeeMutation = useSingleFlightMutation({
     mutationFn: async ({ id, data }) => {
       const before = employees.find(e => e.id === id);
       const updated = await base44.entities.TaskEmployee.update(id, data);
@@ -118,7 +119,7 @@ export default function TaskEmployees() {
     onError: (e) => toast.error(e.message || 'עדכון העובד נכשל'),
   });
 
-  const createEmployeeMutation = useMutation({
+  const createEmployeeMutation = useSingleFlightMutation({
     mutationFn: (data) => base44.entities.TaskEmployee.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['taskEmployees'] });
@@ -177,6 +178,7 @@ export default function TaskEmployees() {
   };
 
   const handleSave = (id) => {
+    if (createEmployeeMutation.isPending || updateEmployeeMutation.isPending) return; // already saving
     let dataToSave = { ...editForm };
     // Validate unique role
     if (dataToSave.role_id) {
@@ -647,7 +649,7 @@ export default function TaskEmployees() {
                   <CardContent className="p-4 space-y-3">
                     {renderEditFields(null)}
                     <div className="flex gap-2 pt-1">
-                      <Button size="sm" onClick={() => handleSave('new')} className="bg-emerald-600 hover:bg-emerald-700">
+                      <Button size="sm" onClick={() => handleSave('new')} disabled={createEmployeeMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
                         <Check className="w-4 h-4 ml-1" /> שמירה
                       </Button>
                       <Button variant="outline" size="sm" onClick={handleCancel}>

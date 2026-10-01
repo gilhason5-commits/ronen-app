@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import {
   Dialog,
   DialogContent,
@@ -43,7 +44,7 @@ export default function SupplierInvoiceDialog({ invoice, suppliers, open, onClos
     }
   }, [invoice]);
 
-  const saveMutation = useMutation({
+  const saveMutation = useSingleFlightMutation({
     mutationFn: (data) => {
       const calculatedData = calculateInvoice(data);
       if (invoice?.id) {
@@ -109,6 +110,7 @@ export default function SupplierInvoiceDialog({ invoice, suppliers, open, onClos
   };
 
   const handleSubmit = (e) => {
+    if (saveMutation.isPending) return; // already saving — ignore a second click/Enter
     if (e?.preventDefault) e.preventDefault();
     saveMutation.mutate(formData);
   };
@@ -276,7 +278,7 @@ export default function SupplierInvoiceDialog({ invoice, suppliers, open, onClos
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="button" onClick={() => handleSubmit()} disabled={saveMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
               {invoice ? 'Update' : 'Create'} Invoice
             </Button>
           </DialogFooter>

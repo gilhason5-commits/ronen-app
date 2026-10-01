@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import {
   Dialog,
   DialogContent,
@@ -73,7 +74,7 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
   const defaultEmployee = getDefaultEmployee();
   const defaultStartTime = getDefaultStartTime();
 
-  const updateMutation = useMutation({
+  const updateMutation = useSingleFlightMutation({
     mutationFn: ({ id, data }) => base44.entities.TaskAssignment.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['taskAssignments'] });
@@ -86,7 +87,7 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
     },
   });
 
-  const createMutation = useMutation({
+  const createMutation = useSingleFlightMutation({
     mutationFn: (data) => base44.entities.TaskAssignment.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['taskAssignments'] });
@@ -100,6 +101,7 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
   });
 
   const handleSave = () => {
+    if (updateMutation.isPending || createMutation.isPending) return; // already saving — ignore a second click
     try {
       const employee = allEmployees.find(e => e.id === overrideRole);
       const durationMinutes = template?.duration_minutes || 60;
@@ -246,6 +248,7 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
             </Button>
             <Button 
               onClick={handleSave}
+              disabled={updateMutation.isPending || createMutation.isPending}
               className="bg-emerald-600 hover:bg-emerald-700"
             >
               <Save className="w-4 h-4 mr-2" />

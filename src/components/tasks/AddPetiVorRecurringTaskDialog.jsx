@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -107,6 +108,11 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
     }
   }, [editingAssignment, open, templates, allEmployees]);
 
+  // One click creates a whole series of rows; a second click while it's
+  // saving would create the series twice.
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+
   const createAssignmentMutation = useMutation({
     mutationFn: (data) => base44.entities.TaskAssignment.create(data),
     onSuccess: () => {
@@ -116,7 +122,7 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
     },
   });
 
-  const updateAssignmentMutation = useMutation({
+  const updateAssignmentMutation = useSingleFlightMutation({
     mutationFn: ({ id, data }) => base44.entities.TaskAssignment.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['taskAssignments'] });
@@ -150,6 +156,7 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
   };
 
   const handleAddTask = () => {
+    if (submittingRef.current || updateAssignmentMutation.isPending) return;
     const isEditing = !!editingAssignment;
     const hasEmployees = isEditing ? !!selectedEmployee : selectedEmployees.length > 0;
     if (!selectedTemplate || !hasEmployees || !recurrenceType) {
@@ -288,11 +295,18 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
       generateInstances(recurrenceType);
     }
 
-    Promise.all(assignmentsToCreate.map(a => base44.entities.TaskAssignment.create(a)))
+    submittingRef.current = true;
+    setSubmitting(true);
+    base44.entities.TaskAssignment.bulkCreate(assignmentsToCreate)
       .then(() => {
         queryClient.invalidateQueries({ queryKey: ['taskAssignments'] });
         toast.success(`נוספו ${assignmentsToCreate.length} משימות`);
         handleClose();
+      })
+      .catch((err) => toast.error('שגיאה: ' + (err?.message || 'יצירת המשימות נכשלה')))
+      .finally(() => {
+        submittingRef.current = false;
+        setSubmitting(false);
       });
   };
 
@@ -483,7 +497,7 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
 
               <div className="flex justify-end gap-3">
                 <Button variant="outline" onClick={handleClose}>ביטול</Button>
-                <Button onClick={handleAddTask} disabled={editingAssignment ? !selectedEmployee : (selectedEmployees.length === 0 || !recurrenceType)} className="bg-emerald-600 hover:bg-emerald-700">
+                <Button onClick={handleAddTask} disabled={submitting || updateAssignmentMutation.isPending || (editingAssignment ? !selectedEmployee : (selectedEmployees.length === 0 || !recurrenceType))} className="bg-emerald-600 hover:bg-emerald-700">
                   <Plus className="w-4 h-4 mr-2" />
                   {editingAssignment ? 'שמור שינויים' : 'הוסף משימה'}
                 </Button>

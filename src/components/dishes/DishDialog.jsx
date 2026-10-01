@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import {
   Dialog,
   DialogContent,
@@ -125,7 +126,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
     });
   };
 
-  const saveMutation = useMutation({
+  const saveMutation = useSingleFlightMutation({
     mutationFn: async (data) => {
       const savedDish = dish?.id 
         ? await base44.entities.Dish.update(dish.id, data)
@@ -312,6 +313,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
   const [validationError, setValidationError] = useState('');
 
   const handleSubmit = (e) => {
+    if (saveMutation.isPending) return; // already saving — ignore a second click/Enter
     if (e?.preventDefault) e.preventDefault();
     if (!formData.name?.trim()) {
       setValidationError('שדה חובה חסר: שם המנה');
@@ -785,7 +787,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
                 <Button type="button" variant="outline" onClick={onClose}>
                   ביטול
                 </Button>
-                <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
+                <Button type="button" onClick={() => handleSubmit()} disabled={saveMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
                   {dish ? 'עדכון' : 'יצירת'} מנה
                 </Button>
               </div>

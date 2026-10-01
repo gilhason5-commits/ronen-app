@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import {
   Dialog,
   DialogContent,
@@ -125,7 +126,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
     setFormData({...formData, waste_pct: value});
   };
 
-  const saveMutation = useMutation({
+  const saveMutation = useSingleFlightMutation({
     mutationFn: async (data) => {
       const purchaseUnit = parseFloat(data.purchase_unit) || 1;
       const basePrice = parseFloat(data.base_price) || 0;
@@ -210,6 +211,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
   const [supplierPopoverOpen, setSupplierPopoverOpen] = useState(false);
 
   const handleSubmit = (e) => {
+    if (saveMutation.isPending) return; // already saving — ignore a second click/Enter
     if (e?.preventDefault) e.preventDefault();
     const errors = [];
     if (!formData.name?.trim()) errors.push('שם');
@@ -476,7 +478,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
             <Button type="button" variant="outline" onClick={onClose}>
               ביטול
             </Button>
-            <Button type="button" onClick={() => handleSubmit()} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button type="button" onClick={() => handleSubmit()} disabled={saveMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
               {ingredient ? 'עדכון' : 'יצירת'} רכיב
             </Button>
           </DialogFooter>

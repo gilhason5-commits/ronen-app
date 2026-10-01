@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Button } from "@/components/ui/button";
@@ -232,7 +233,7 @@ export default function EventForm({ event, onClose, producerMode = false }) {
     }
   }, [event?.id, formData.price_per_plate, formData.guest_count, eventDishes, queryClient]);
 
-  const saveEventMutation = useMutation({
+  const saveEventMutation = useSingleFlightMutation({
     mutationFn: async (data) => {
       const { food_cost_sum, food_cost_pct, ...dataToSave } = data;
       // children_count is an integer column — an untouched field leaves it as '' in
@@ -256,14 +257,20 @@ export default function EventForm({ event, onClose, producerMode = false }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (saveEventMutation.isPending) return; // a second click would create the event twice
     saveEventMutation.mutate(formData);
   };
 
+  // A dish whose add/remove is still saving ignores further clicks — a quick
+  // double click used to add the same dish to the event twice.
+  const togglingDishIds = React.useRef(new Set());
   const handleDishToggle = async (dish, categoryId, checked) => {
     if (!event?.id) {
       toast.error('Save event first');
       return;
     }
+    if (togglingDishIds.current.has(dish.id)) return;
+    togglingDishIds.current.add(dish.id);
 
     try {
       if (checked) {
@@ -325,6 +332,8 @@ export default function EventForm({ event, onClose, producerMode = false }) {
       console.error('Error toggling dish:', error);
       toast.error('Failed to update dish');
       await refetchEventDishes();
+    } finally {
+      togglingDishIds.current.delete(dish.id);
     }
   };
 
@@ -683,7 +692,7 @@ export default function EventForm({ event, onClose, producerMode = false }) {
                   </div>
                 </div>
 
-                <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">
+                <Button type="submit" disabled={saveEventMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
                   {event ? 'עדכון אירוע' : 'יצירת אירוע'}
                 </Button>
               </form>
