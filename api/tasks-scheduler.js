@@ -70,14 +70,18 @@ export default async function handler(req, res) {
       // the UI keeps showing the original PENDING/OVERDUE state.
       if (pausedEmployeeIds.has(task.assigned_to_id)) continue;
 
-      // Recurring tasks (no event) scheduled on Friday or Saturday IL get
-      // their start_time/end_time shifted forward to the following Sunday at
-      // 09:30 IL, preserving duration. Event-bound tasks are left as-is so
-      // a Friday/Saturday event still gets its real-time reminders.
+      // Recurring tasks (no event) never message anyone on Friday or
+      // Saturday IL. If any of their messages — the start reminder (which
+      // goes out reminder_before_start_minutes early), the start itself, or
+      // the end/escalation — would land on Fri/Sat, the task is shifted to
+      // the following Sunday at 09:30 IL, preserving duration. Checking only
+      // the start day used to let a Sunday 00:00 task send its reminder on
+      // Saturday at 23:50. Event-bound tasks are left as-is so a
+      // Friday/Saturday event still gets its real-time reminders.
       if (!task.event_id && task.start_time) {
-        const day = ilDayOfWeek(new Date(task.start_time));
-        if (day === 5 || day === 6) {
-          const { start: newStart, end: newEnd } = shiftToNextSunday0930(task);
+        const weekendMoment = firstWeekendMoment(task);
+        if (weekendMoment) {
+          const { start: newStart, end: newEnd } = shiftToNextSunday0930(task, weekendMoment);
           try {
             await updateTask(task.id, {
               start_time: newStart,
@@ -91,6 +95,11 @@ export default async function handler(req, res) {
           }
           continue;
         }
+        // Last line of defence: nothing for a recurring task goes out while
+        // it's Friday/Saturday IL (e.g. an escalation still inside its 1h
+        // window after a Thursday-night end time).
+        const today = ilDayOfWeek(currentTime);
+        if (today === 5 || today === 6) continue;
       }
 
       const employee = employeeById[task.assigned_to_id];
@@ -243,20 +252,33 @@ function israelTimeToISO(year, month, day, hours, minutes) {
   return new Date(Date.UTC(year, month, day, hours - offsetHours, minutes)).toISOString();
 }
 
-// Given a task whose start_time falls on Friday or Saturday IL, compute new
-// start/end ISO strings landing the task on the upcoming Sunday at 09:30 IL
-// with the original duration preserved.
-function shiftToNextSunday0930(task) {
+// The earliest of a recurring task's message moments (start reminder, start,
+// end/escalation) that falls on Friday or Saturday IL, or null if none does.
+function firstWeekendMoment(task) {
+  const start = new Date(task.start_time);
+  const reminderMinutes = task.reminder_before_start_minutes || 10;
+  const moments = [new Date(start.getTime() - reminderMinutes * 60 * 1000), start];
+  if (task.end_time) moments.push(new Date(task.end_time));
+  return moments.find((m) => {
+    const day = ilDayOfWeek(m);
+    return day === 5 || day === 6;
+  }) || null;
+}
+
+// Compute new start/end ISO strings landing the task on the Sunday right
+// after `weekendMoment` (a Friday or Saturday IL instant) at 09:30 IL, with
+// the original duration preserved.
+function shiftToNextSunday0930(task, weekendMoment) {
   const original = new Date(task.start_time);
   const ilDateStr = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Jerusalem',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(original);
+  }).format(weekendMoment);
   const [y, m, d] = ilDateStr.split('-').map(Number);
   const baseUtcMidnight = Date.UTC(y, m - 1, d);
-  const day = ilDayOfWeek(original); // 5 (Fri) → +2 days, 6 (Sat) → +1 day
+  const day = ilDayOfWeek(weekendMoment); // 5 (Fri) → +2 days, 6 (Sat) → +1 day
   const addDays = day === 5 ? 2 : 1;
   const sundayUtc = new Date(baseUtcMidnight + addDays * 24 * 60 * 60 * 1000);
   const newStart = israelTimeToISO(
