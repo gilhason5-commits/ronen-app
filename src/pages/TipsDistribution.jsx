@@ -12,6 +12,7 @@ import {
 import { Coins, Lock, Unlock, History, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { computeTipAllocation, formatShekel } from "@/lib/tipsEngine";
+import LoadingState from "@/components/utils/LoadingState";
 
 const currentMonth = () => new Date().toLocaleDateString("sv-SE").slice(0, 7);
 
@@ -23,28 +24,24 @@ export default function TipsDistribution() {
   const { data: pools = [] } = useQuery({
     queryKey: ["tipPools"],
     queryFn: () => base44.entities.TipPool.list("-month"),
-    initialData: [],
   });
   const pool = pools.find((p) => p.month === month);
 
   const { data: tipRules = [] } = useQuery({
     queryKey: ["tipRules"],
     queryFn: () => base44.entities.TipRule.list("sort_order"),
-    initialData: [],
   });
-  const { data: shifts = [] } = useQuery({
+  const { data: shifts = [], isLoading: shiftsLoading } = useQuery({
     queryKey: ["monthShifts", month],
     queryFn: async () => {
       const all = await base44.entities.EventShift.list("event_date");
       return all.filter((s) => (s.event_date || "").startsWith(month));
     },
-    initialData: [],
   });
   const { data: allocations = [] } = useQuery({
     queryKey: ["tipAllocations", pool?.id],
     queryFn: () => base44.entities.TipAllocation.filter({ pool_id: pool.id }),
     enabled: !!pool && pool.status === "locked",
-    initialData: [],
   });
 
   const amount = pool ? Number(pool.amount) : Number(amountInput) || 0;
@@ -259,7 +256,10 @@ export default function TipsDistribution() {
                   )}
                 </tr>
               ))}
-              {rows.length === 0 && (
+              {rows.length === 0 && shiftsLoading && (
+                <tr><td colSpan={isLocked ? 8 : 7}><LoadingState className="py-6" /></td></tr>
+              )}
+              {rows.length === 0 && !shiftsLoading && (
                 <tr><td colSpan={isLocked ? 8 : 7} className="p-6 text-center text-slate-400">אין נתוני נוכחות בחודש הזה — החלוקה מחושבת מהמשמרות שנרשמו במסך הנוכחות</td></tr>
               )}
             </tbody>

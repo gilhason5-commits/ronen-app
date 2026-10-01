@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import SpecialIngredientDialog from '../components/ingredients/SpecialIngredientDialog';
 import SpecialIngredientsList from '../components/ingredients/SpecialIngredientsList';
+import LoadingState from "@/components/utils/LoadingState";
 
 export default function SpecialIngredientsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -20,13 +21,12 @@ export default function SpecialIngredientsPage() {
   const editIngredientId = urlParams.get('edit');
   const returnToDishId = urlParams.get('returnToDish');
 
-  const { data: specialIngredients = [] } = useQuery({
+  const { data: specialIngredients = [], isLoading: specialLoading } = useQuery({
     queryKey: ['specialIngredients'],
     queryFn: async () => {
       const data = await base44.entities.SpecialIngredient.list();
       return data.sort((a, b) => a.name?.localeCompare(b.name, 'he'));
     },
-    initialData: [],
   });
 
   const filteredIngredients = specialIngredients.filter(ing =>
@@ -107,10 +107,14 @@ export default function SpecialIngredientsPage() {
           </CardContent>
         </Card>
 
-        <SpecialIngredientsList
-          ingredients={filteredIngredients}
-          onEdit={handleEdit}
-        />
+        {specialLoading ? (
+          <LoadingState />
+        ) : (
+          <SpecialIngredientsList
+            ingredients={filteredIngredients}
+            onEdit={handleEdit}
+          />
+        )}
 
         <SpecialIngredientDialog
           open={dialogOpen}

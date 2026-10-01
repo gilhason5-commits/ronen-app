@@ -27,13 +27,11 @@ export default function ProducerPage() {
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["producer_events"],
     queryFn: () => base44.entities.Event.filter({ status: "producer_draft" }),
-    initialData: []
   });
 
   const { data: approvedEvents = [], isLoading: loadingApproved } = useQuery({
     queryKey: ["producer_approved_events"],
     queryFn: () => base44.entities.Event.filter({ producer_approved: true }),
-    initialData: []
   });
 
   // Sort pending events with the nearest upcoming date at the top — the
@@ -60,7 +58,6 @@ export default function ProducerPage() {
 
   const { data: allEventDishes = [] } = useQuery({
     ...eventDishSummaryQuery,
-    initialData: []
   });
 
   const approveMutation = useSingleFlightMutation({

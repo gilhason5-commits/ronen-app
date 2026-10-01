@@ -50,7 +50,6 @@ export default function SupplierDialog({ supplier, open, onClose }) {
   const { data: categories = [] } = useQuery({
     queryKey: ['supplierCategories'],
     queryFn: () => base44.entities.Supplier_Category.list('display_order'),
-    initialData: []
   });
 
   useEffect(() => {

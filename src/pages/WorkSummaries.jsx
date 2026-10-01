@@ -17,7 +17,6 @@ export default function WorkSummaries() {
   const { data: summaries = [], isLoading } = useQuery({
     queryKey: ["workSummaries"],
     queryFn: () => base44.entities.WorkSummary.list("-created_date", 200),
-    initialData: [],
   });
 
   const filtered = summaries.filter(s =>

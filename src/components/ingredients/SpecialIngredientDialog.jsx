@@ -39,19 +39,16 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
       const data = await base44.entities.Ingredient.list();
       return data.sort((a, b) => a.name?.localeCompare(b.name, 'he'));
     },
-    initialData: [],
   });
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => base44.entities.Supplier.list(),
-    initialData: [],
   });
 
   const { data: ingredientCategories = [] } = useQuery({
     queryKey: ['ingredientCategories'],
     queryFn: () => base44.entities.Ingredient_Category.list(),
-    initialData: [],
   });
 
   const { data: allSpecialIngredients = [] } = useQuery({
@@ -60,7 +57,6 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
       const data = await base44.entities.SpecialIngredient.list();
       return data.sort((a, b) => a.name?.localeCompare(b.name, 'he'));
     },
-    initialData: [],
   });
 
   // Filter out current ingredient to prevent circular reference

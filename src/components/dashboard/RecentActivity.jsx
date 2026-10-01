@@ -19,60 +19,52 @@ import { formatDistanceToNow } from "date-fns";
 import { he } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import LoadingState from "@/components/utils/LoadingState";
 
 export default function RecentActivity() {
-  const { data: events = [] } = useQuery({
+  const { data: events = [], isLoading: activityLoading } = useQuery({
     queryKey: ['events'],
     queryFn: () => base44.entities.Event.list('-created_date', 10),
-    initialData: [],
   });
 
   const { data: purchaseOrders = [] } = useQuery({
     queryKey: ['purchaseOrders'],
     queryFn: () => base44.entities.PurchaseOrder.list('-created_date', 10),
-    initialData: [],
   });
 
   const { data: ingredients = [] } = useQuery({
     queryKey: ['ingredients'],
     queryFn: () => base44.entities.Ingredient.list('-created_date', 10),
-    initialData: [],
   });
 
   const { data: dishes = [] } = useQuery({
     queryKey: ['dishes'],
     queryFn: () => base44.entities.Dish.list('-created_date', 10),
-    initialData: [],
   });
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => base44.entities.Supplier.list('-created_date', 10),
-    initialData: [],
   });
 
   const { data: taskAssignments = [] } = useQuery({
     queryKey: ['taskAssignments'],
     queryFn: () => base44.entities.TaskAssignment.list('-created_date', 10),
-    initialData: [],
   });
 
   const { data: taskEmployees = [] } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list('-created_date', 10),
-    initialData: [],
   });
 
   const { data: taskCategories = [] } = useQuery({
     queryKey: ['taskCategories'],
     queryFn: () => base44.entities.TaskCategory.list('-created_date', 10),
-    initialData: [],
   });
 
   const { data: taskTemplates = [] } = useQuery({
     queryKey: ['taskTemplates'],
     queryFn: () => base44.entities.TaskTemplate.list('-created_date', 10),
-    initialData: [],
   });
 
   // Combine and sort all activities
@@ -182,7 +174,9 @@ export default function RecentActivity() {
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        {activities.length === 0 ? (
+        {activities.length === 0 && activityLoading ? (
+          <LoadingState className="p-6" />
+        ) : activities.length === 0 ? (
           <div className="p-6 text-center text-stone-500">
             אין פעילות אחרונה
           </div>

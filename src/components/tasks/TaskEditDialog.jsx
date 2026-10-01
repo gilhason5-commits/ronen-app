@@ -33,7 +33,6 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
   const { data: allEmployees = [] } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
 
   // Calculate default start time from event + template offset

@@ -20,6 +20,7 @@ import RoleDialog from "../components/tasks/RoleDialog";
 import RoleProceduresDialog from "../components/tasks/RoleProceduresDialog";
 import { WAITERS_DEPARTMENT, isWaiterEmployee, orderAgenciesForDisplay } from "@/lib/staffingEngine";
 import { toast } from "sonner";
+import LoadingState from "@/components/utils/LoadingState";
 
 export default function TaskEmployees() {
   const [activeTab, setActiveTab] = useState("employees");
@@ -67,25 +68,21 @@ export default function TaskEmployees() {
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
 
   const { data: agencies = [] } = useQuery({
     queryKey: ["staffingAgencies"],
     queryFn: () => base44.entities.StaffingAgency.list("sort_order"),
-    initialData: [],
   });
 
   const { data: departments = [] } = useQuery({
     queryKey: ['departments'],
     queryFn: () => base44.entities.Department.list(),
-    initialData: [],
   });
 
   const { data: roles = [] } = useQuery({
     queryKey: ['employeeRoles'],
     queryFn: () => base44.entities.EmployeeRole.list(),
-    initialData: [],
   });
 
   // A waiter's name is copied onto their EventShift rows and locked
@@ -749,7 +746,8 @@ export default function TaskEmployees() {
               ))}
             </div>
 
-            {filteredEmployees.length === 0 && editingId !== 'new' && (
+            {filteredEmployees.length === 0 && editingId !== 'new' && isLoading && <LoadingState className="py-12" />}
+            {filteredEmployees.length === 0 && editingId !== 'new' && !isLoading && (
               <div className="text-center py-12">
                 <Users className="w-12 h-12 text-stone-300 mx-auto mb-3" />
                 <p className="text-stone-500">לא נמצאו עובדים</p>

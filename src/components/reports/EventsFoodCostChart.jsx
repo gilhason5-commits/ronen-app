@@ -2,8 +2,9 @@ import React, { useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { subMonths, isAfter, parseISO, format } from 'date-fns';
+import LoadingState from "@/components/utils/LoadingState";
 
-export default function EventsFoodCostChart({ events }) {
+export default function EventsFoodCostChart({ events, isLoading = false }) {
   const data = useMemo(() => {
     const oneMonthAgo = subMonths(new Date(), 1);
     
@@ -85,6 +86,8 @@ export default function EventsFoodCostChart({ events }) {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+        ) : isLoading ? (
+          <LoadingState className="h-full" />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-stone-400">
             <p>אין נתונים לחודש האחרון</p>

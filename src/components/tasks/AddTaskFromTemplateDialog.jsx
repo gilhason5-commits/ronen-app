@@ -36,7 +36,6 @@ export default function AddTaskFromTemplateDialog({ open, onClose, eventId, even
       const data = await base44.entities.TaskCategory.list();
       return data.filter(c => c.category_type === 'PER_EVENT' && c.is_active);
     },
-    initialData: [],
   });
 
   const { data: templates = [] } = useQuery({
@@ -45,13 +44,11 @@ export default function AddTaskFromTemplateDialog({ open, onClose, eventId, even
       const data = await base44.entities.TaskTemplate.list();
       return data.filter(t => t.task_type === 'PER_EVENT' && t.is_active);
     },
-    initialData: [],
   });
 
   const { data: allEmployees = [] } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
 
   const createAssignmentMutation = useMutation({

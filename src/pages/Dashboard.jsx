@@ -37,31 +37,26 @@ export default function Dashboard() {
   const { data: events = [] } = useQuery({
     queryKey: ['events'],
     queryFn: () => base44.entities.Event.list('-event_date'),
-    initialData: [],
   });
 
   const { data: ingredients = [] } = useQuery({
     queryKey: ['ingredients'],
     queryFn: () => base44.entities.Ingredient.list(),
-    initialData: [],
   });
 
   const { data: customerInvoices = [] } = useQuery({
     queryKey: ['customerInvoices'],
     queryFn: () => base44.entities.CustomerInvoice.list('-created_date'),
-    initialData: [],
   });
 
   const { data: supplierInvoices = [] } = useQuery({
     queryKey: ['supplierInvoices'],
     queryFn: () => base44.entities.SupplierInvoice.list('-created_date'),
-    initialData: [],
   });
 
   const { data: purchaseOrders = [] } = useQuery({
     queryKey: ['purchaseOrders'],
     queryFn: () => base44.entities.PurchaseOrder.list(),
-    initialData: [],
   });
 
   const todayEvents = events.filter(e => e.event_date === today && e.status === 'in_progress');

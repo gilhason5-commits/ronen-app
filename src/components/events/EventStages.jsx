@@ -39,31 +39,26 @@ export default function EventStages({
   const { data: ingredients = [] } = useQuery({
     queryKey: ['ingredients'],
     queryFn: () => base44.entities.Ingredient.list(),
-    initialData: []
   });
 
   const { data: specialIngredients = [] } = useQuery({
     queryKey: ['specialIngredients'],
     queryFn: () => base44.entities.SpecialIngredient.list(),
-    initialData: []
   });
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => base44.entities.Supplier.list(),
-    initialData: []
   });
 
   const { data: ingredientCategories = [] } = useQuery({
     queryKey: ['ingredientCategories'],
     queryFn: () => base44.entities.Ingredient_Category.list(),
-    initialData: []
   });
 
   const { data: subCategoriesData = [] } = useQuery({
     queryKey: ['subCategories'],
     queryFn: () => base44.entities.SubCategory.list('display_order'),
-    initialData: []
   });
 
   const handleSearchChange = (categoryId, value) => {

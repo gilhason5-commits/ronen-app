@@ -6,6 +6,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recha
 import { subMonths, format } from 'date-fns';
 import { applyWasteToQty } from "@/lib/foodWaste";
 import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
+import LoadingState from "@/components/utils/LoadingState";
 
 const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#6366f1'];
 
@@ -16,10 +17,9 @@ export default function IngredientCategoryPieChart() {
   // cancelled if we want "existing"). entityFactory.filter() only supports
   // equality (or an array via .in()), not Mongo-style operators — filter
   // client-side instead of passing an unsupported $gte object.
-  const { data: allEvents = [] } = useQuery({
+  const { data: allEvents = [], isLoading: eventsLoading } = useQuery({
     queryKey: ['events', 'all'],
     queryFn: () => base44.entities.Event.list(),
-    initialData: []
   });
   const events = useMemo(
     () => allEvents.filter((e) => e.event_date >= oneMonthAgo),
@@ -29,28 +29,24 @@ export default function IngredientCategoryPieChart() {
   // 2. Fetch Events_Dish to get planned dishes
   const { data: eventsDishes = [] } = useQuery({
     ...eventDishSummaryQuery,
-    initialData: []
   });
 
   // 3. Fetch Dishes to get recipe/ingredients
   const { data: dishes = [] } = useQuery({
     queryKey: ['dishes'],
     queryFn: () => base44.entities.Dish.list(),
-    initialData: []
   });
 
   // 4. Fetch Ingredients to get prices and categories
   const { data: ingredients = [] } = useQuery({
     queryKey: ['ingredients'],
     queryFn: () => base44.entities.Ingredient.list(),
-    initialData: []
   });
 
   // 5. Fetch Categories for names
   const { data: categories = [] } = useQuery({
     queryKey: ['ingredientCategories'],
     queryFn: () => base44.entities.Ingredient_Category.list(),
-    initialData: []
   });
 
   const chartData = useMemo(() => {
@@ -171,6 +167,8 @@ export default function IngredientCategoryPieChart() {
               <Legend verticalAlign="bottom" height={36} iconType="circle" />
             </PieChart>
           </ResponsiveContainer>
+        ) : eventsLoading ? (
+          <LoadingState className="h-full" />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-stone-400">
             <p>אין נתוני צריכה לחודש האחרון</p>

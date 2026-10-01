@@ -21,7 +21,6 @@ export default function EventTimelineGrid({ eventId, event, templates }) {
       const data = await base44.entities.TaskAssignment.filter({ event_id: eventId });
       return data;
     },
-    initialData: [],
     enabled: !!eventId,
   });
 

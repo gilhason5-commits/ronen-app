@@ -17,13 +17,11 @@ export default function CustomerInvoices() {
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ['customerInvoices'],
     queryFn: () => base44.entities.CustomerInvoice.list('-created_date'),
-    initialData: [],
   });
 
   const { data: events = [] } = useQuery({
     queryKey: ['events'],
     queryFn: () => base44.entities.Event.list(),
-    initialData: [],
   });
 
   const filteredInvoices = invoices.filter(inv => {

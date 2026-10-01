@@ -24,13 +24,11 @@ export default function Suppliers() {
       const data = await base44.entities.Supplier.list();
       return data.sort((a, b) => a.name?.localeCompare(b.name, 'he'));
     },
-    initialData: [],
   });
 
   const { data: categories = [] } = useQuery({
     queryKey: ['supplierCategories'],
     queryFn: () => base44.entities.Supplier_Category.list('display_order'),
-    initialData: []
   });
 
   const filteredSuppliers = suppliers.filter(supplier => {

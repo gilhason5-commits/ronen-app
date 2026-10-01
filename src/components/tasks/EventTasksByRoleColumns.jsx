@@ -38,7 +38,6 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
   const { data: assignments = [], isLoading: assignmentsLoading } = useQuery({
     queryKey: ['taskAssignments', 'status', eventId],
     queryFn: () => base44.entities.TaskAssignment.filter({ event_id: eventId }),
-    initialData: [],
     enabled: !!eventId,
     refetchInterval: 30000,
     refetchIntervalInBackground: false,
@@ -47,13 +46,11 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
   const { data: employees = [] } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
 
   const { data: roles = [] } = useQuery({
     queryKey: ['employeeRoles'],
     queryFn: () => base44.entities.EmployeeRole.list(),
-    initialData: [],
   });
 
   const queryClient = useQueryClient();

@@ -75,7 +75,6 @@ export default function EventForm({ event, onClose, producerMode = false }) {
   const { data: allCategories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => base44.entities.Category.list('display_order'),
-    initialData: []
   });
 
   // Excludes group_type 'general' categories — the old per-event "כלליות"
@@ -88,7 +87,6 @@ export default function EventForm({ event, onClose, producerMode = false }) {
   const { data: allDishes = [] } = useQuery({
     queryKey: ['dishes'],
     queryFn: () => base44.entities.Dish.list(),
-    initialData: []
   });
 
   const dishes = allDishes.filter((dish) => dish.event_type === formData.event_type);
@@ -96,25 +94,21 @@ export default function EventForm({ event, onClose, producerMode = false }) {
   const { data: ingredients = [] } = useQuery({
     queryKey: ['ingredients'],
     queryFn: () => base44.entities.Ingredient.list(),
-    initialData: []
   });
 
   const { data: ingredientCategories = [] } = useQuery({
     queryKey: ['ingredient_categories'],
     queryFn: () => base44.entities.Ingredient_Category.list(),
-    initialData: []
   });
 
   const { data: specialIngredients = [] } = useQuery({
     queryKey: ['specialIngredients'],
     queryFn: () => base44.entities.SpecialIngredient.list(),
-    initialData: []
   });
 
   const { data: allSubCategories = [] } = useQuery({
     queryKey: ['subCategories'],
     queryFn: () => base44.entities.SubCategory.list('display_order'),
-    initialData: []
   });
 
   const subCategories = allSubCategories.filter(sc => sc.event_type === formData.event_type);

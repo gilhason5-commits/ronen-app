@@ -15,22 +15,19 @@ export default function TaskManagement() {
   const [showPerEventTemplateDialog, setShowPerEventTemplateDialog] = useState(false);
   const [showPvTemplateDialog, setShowPvTemplateDialog] = useState(false);
 
-  const { data: templates = [] } = useQuery({
+  const { data: templates = [], isLoading: templatesLoading } = useQuery({
     queryKey: ['taskTemplates'],
     queryFn: () => base44.entities.TaskTemplate.list(),
-    initialData: [],
   });
 
   const { data: employees = [] } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
 
   const { data: roles = [] } = useQuery({
     queryKey: ['employeeRoles'],
     queryFn: () => base44.entities.EmployeeRole.list(),
-    initialData: [],
   });
 
   const matchSearch = (template, term) => {
@@ -89,6 +86,7 @@ export default function TaskManagement() {
           </div>
 
           <TaskTemplateManager
+            isLoading={templatesLoading}
             taskType="RECURRING"
             categories={[]}
             templates={filteredRecurringTemplates}
@@ -121,6 +119,7 @@ export default function TaskManagement() {
           </div>
 
           <TaskTemplateManager
+            isLoading={templatesLoading}
             taskType="PER_EVENT"
             categories={[]}
             templates={filteredPerEventTemplates}
@@ -153,6 +152,7 @@ export default function TaskManagement() {
           </div>
 
           <TaskTemplateManager
+            isLoading={templatesLoading}
             taskType="PETI_VOR_RECURRING"
             categories={[]}
             templates={filteredPvTemplates}

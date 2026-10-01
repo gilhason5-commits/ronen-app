@@ -14,6 +14,7 @@ import { FORMAT_LABELS, computeStaffing, orderAgenciesForDisplay, isWaiterEmploy
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { fmtCurrency } from "../components/utils/formatNumbers";
+import LoadingState from "@/components/utils/LoadingState";
 
 const todayStr = () => new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD local
 
@@ -77,7 +78,6 @@ function ManagerAttendanceSection({ event, rules, agencies, allEvents }) {
     queryKey: ["eventStaffingPlans", event.id],
     queryFn: () => base44.entities.EventStaffingPlan.filter({ event_id: event.id }),
     enabled: !!event,
-    initialData: [],
   });
 
   const updatePlan = useMutation({
@@ -469,7 +469,7 @@ export default function EventAttendance() {
   const [selectedDate, setSelectedDate] = useState(todayStr());
   const queryClient = useQueryClient();
 
-  const { data: events = [] } = useQuery({
+  const { data: events = [], isLoading: eventsLoading } = useQuery({
     queryKey: ["attendanceEvents", selectedDate],
     queryFn: async () => {
       const all = await base44.entities.Event.filter({ event_date: selectedDate });
@@ -494,17 +494,15 @@ export default function EventAttendance() {
       });
     },
     enabled: !!event,
-    initialData: [],
   });
-  const { data: agencies = [] } = useQuery({ queryKey: ["staffingAgencies"], queryFn: () => base44.entities.StaffingAgency.list("sort_order"), initialData: [] });
-  const { data: employees = [] } = useQuery({ queryKey: ["taskEmployees"], queryFn: () => base44.entities.TaskEmployee.list(), initialData: [] });
-  const { data: kitchenRoster = [] } = useQuery({ queryKey: ["kitchenRoster"], queryFn: () => base44.entities.KitchenRosterMember.list("sort_order"), initialData: [] });
-  const { data: rules = [] } = useQuery({ queryKey: ["staffingRules"], queryFn: () => base44.entities.StaffingRule.list("sort_order"), initialData: [] });
+  const { data: agencies = [] } = useQuery({ queryKey: ["staffingAgencies"], queryFn: () => base44.entities.StaffingAgency.list("sort_order") });
+  const { data: employees = [] } = useQuery({ queryKey: ["taskEmployees"], queryFn: () => base44.entities.TaskEmployee.list() });
+  const { data: kitchenRoster = [] } = useQuery({ queryKey: ["kitchenRoster"], queryFn: () => base44.entities.KitchenRosterMember.list("sort_order") });
+  const { data: rules = [] } = useQuery({ queryKey: ["staffingRules"], queryFn: () => base44.entities.StaffingRule.list("sort_order") });
   const { data: agencySplits = [] } = useQuery({
     queryKey: ["eventAgencySplits", event?.id],
     queryFn: () => base44.entities.EventAgencySplit.filter({ event_id: event.id }),
     enabled: !!event,
-    initialData: [],
   });
 
   const updateShift = useMutation({
@@ -549,7 +547,8 @@ export default function EventAttendance() {
         <Input type="date" className="h-9 w-40" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
       </div>
 
-      {events.length === 0 && (
+      {events.length === 0 && eventsLoading && <LoadingState className="py-12" />}
+      {events.length === 0 && !eventsLoading && (
         <div className="text-center text-slate-400 py-12">אין אירועים בתאריך הזה</div>
       )}
 

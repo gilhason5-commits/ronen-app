@@ -20,13 +20,11 @@ export default function Events() {
   const { data: events = [], isLoading } = useQuery({
     queryKey: ['events'],
     queryFn: () => base44.entities.Event.list('-event_date'),
-    initialData: [],
   });
 
   const { data: allDishes = [] } = useQuery({
     queryKey: ['dishes'],
     queryFn: () => base44.entities.Dish.list(),
-    initialData: [],
   });
 
   // Once an in-progress event's date has passed, flip it to completed —
@@ -52,7 +50,6 @@ export default function Events() {
   const { data: allCategories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => base44.entities.Category.list(),
-    initialData: [],
   });
 
   const { data: allEventDishes = [] } = useQuery({
@@ -60,7 +57,6 @@ export default function Events() {
     // ProducerPage so React Query dedupes this full-table fetch instead of
     // each component re-fetching it separately.
     ...eventDishSummaryQuery,
-    initialData: [],
   });
 
   // Food revenue/cost shown on each card is computed live from the event's

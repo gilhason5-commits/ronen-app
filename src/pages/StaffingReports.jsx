@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileDown, FileText, BarChart3, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import LoadingState from "@/components/utils/LoadingState";
 
 const todayStr = () => new Date().toLocaleDateString("sv-SE");
 
@@ -33,15 +34,13 @@ function DaySummaryTab() {
   const printRef = useRef(null);
   const [printData, setPrintData] = useState(null);
 
-  const { data: shifts = [] } = useQuery({
+  const { data: shifts = [], isLoading: shiftsLoading } = useQuery({
     queryKey: ["dayShifts", date],
     queryFn: () => base44.entities.EventShift.filter({ event_date: date }),
-    initialData: [],
   });
   const { data: events = [] } = useQuery({
     queryKey: ["attendanceEvents", date],
     queryFn: () => base44.entities.Event.filter({ event_date: date }),
-    initialData: [],
   });
 
   const byAgency = useMemo(() => {
@@ -85,7 +84,8 @@ function DaySummaryTab() {
         {eventNames && <span className="text-sm text-slate-500">{eventNames}</span>}
       </div>
 
-      {shifts.length === 0 && <div className="text-center text-slate-400 py-10">אין רישומי נוכחות בתאריך הזה</div>}
+      {shifts.length === 0 && shiftsLoading && <LoadingState />}
+      {shifts.length === 0 && !shiftsLoading && <div className="text-center text-slate-400 py-10">אין רישומי נוכחות בתאריך הזה</div>}
 
       {byAgency.map(([agencyName, agencyShifts]) => {
         const total = agencyShifts.reduce((s, x) => s + shiftHours(x.clock_in, x.clock_out), 0);
@@ -183,13 +183,12 @@ function AgencyReportsTab() {
   const printRef = useRef(null);
   const [printData, setPrintData] = useState(null);
 
-  const { data: shifts = [] } = useQuery({
+  const { data: shifts = [], isLoading: monthLoading } = useQuery({
     queryKey: ["monthShifts", month],
     queryFn: async () => {
       const all = await base44.entities.EventShift.list("event_date");
       return all.filter((s) => (s.event_date || "").startsWith(month));
     },
-    initialData: [],
   });
 
   const report = useMemo(() => {
@@ -233,7 +232,8 @@ function AgencyReportsTab() {
   return (
     <div className="space-y-4">
       <Input type="month" className="h-9 w-44" value={month} onChange={(e) => setMonth(e.target.value)} />
-      {report.length === 0 && <div className="text-center text-slate-400 py-10">אין נתוני נוכחות בחודש הזה</div>}
+      {report.length === 0 && monthLoading && <LoadingState />}
+      {report.length === 0 && !monthLoading && <div className="text-center text-slate-400 py-10">אין נתוני נוכחות בחודש הזה</div>}
       <div className="grid lg:grid-cols-2 gap-4 items-start">
         {report.map(([agencyName, data]) => (
           <Card key={agencyName}>

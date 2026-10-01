@@ -39,21 +39,18 @@ export default function ProducerEventPrint({ event, open, onClose, savePdfMode =
     queryKey: ["categories_print"],
     queryFn: () => base44.entities.Category.list("display_order"),
     enabled: open,
-    initialData: [],
   });
 
   const { data: dishes = [] } = useQuery({
     queryKey: ["dishes_print"],
     queryFn: () => base44.entities.Dish.list(),
     enabled: open,
-    initialData: [],
   });
 
   const { data: subCategories = [] } = useQuery({
     queryKey: ["subCategories_print"],
     queryFn: () => base44.entities.SubCategory.list("display_order"),
     enabled: open,
-    initialData: [],
   });
 
   const dishesByCategory = categories

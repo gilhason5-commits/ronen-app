@@ -19,31 +19,26 @@ export default function PurchasePlanning({ events }) {
   const { data: allDishes = [] } = useQuery({
     queryKey: ['dishes'],
     queryFn: () => base44.entities.Dish.list(),
-    initialData: []
   });
 
   const { data: ingredients = [] } = useQuery({
     queryKey: ['ingredients'],
     queryFn: () => base44.entities.Ingredient.list(),
-    initialData: []
   });
 
   const { data: specialIngredients = [] } = useQuery({
     queryKey: ['specialIngredients'],
     queryFn: () => base44.entities.SpecialIngredient.list(),
-    initialData: []
   });
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => base44.entities.Category.list(),
-    initialData: []
   });
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => base44.entities.Supplier.list(),
-    initialData: []
   });
 
   const eventIds = events.map(e => e.id);
@@ -58,7 +53,6 @@ export default function PurchasePlanning({ events }) {
       return results.flat();
     },
     enabled: eventIds.length > 0,
-    initialData: []
   });
 
   const eventDishesMap = useMemo(() => {

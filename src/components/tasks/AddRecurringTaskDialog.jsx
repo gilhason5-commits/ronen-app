@@ -43,7 +43,6 @@ export default function AddRecurringTaskDialog({ open, onClose, editingAssignmen
       const data = await base44.entities.TaskCategory.list();
       return data.filter(c => c.category_type === 'RECURRING' && c.is_active);
     },
-    initialData: [],
   });
 
   const { data: templates = [] } = useQuery({
@@ -52,19 +51,16 @@ export default function AddRecurringTaskDialog({ open, onClose, editingAssignmen
       const data = await base44.entities.TaskTemplate.list();
       return data.filter(t => t.task_type === 'RECURRING' && t.is_active);
     },
-    initialData: [],
   });
 
   const { data: allEmployees = [] } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
 
   const { data: allRoles = [] } = useQuery({
     queryKey: ['employeeRoles'],
     queryFn: () => base44.entities.EmployeeRole.list(),
-    initialData: [],
   });
 
 

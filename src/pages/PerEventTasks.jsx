@@ -40,7 +40,6 @@ export default function PerEventTasks() {
         return eventDate >= oneWeekAgo;
       });
     },
-    initialData: [],
   });
 
   const { data: categories = [] } = useQuery({
@@ -49,7 +48,6 @@ export default function PerEventTasks() {
       const data = await base44.entities.TaskCategory.list();
       return data.filter(c => c.category_type === 'PER_EVENT');
     },
-    initialData: [],
   });
 
   const { data: templates = [] } = useQuery({
@@ -58,7 +56,6 @@ export default function PerEventTasks() {
       const data = await base44.entities.TaskTemplate.list();
       return data.filter(t => t.task_type === 'PER_EVENT');
     },
-    initialData: [],
   });
 
   const { data: assignments = [], isLoading: assignmentsLoading } = useQuery({
@@ -67,7 +64,6 @@ export default function PerEventTasks() {
       const data = await base44.entities.TaskAssignment.filter({ event_id: selectedEventId });
       return data;
     },
-    initialData: [],
     enabled: !!selectedEventId,
   });
 
@@ -79,7 +75,6 @@ export default function PerEventTasks() {
   const { data: allEmployees = [] } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
 
   // Safety net for legacy events that have producer_approved=true but never

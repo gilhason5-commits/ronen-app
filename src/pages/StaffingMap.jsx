@@ -562,12 +562,10 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
     queryFn: () => base44.entities.Department.list(),
-    initialData: [],
   });
   const { data: allEmployeesForSwap = [] } = useQuery({
     queryKey: ["taskEmployees"],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
   const departmentEmployees = useMemo(() => {
     const dept = departments.find((d) => d.name === departmentName);
@@ -582,7 +580,6 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   const { data: members = [] } = useQuery({
     queryKey: ["kitchenRoster"],
     queryFn: () => base44.entities.KitchenRosterMember.list("sort_order"),
-    initialData: [],
   });
   const activeMembers = useMemo(
     () => members.filter((m) => m.is_active && (m.roster_group || "kitchen") === group),
@@ -602,7 +599,6 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   const { data: shifts = [] } = useQuery({
     queryKey: shiftsKey,
     queryFn: () => fetchKitchenShifts(dayStrs[0], dayStrs[dayStrs.length - 1]),
-    initialData: [],
     refetchOnWindowFocus: true,
   });
   const weekShifts = useMemo(() => shifts.filter((s) => dayStrs.includes(s.shift_date)), [shifts, dayStrs]);
@@ -610,13 +606,11 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   const { data: allEvents = [] } = useQuery({
     queryKey: ["kitchenScheduleEvents", dayStrs[0], dayStrs[dayStrs.length - 1]],
     queryFn: () => fetchEventsInRange(dayStrs[0], dayStrs[dayStrs.length - 1]),
-    initialData: [],
   });
   const notesKey = ["kitchenDayNotes", group, dayStrs[0], dayStrs[dayStrs.length - 1]];
   const { data: dayNotes = [] } = useQuery({
     queryKey: notesKey,
     queryFn: () => fetchDayNotes(dayStrs[0], dayStrs[dayStrs.length - 1], group),
-    initialData: [],
   });
   const noteByDay = useMemo(() => new Map(dayNotes.map((n) => [n.shift_date, n])), [dayNotes]);
 
@@ -722,7 +716,6 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   const { data: rules = [] } = useQuery({
     queryKey: ["staffingRules"],
     queryFn: () => base44.entities.StaffingRule.list("sort_order"),
-    initialData: [],
   });
   const chefShortfallByDay = useMemo(() => {
     const map = new Map();
@@ -1035,7 +1028,6 @@ function ChangeLog({ month }) {
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ["staffingChangeLog", mKey],
     queryFn: () => base44.entities.StaffingChangeLog.filter({ month: mKey }),
-    initialData: [],
   });
   const sorted = [...logs].sort((a, b) => new Date(b.created_date) - new Date(a.created_date));
 
@@ -1102,9 +1094,9 @@ export default function StaffingMap() {
       return all.filter((e) => e.event_date >= monthStart && e.event_date <= monthEnd && e.status !== "cancelled");
     },
   });
-  const { data: rules = [] } = useQuery({ queryKey: ["staffingRules"], queryFn: () => base44.entities.StaffingRule.list("sort_order"), initialData: [] });
-  const { data: agencies = [] } = useQuery({ queryKey: ["staffingAgencies"], queryFn: () => base44.entities.StaffingAgency.list("sort_order"), initialData: [] });
-  const { data: rawEmployees = [] } = useQuery({ queryKey: ["taskEmployees"], queryFn: () => base44.entities.TaskEmployee.list(), initialData: [] });
+  const { data: rules = [] } = useQuery({ queryKey: ["staffingRules"], queryFn: () => base44.entities.StaffingRule.list("sort_order") });
+  const { data: agencies = [] } = useQuery({ queryKey: ["staffingAgencies"], queryFn: () => base44.entities.StaffingAgency.list("sort_order") });
+  const { data: rawEmployees = [] } = useQuery({ queryKey: ["taskEmployees"], queryFn: () => base44.entities.TaskEmployee.list() });
   // TaskEmployee has duplicate/blank rows from data entry; drop empty names and
   // collapse repeated names to the first record so the assignment dropdown
   // shows each person once.
@@ -1119,8 +1111,8 @@ export default function StaffingMap() {
     }
     return deduped;
   }, [rawEmployees]);
-  const { data: allPlans = [] } = useQuery({ queryKey: ["staffingPlans"], queryFn: () => base44.entities.EventStaffingPlan.list("created_date", 5000), initialData: [] });
-  const { data: allSplits = [] } = useQuery({ queryKey: ["agencySplits"], queryFn: () => base44.entities.EventAgencySplit.list("created_date", 5000), initialData: [] });
+  const { data: allPlans = [] } = useQuery({ queryKey: ["staffingPlans"], queryFn: () => base44.entities.EventStaffingPlan.list("created_date") });
+  const { data: allSplits = [] } = useQuery({ queryKey: ["agencySplits"], queryFn: () => base44.entities.EventAgencySplit.list("created_date") });
 
   // Grouped once per data change instead of each EventTableRow re-filtering
   // the full list on every render — .filter() inline in the map below would

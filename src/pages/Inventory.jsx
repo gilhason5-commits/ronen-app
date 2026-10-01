@@ -26,36 +26,30 @@ export default function Inventory() {
   const { data: ingredients = [], isLoading } = useQuery({
     queryKey: ['ingredients'],
     queryFn: () => base44.entities.Ingredient.list(),
-    initialData: [],
   });
 
   const { data: events = [] } = useQuery({
     queryKey: ['events'],
     queryFn: () => base44.entities.Event.list(),
-    initialData: [],
   });
 
   const { data: eventsDishes = [] } = useQuery({
     ...eventDishSummaryQuery,
-    initialData: [],
   });
 
   const { data: dishes = [] } = useQuery({
     queryKey: ['dishes'],
     queryFn: () => base44.entities.Dish.list(),
-    initialData: [],
   });
 
   const { data: purchaseOrders = [] } = useQuery({
     queryKey: ['purchaseOrders'],
     queryFn: () => base44.entities.PurchaseOrder.list(),
-    initialData: [],
   });
 
   const { data: ingredientCategories = [] } = useQuery({
     queryKey: ['ingredientCategories'],
     queryFn: () => base44.entities.Ingredient_Category.list('display_order'),
-    initialData: []
   });
 
   const filteredIngredients = ingredients.filter(ing => {

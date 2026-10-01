@@ -25,20 +25,17 @@ export default function ManualPurchaseOrder() {
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers"],
     queryFn: () => base44.entities.Supplier.list(),
-    initialData: [],
   });
 
   const { data: ingredientCategories = [] } = useQuery({
     queryKey: ["ingredientCategories"],
     queryFn: () => base44.entities.Ingredient_Category.list(),
-    initialData: [],
   });
 
   const { data: ingredients = [] } = useQuery({
     queryKey: ["supplierIngredients", supplierId],
     queryFn: () => base44.entities.Ingredient.filter({ current_supplier_id: supplierId }),
     enabled: !!supplierId,
-    initialData: [],
   });
 
   const supplier = suppliers.find((s) => s.id === supplierId);

@@ -18,7 +18,6 @@ export default function KitchenView() {
   const { data: events = [], isLoading } = useQuery({
     queryKey: ['events'],
     queryFn: () => base44.entities.Event.list('-event_date'),
-    initialData: [],
   });
 
   const approvedEvents = events.filter(e => {

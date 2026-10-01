@@ -15,43 +15,36 @@ export default function KitchenEventDetail({ event }) {
   const { data: allCategories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => base44.entities.Category.list('display_order'),
-    initialData: []
   });
 
   const { data: allDishes = [] } = useQuery({
     queryKey: ['dishes'],
     queryFn: () => base44.entities.Dish.list(),
-    initialData: []
   });
 
   const { data: eventDishes = [] } = useQuery({
     queryKey: ['eventDishes', event.id],
     queryFn: () => base44.entities.Events_Dish.filter({ event_id: event.id }),
-    initialData: []
   });
 
   const { data: ingredients = [] } = useQuery({
     queryKey: ['ingredients'],
     queryFn: () => base44.entities.Ingredient.list(),
-    initialData: []
   });
 
   const { data: ingredientCategories = [] } = useQuery({
     queryKey: ['ingredient_categories'],
     queryFn: () => base44.entities.Ingredient_Category.list(),
-    initialData: []
   });
 
   const { data: specialIngredients = [] } = useQuery({
     queryKey: ['specialIngredients'],
     queryFn: () => base44.entities.SpecialIngredient.list(),
-    initialData: []
   });
 
   const { data: subCategories = [] } = useQuery({
     queryKey: ['subCategories'],
     queryFn: () => base44.entities.SubCategory.list('display_order'),
-    initialData: []
   });
 
   const categories = allCategories.filter(c => c.event_type === event.event_type);

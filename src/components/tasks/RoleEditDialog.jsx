@@ -38,7 +38,6 @@ export default function RoleEditDialog({ open, onClose, roleId, roleName, curren
   const { data: allEmployees = [] } = useQuery({
     queryKey: ["taskEmployees"],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
 
   const { data: pausedKeys = [] } = useQuery({
@@ -47,7 +46,6 @@ export default function RoleEditDialog({ open, onClose, roleId, roleName, curren
       const all = await base44.entities.AppSetting.list();
       return all.filter((s) => (s.key || "").startsWith(PAUSE_KEY_PREFIX));
     },
-    initialData: [],
   });
 
   useEffect(() => {

@@ -34,19 +34,16 @@ export default function Ingredients() {
       const data = await base44.entities.Ingredient.list();
       return data.sort((a, b) => a.name?.localeCompare(b.name, 'he'));
     },
-    initialData: [],
   });
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => base44.entities.Supplier.list(),
-    initialData: [],
   });
 
   const { data: ingredientCategories = [] } = useQuery({
     queryKey: ['ingredientCategories'],
     queryFn: () => base44.entities.Ingredient_Category.list('display_order'),
-    initialData: [],
   });
 
   // Auto-open edit dialog if edit param exists

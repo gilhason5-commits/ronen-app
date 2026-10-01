@@ -6,19 +6,18 @@ import { UtensilsCrossed } from "lucide-react";
 import { fmtCurrency } from "../utils/formatNumbers";
 import { applyWasteToValue } from "@/lib/foodWaste";
 import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
+import LoadingState from "@/components/utils/LoadingState";
 
-export default function CategoryBreakdown({ events, eventDishes: propEventDishes, getEffectivePlannedCost }) {
+export default function CategoryBreakdown({ events, eventDishes: propEventDishes, getEffectivePlannedCost, isLoading = false }) {
   // If eventDishes are passed directly, use them. Otherwise fetch from API
-  const { data: fetchedEventsDishes = [] } = useQuery({
+  const { data: fetchedEventsDishes = [], isLoading: dishesLoading } = useQuery({
     ...eventDishSummaryQuery,
-    initialData: [],
     enabled: !propEventDishes, // Only fetch if not provided via props
   });
 
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => base44.entities.Category.list(),
-    initialData: [],
   });
 
   // Use prop eventDishes if provided, otherwise filter from fetched data
@@ -76,10 +75,14 @@ export default function CategoryBreakdown({ events, eventDishes: propEventDishes
           </div>
         </CardHeader>
         <CardContent className="p-5">
-          <div className="text-center py-8">
-            <UtensilsCrossed className="w-10 h-10 text-stone-300 mx-auto mb-2" />
-            <p className="text-sm text-stone-500">אין נתונים להצגה</p>
-          </div>
+          {isLoading || (!propEventDishes && dishesLoading) ? (
+            <LoadingState className="py-8" />
+          ) : (
+            <div className="text-center py-8">
+              <UtensilsCrossed className="w-10 h-10 text-stone-300 mx-auto mb-2" />
+              <p className="text-sm text-stone-500">אין נתונים להצגה</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     );

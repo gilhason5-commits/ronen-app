@@ -67,7 +67,6 @@ function StaffingRulesTab() {
   const { data: rules = [] } = useQuery({
     queryKey: ["staffingRules"],
     queryFn: () => base44.entities.StaffingRule.list("sort_order"),
-    initialData: [],
   });
   const crud = useEntityCrud("StaffingRule", "staffingRules", "תקן");
   const [editingId, setEditingId] = useState(null);
@@ -181,12 +180,10 @@ function AgenciesTab() {
   const { data: agencies = [] } = useQuery({
     queryKey: ["staffingAgencies"],
     queryFn: () => base44.entities.StaffingAgency.list("sort_order"),
-    initialData: [],
   });
   const { data: employees = [] } = useQuery({
     queryKey: ["taskEmployees"],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
   const agencyCrud = useEntityCrud("StaffingAgency", "staffingAgencies", "חברה");
 
@@ -239,7 +236,6 @@ function TipRulesTab() {
   const { data: tipRules = [] } = useQuery({
     queryKey: ["tipRules"],
     queryFn: () => base44.entities.TipRule.list("sort_order"),
-    initialData: [],
   });
   const crud = useEntityCrud("TipRule", "tipRules", "חוק חלוקה");
   const [editingId, setEditingId] = useState(null);
@@ -335,7 +331,6 @@ function KitchenRosterTab({ group = "kitchen", title = "צוות מטבח", desc
   const { data: allMembers = [] } = useQuery({
     queryKey: ["kitchenRoster"],
     queryFn: () => base44.entities.KitchenRosterMember.list("sort_order"),
-    initialData: [],
   });
   const members = useMemo(
     () => allMembers.filter((m) => (m.roster_group || "kitchen") === group),
@@ -344,7 +339,6 @@ function KitchenRosterTab({ group = "kitchen", title = "צוות מטבח", desc
   const { data: allEmployees = [] } = useQuery({
     queryKey: ["taskEmployees"],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
   const activeEmployees = useMemo(
     () => allEmployees.filter((e) => e.is_active && e.full_name?.trim())

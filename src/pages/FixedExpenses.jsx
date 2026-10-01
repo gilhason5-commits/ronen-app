@@ -238,12 +238,10 @@ export default function FixedExpenses() {
   const { data: generalItems = [] } = useQuery({
     queryKey: ["generalExpenses"],
     queryFn: () => base44.entities.GeneralExpense.list("sort_order"),
-    initialData: [],
   });
   const { data: rangeEvents = [] } = useQuery({
     queryKey: ["financeMonthEvents", monthFrom, monthTo],
     queryFn: () => fetchEventsInRange(monthFrom, monthTo),
-    initialData: [],
   });
   const general = useMemo(
     () => generalExpensesForMonth(generalItems, countedEventsInMonth(rangeEvents, month)),
@@ -274,7 +272,6 @@ export default function FixedExpenses() {
   const { data: expenses = [] } = useQuery({
     queryKey: ["fixedExpenses"],
     queryFn: () => base44.entities.FixedExpense.list("sort_order"),
-    initialData: [],
   });
 
   const { data: settings = [] } = useQuery({
@@ -283,7 +280,6 @@ export default function FixedExpenses() {
       const all = await base44.entities.AppSetting.list();
       return all.filter((s) => SETTING_KEYS.includes(s.key));
     },
-    initialData: [],
   });
   const settingByKey = useMemo(() => Object.fromEntries(settings.map((s) => [s.key, s])), [settings]);
 

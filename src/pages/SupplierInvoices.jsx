@@ -25,13 +25,11 @@ export default function SupplierInvoices() {
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ['supplierInvoices'],
     queryFn: () => base44.entities.SupplierInvoice.list('-created_date'),
-    initialData: [],
   });
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => base44.entities.Supplier.list(),
-    initialData: [],
   });
 
   const filteredInvoices = invoices.filter(inv => {

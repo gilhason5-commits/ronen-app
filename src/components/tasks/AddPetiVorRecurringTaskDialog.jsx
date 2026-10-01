@@ -35,7 +35,6 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
       const data = await base44.entities.TaskCategory.list();
       return data.filter(c => c.category_type === 'PETI_VOR_RECURRING' && c.is_active);
     },
-    initialData: [],
   });
 
   const { data: templates = [] } = useQuery({
@@ -44,19 +43,16 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
       const data = await base44.entities.TaskTemplate.list();
       return data.filter(t => t.is_active && t.task_type === 'PETI_VOR_RECURRING');
     },
-    initialData: [],
   });
 
   const { data: allEmployees = [] } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
 
   const { data: allRoles = [] } = useQuery({
     queryKey: ['employeeRoles'],
     queryFn: () => base44.entities.EmployeeRole.list(),
-    initialData: [],
   });
 
   const { data: existingAssignments = [] } = useQuery({
@@ -70,7 +66,6 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
       'task_template_id,assigned_to_id,assigned_to_name',
     ),
     enabled: open,
-    initialData: [],
   });
 
   // Filter employees to Peti Vor department only

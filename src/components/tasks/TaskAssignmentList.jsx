@@ -19,7 +19,6 @@ export default function TaskAssignmentList({ taskType }) {
   const { data: allEmployees = [] } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
 
   const pvEmployeeIds = useMemo(() => {
@@ -54,19 +53,16 @@ export default function TaskAssignmentList({ taskType }) {
       const expiredIds = new Set(expiredOnce.map(a => a.id));
       return filtered.filter(a => !expiredIds.has(a.id));
     },
-    initialData: [],
   });
 
   const { data: allRoles = [] } = useQuery({
     queryKey: ['employeeRoles'],
     queryFn: () => base44.entities.EmployeeRole.list(),
-    initialData: [],
   });
 
   const { data: allTemplates = [] } = useQuery({
     queryKey: ['taskTemplates'],
     queryFn: () => base44.entities.TaskTemplate.list(),
-    initialData: [],
   });
 
   const updateStatusMutation = useMutation({

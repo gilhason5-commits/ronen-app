@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import RecurringTaskSummaryCard from "./RecurringTaskSummaryCard";
 import RecurringInstancesDialog from "./RecurringInstancesDialog";
 import RoleEditDialog from "./RoleEditDialog";
+import LoadingState from "@/components/utils/LoadingState";
 
 const PAUSE_KEY_PREFIX = "paused_employee:";
 
@@ -37,7 +38,6 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
       const all = await base44.entities.AppSetting.list();
       return all.filter((s) => (s.key || '').startsWith(PAUSE_KEY_PREFIX));
     },
-    initialData: [],
   });
   const pausedEmployeeIds = useMemo(
     () => new Set(pausedKeys.map((s) => s.key.slice(PAUSE_KEY_PREFIX.length))),
@@ -47,13 +47,11 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
   const { data: employees = [] } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
 
   const { data: roles = [] } = useQuery({
     queryKey: ['employeeRoles'],
     queryFn: () => base44.entities.EmployeeRole.list(),
-    initialData: [],
   });
 
   // Only employees in Peti Vor department
@@ -61,7 +59,7 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
     return new Set(employees.filter(e => e.department_name === 'פטי וור').map(e => e.id));
   }, [employees]);
 
-  const { data: assignments = [] } = useQuery({
+  const { data: assignments = [], isLoading: assignmentsLoading } = useQuery({
     queryKey: ['taskAssignments', 'PETI_VOR_RECURRING'],
     queryFn: async () => {
       const data = await base44.entities.TaskAssignment.listWhere(recurringWindow, '-start_time');
@@ -70,7 +68,6 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
       // (filtering here would capture an empty pvEmployeeIds on the first run).
       return data.filter(a => !a.event_id);
     },
-    initialData: [],
   });
 
   const updateStatusMutation = useMutation({
@@ -215,7 +212,9 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
           <p className="text-sm text-stone-500 mt-1">לחץ על משימה לצפייה בכל המופעים והסטטוסים</p>
         </CardHeader>
         <CardContent>
-          {orderedColumnKeys.length === 0 ? (
+          {orderedColumnKeys.length === 0 && assignmentsLoading ? (
+            <LoadingState />
+          ) : orderedColumnKeys.length === 0 ? (
             <div className="text-center py-12">
               <Clock className="w-12 h-12 text-stone-300 mx-auto mb-3" />
               <p className="text-stone-500">אין משימות שוטפות פטי וור מוגדרות</p>

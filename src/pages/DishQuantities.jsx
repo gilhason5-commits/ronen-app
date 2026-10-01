@@ -42,7 +42,6 @@ export default function DishQuantities() {
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["events", "all"],
     queryFn: () => base44.entities.Event.list("-event_date", 500),
-    initialData: [],
   });
 
   // Only the selected event's dishes — this screen shows one event at a time.
@@ -50,25 +49,21 @@ export default function DishQuantities() {
     queryKey: ["eventDishes", selectedEventId],
     queryFn: () => base44.entities.Events_Dish.filter({ event_id: selectedEventId }),
     enabled: !!selectedEventId,
-    initialData: [],
   });
 
   const { data: dishes = [] } = useQuery({
     queryKey: ["dishes"],
     queryFn: () => fetchAllRows("Dish"),
-    initialData: [],
   });
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
     queryFn: () => base44.entities.Category.list(),
-    initialData: [],
   });
 
   const { data: subCategories = [] } = useQuery({
     queryKey: ["subCategories"],
     queryFn: () => base44.entities.SubCategory.list(),
-    initialData: [],
   });
 
   const dishById = useMemo(() => Object.fromEntries(dishes.map((d) => [d.id, d])), [dishes]);

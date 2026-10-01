@@ -14,16 +14,14 @@ import MonthlyProfitability from "../components/reports/MonthlyProfitability";
 import { fmtCurrency } from "../components/utils/formatNumbers";
 
 export default function Reports() {
-  const { data: events = [] } = useQuery({
+  const { data: events = [], isLoading: eventsLoading } = useQuery({
     queryKey: ['events'],
     queryFn: () => base44.entities.Event.list('-event_date'),
-    initialData: [],
   });
 
   const { data: purchaseOrders = [] } = useQuery({
     queryKey: ['purchaseOrders'],
     queryFn: () => base44.entities.PurchaseOrder.list(),
-    initialData: [],
   });
 
   const inProgressEvents = events.filter(e => e.status === 'in_progress');
@@ -203,16 +201,16 @@ export default function Reports() {
       <MonthlyProfitability />
 
       {/* New Charts Section */}
-      <EventsFoodCostChart events={events} />
+      <EventsFoodCostChart events={events} isLoading={eventsLoading} />
 
       <div className="grid lg:grid-cols-2 gap-6">
         <IngredientCategoryPieChart />
-        <CategoryBreakdown events={completedEvents} />
+        <CategoryBreakdown events={completedEvents} isLoading={eventsLoading} />
       </div>
 
 
 
-      <MonthlyRollup events={events} />
+      <MonthlyRollup events={events} isLoading={eventsLoading} />
     </div>
   );
 }

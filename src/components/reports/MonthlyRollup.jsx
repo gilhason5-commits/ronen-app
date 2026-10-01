@@ -3,8 +3,9 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { format, parseISO, startOfWeek } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { fmtCurrency } from "../utils/formatNumbers";
+import LoadingState from "@/components/utils/LoadingState";
 
-export default function MonthlyRollup({ events }) {
+export default function MonthlyRollup({ events, isLoading = false }) {
   const weeklyData = {};
 
   events.forEach(event => {
@@ -140,7 +141,8 @@ export default function MonthlyRollup({ events }) {
               })}
             </tbody>
           </table>
-          {sortedWeeks.length === 0 && (
+          {sortedWeeks.length === 0 && isLoading && <LoadingState className="py-12" />}
+          {sortedWeeks.length === 0 && !isLoading && (
             <p className="text-center text-stone-500 py-12">אין נתונים שבועיים זמינים</p>
           )}
         </div>

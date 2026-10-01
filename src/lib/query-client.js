@@ -6,14 +6,14 @@ export const queryClientInstance = new QueryClient({
 		queries: {
 			refetchOnWindowFocus: false,
 			retry: 1,
-			// NOT setting a default staleTime here: this codebase uses
-			// `initialData: []` as an empty-state placeholder on nearly every
-			// query. With any nonzero staleTime, React Query treats that
-			// placeholder as fresh real data and skips the actual fetch on
-			// mount — every list silently renders empty until staleTime
-			// elapses. (Tried 30s here; it broke every page. Fixing this
-			// properly would mean switching every query to `placeholderData`
-			// instead of `initialData`, which is out of scope for this pass.)
+			// Queries have no initialData/placeholderData: components default
+			// `data = []` when destructuring, and isLoading stays true until the
+			// real data arrives — so a first visit shows a loading state instead
+			// of a misleading "nothing found" (initialData counted as loaded
+			// data, and in React Query v5 so does placeholderData). No default
+			// staleTime: screens show cached data instantly on return and
+			// refresh it in the background, so nothing is stale after a save
+			// made on another screen under a different query key.
 		},
 	},
 });

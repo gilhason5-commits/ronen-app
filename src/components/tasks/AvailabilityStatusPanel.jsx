@@ -105,7 +105,6 @@ export default function AvailabilityStatusPanel({ eventId, eventDate }) {
     queryFn: async () => {
       return base44.entities.EmployeeDailyAvailability.filter({ event_id: eventId });
     },
-    initialData: [],
     enabled: !!eventId,
     refetchInterval: 30000,
   });

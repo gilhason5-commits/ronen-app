@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { fmtCurrency } from "../utils/formatNumbers";
 import { fetchEventsInRange } from "@/lib/kitchenShifts";
+import LoadingState from "@/components/utils/LoadingState";
 import {
   monthRange,
   countedEventsInMonth,
@@ -40,20 +41,17 @@ export default function MonthlyProfitability() {
   const monthLabel = month.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
   const [monthFrom, monthTo] = monthRange(month);
 
-  const { data: rangeEvents = [] } = useQuery({
+  const { data: rangeEvents = [], isLoading: eventsLoading } = useQuery({
     queryKey: ["financeMonthEvents", monthFrom, monthTo],
     queryFn: () => fetchEventsInRange(monthFrom, monthTo),
-    initialData: [],
   });
   const { data: fixedExpenses = [] } = useQuery({
     queryKey: ["fixedExpenses"],
     queryFn: () => base44.entities.FixedExpense.list("sort_order"),
-    initialData: [],
   });
   const { data: generalItems = [] } = useQuery({
     queryKey: ["generalExpenses"],
     queryFn: () => base44.entities.GeneralExpense.list("sort_order"),
-    initialData: [],
   });
 
   const pnl = useMemo(() => {
@@ -105,7 +103,9 @@ export default function MonthlyProfitability() {
 
           <div>
             <p className="text-sm font-semibold text-stone-800 mb-1">חלוקה לאירוע ({n})</p>
-            {n === 0 ? (
+            {n === 0 && eventsLoading ? (
+              <LoadingState className="py-2" />
+            ) : n === 0 ? (
               <p className="text-sm text-stone-400 py-2">אין אירועים מאושרים בחודש זה — לא ניתן לחלק לאירוע</p>
             ) : (
               <>

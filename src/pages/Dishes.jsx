@@ -35,7 +35,6 @@ export default function Dishes() {
   const { data: allDishes = [], isLoading } = useQuery({
     queryKey: ['dishes'],
     queryFn: () => base44.entities.Dish.list(),
-    initialData: [],
   });
 
   // Filter dishes by event type and sort alphabetically
@@ -46,37 +45,31 @@ export default function Dishes() {
   const { data: ingredients = [] } = useQuery({
     queryKey: ['ingredients'],
     queryFn: () => base44.entities.Ingredient.list(),
-    initialData: [],
   });
 
   const { data: specialIngredients = [] } = useQuery({
     queryKey: ['specialIngredients'],
     queryFn: () => base44.entities.SpecialIngredient.list(),
-    initialData: [],
   });
 
   const { data: allCategories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => base44.entities.Category.list('display_order'),
-    initialData: [],
   });
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => base44.entities.Supplier.list(),
-    initialData: [],
   });
 
   const { data: ingredientCategories = [] } = useQuery({
     queryKey: ['ingredientCategories'],
     queryFn: () => base44.entities.Ingredient_Category.list('display_order'),
-    initialData: [],
   });
 
   const { data: allSubCategories = [] } = useQuery({
     queryKey: ['subCategories'],
     queryFn: () => base44.entities.SubCategory.list('display_order'),
-    initialData: [],
   });
 
   // Filter categories by event type, then by the top-level group (אוכל/שתייה/מתכלים)

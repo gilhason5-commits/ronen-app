@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, Clock, Bell } from "lucide-react";
 import TaskTemplateDialog from "./TaskTemplateDialog";
 import { toast } from "sonner";
+import LoadingState from "@/components/utils/LoadingState";
 
-export default function TaskTemplateManager({ taskType, categories, templates: templatesProp }) {
+export default function TaskTemplateManager({ taskType, categories, templates: templatesProp, isLoading = false }) {
   const [showDialog, setShowDialog] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const queryClient = useQueryClient();
@@ -23,7 +24,6 @@ export default function TaskTemplateManager({ taskType, categories, templates: t
       const data = await base44.entities.TaskTemplate.list();
       return data.filter(t => t.task_type === taskType);
     },
-    initialData: [],
     enabled: !templatesProp,
   });
   const templates = templatesProp ?? fetchedTemplates;
@@ -31,13 +31,11 @@ export default function TaskTemplateManager({ taskType, categories, templates: t
   const { data: employees = [] } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
 
   const { data: roles = [] } = useQuery({
     queryKey: ['employeeRoles'],
     queryFn: () => base44.entities.EmployeeRole.list(),
-    initialData: [],
   });
 
   const deleteMutation = useMutation({
@@ -144,7 +142,8 @@ export default function TaskTemplateManager({ taskType, categories, templates: t
         ))}
       </div>
 
-      {templates.length === 0 && (
+      {templates.length === 0 && isLoading && <LoadingState />}
+      {templates.length === 0 && !isLoading && (
         <Card>
           <CardContent className="p-12 text-center">
             <p className="text-stone-500">אין משימות. צור משימה ראשונה</p>

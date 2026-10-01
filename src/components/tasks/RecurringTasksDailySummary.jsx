@@ -8,6 +8,7 @@ import { Calendar, ChevronRight, ChevronLeft, Printer } from "lucide-react";
 import { format, parseISO, startOfDay, endOfDay, addDays, subDays, isSameDay, isAfter, isBefore } from "date-fns";
 import { he } from "date-fns/locale";
 import EventTaskSummaryCard from "./EventTaskSummaryCard";
+import LoadingState from "@/components/utils/LoadingState";
 
 const STATUS_CONFIG = {
   PENDING: { color: "#1d4ed8", bg: "#dbeafe", label: "ממתין" },
@@ -44,7 +45,6 @@ export default function RecurringTasksDailySummary() {
   const { data: employees = [] } = useQuery({
     queryKey: ["taskEmployees"],
     queryFn: () => base44.entities.TaskEmployee.list(),
-    initialData: [],
   });
 
   const pvEmployeeIds = useMemo(() => {
@@ -56,7 +56,7 @@ export default function RecurringTasksDailySummary() {
   // miss historical days entirely once the recurring-tasks-generator has
   // pre-created enough future rows to fill the cap.
   const dayKey = format(selectedDay, "yyyy-MM-dd");
-  const { data: assignments = [] } = useQuery({
+  const { data: assignments = [], isLoading: assignmentsLoading } = useQuery({
     queryKey: ["taskAssignments", "RECURRING_DAY", dayKey, [...pvEmployeeIds]],
     queryFn: async () => {
       const dayStartIso = startOfDay(selectedDay).toISOString();
@@ -71,13 +71,11 @@ export default function RecurringTasksDailySummary() {
       if (error) throw error;
       return (data || []).filter((a) => !pvEmployeeIds.has(a.assigned_to_id));
     },
-    initialData: [],
   });
 
   const { data: roles = [] } = useQuery({
     queryKey: ["employeeRoles"],
     queryFn: () => base44.entities.EmployeeRole.list(),
-    initialData: [],
   });
 
   const today = useMemo(() => startOfDay(new Date()), []);
@@ -294,7 +292,9 @@ export default function RecurringTasksDailySummary() {
         </div>
       </CardHeader>
       <CardContent>
-        {employeeGroups.length === 0 ? (
+        {employeeGroups.length === 0 && assignmentsLoading ? (
+          <LoadingState />
+        ) : employeeGroups.length === 0 ? (
           <div className="text-center py-10 text-stone-500">אין משימות שוטפות ליום זה</div>
         ) : (
           <div className="space-y-5">
