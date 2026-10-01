@@ -14,6 +14,17 @@ const PAUSE_KEY_PREFIX = "paused_employee:";
 const ORDER_KEY = "recurring_task_column_order";
 const TASK_ORDER_KEY = "recurring_task_order";
 
+// Recurring rows from a week back to the generator's 30-day horizon. The
+// old "500 latest by start_time" fetch was filled entirely by future rows
+// once there were more than 500 of them, hiding today's tasks.
+const recurringWindow = (q) => {
+  const now = Date.now();
+  return q
+    .is('event_id', null)
+    .gte('start_time', new Date(now - 7 * 86400000).toISOString())
+    .lte('start_time', new Date(now + 32 * 86400000).toISOString());
+};
+
 export default function RecurringTaskColumns() {
   const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState(null);
@@ -46,7 +57,7 @@ export default function RecurringTaskColumns() {
   const { data: assignments = [] } = useQuery({
     queryKey: ['taskAssignments', 'RECURRING', [...pvEmployeeIds]],
     queryFn: async () => {
-      const data = await base44.entities.TaskAssignment.list('-start_time', 500);
+      const data = await base44.entities.TaskAssignment.listWhere(recurringWindow, '-start_time');
       return data.filter(a => !a.event_id && !pvEmployeeIds.has(a.assigned_to_id));
     },
     initialData: [],

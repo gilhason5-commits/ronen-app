@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import EventsList from "../components/events/EventsList";
 import EventForm from "../components/events/EventForm";
 import { computeEventFoodCost } from "@/lib/eventFoodCost";
+import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 
 export default function Events() {
   const [showForm, setShowForm] = useState(false);
@@ -58,8 +59,7 @@ export default function Events() {
     // Shared key with CategoryBreakdown/Inventory/IngredientCategoryPieChart/
     // ProducerPage so React Query dedupes this full-table fetch instead of
     // each component re-fetching it separately.
-    queryKey: ['eventsDishes'],
-    queryFn: () => base44.entities.Events_Dish.list(),
+    ...eventDishSummaryQuery,
     initialData: [],
   });
 

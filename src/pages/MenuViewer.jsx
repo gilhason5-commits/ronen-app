@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Calendar, Search } from "lucide-react";
 import { format } from "date-fns";
+import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 
 // PostgREST caps any single response at ~1000 rows regardless of the limit
 // asked for, which silently drops the tail of large tables. Paginate via
@@ -40,8 +41,7 @@ export default function MenuViewer() {
   });
 
   const { data: eventDishes = [] } = useQuery({
-    queryKey: ["eventDishes", "all"],
-    queryFn: () => fetchAllRows("Events_Dish"),
+    ...eventDishSummaryQuery,
     initialData: [],
   });
 

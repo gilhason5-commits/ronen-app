@@ -60,10 +60,15 @@ export default function AddPetiVorRecurringTaskDialog({ open, onClose, editingAs
 
   const { data: existingAssignments = [] } = useQuery({
     queryKey: ['taskAssignments', 'pv_recurring_existing'],
-    queryFn: async () => {
-      const data = await base44.entities.TaskAssignment.filter({});
-      return data.filter(a => !a.event_id && a.recurrence_type && a.recurrence_type !== 'once');
-    },
+    // Only which templates are already assigned, and to whom — fetched when
+    // the dialog opens. It used to download the whole TaskAssignment table
+    // (thousands of rows, several MB) on every visit to the page.
+    queryFn: () => base44.entities.TaskAssignment.listWhere(
+      (q) => q.is('event_id', null).not('recurrence_type', 'is', null).neq('recurrence_type', 'once'),
+      'created_date',
+      'task_template_id,assigned_to_id,assigned_to_name',
+    ),
+    enabled: open,
     initialData: [],
   });
 

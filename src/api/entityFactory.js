@@ -21,7 +21,7 @@ async function fetchAllPages(buildQuery) {
 
 /**
  * Creates a Base44-compatible entity API backed by Supabase.
- * Supports: list(orderBy?, limit?), filter(obj), create(data), update(id, data), delete(id), bulkCreate(arr)
+ * Supports: list(orderBy?, limit?), listWhere(narrow, orderBy?, columns?), filter(obj), create(data), update(id, data), delete(id), bulkCreate(arr)
  */
 export function createEntity(tableName) {
   return {
@@ -39,6 +39,17 @@ export function createEntity(tableName) {
       }
       return fetchAllPages(() =>
         supabase.from(tableName).select('*').order(column, { ascending })
+      );
+    },
+
+    // Like list(), but `narrow` adds server-side filters (e.g. a date
+    // window) so only the rows a screen needs are downloaded — paged, so
+    // it's never cut off at the 1000-row cap the way a list(…, limit) is.
+    async listWhere(narrow, orderBy = 'created_date', columns = '*') {
+      const ascending = !orderBy.startsWith('-');
+      const column = orderBy.replace(/^-/, '');
+      return fetchAllPages(() =>
+        narrow(supabase.from(tableName).select(columns)).order(column, { ascending }).order('id', { ascending: true })
       );
     },
 

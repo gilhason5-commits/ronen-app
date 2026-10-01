@@ -9,6 +9,7 @@ import ProducerEventCard from "../components/producer/ProducerEventCard";
 import ProducerEventPrint from "../components/producer/ProducerEventPrint";
 import { generateEventTasks } from "@/lib/eventTaskGeneration";
 import { useAuth } from "@/lib/AuthContext";
+import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 
 export default function ProducerPage() {
   const { user } = useAuth();
@@ -57,8 +58,7 @@ export default function ProducerPage() {
     });
 
   const { data: allEventDishes = [] } = useQuery({
-    queryKey: ["eventsDishes"],
-    queryFn: () => base44.entities.Events_Dish.list(),
+    ...eventDishSummaryQuery,
     initialData: []
   });
 

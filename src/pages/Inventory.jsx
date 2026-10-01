@@ -13,6 +13,7 @@ import {
 import InventoryTrackingList from "../components/inventory/InventoryTrackingList";
 import MovementDialog from "../components/inventory/MovementDialog";
 import IngredientEventNeedDialog from "../components/inventory/IngredientEventNeedDialog";
+import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 
 export default function Inventory() {
   const [selectedIngredient, setSelectedIngredient] = useState(null);
@@ -35,8 +36,7 @@ export default function Inventory() {
   });
 
   const { data: eventsDishes = [] } = useQuery({
-    queryKey: ['eventsDishes'],
-    queryFn: () => base44.entities.Events_Dish.list(),
+    ...eventDishSummaryQuery,
     initialData: [],
   });
 

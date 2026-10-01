@@ -45,9 +45,11 @@ export default function DishQuantities() {
     initialData: [],
   });
 
+  // Only the selected event's dishes — this screen shows one event at a time.
   const { data: eventDishes = [] } = useQuery({
-    queryKey: ["eventDishes", "all"],
-    queryFn: () => fetchAllRows("Events_Dish"),
+    queryKey: ["eventDishes", selectedEventId],
+    queryFn: () => base44.entities.Events_Dish.filter({ event_id: selectedEventId }),
+    enabled: !!selectedEventId,
     initialData: [],
   });
 

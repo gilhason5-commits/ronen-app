@@ -5,12 +5,12 @@ import { base44 } from "@/api/base44Client";
 import { UtensilsCrossed } from "lucide-react";
 import { fmtCurrency } from "../utils/formatNumbers";
 import { applyWasteToValue } from "@/lib/foodWaste";
+import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 
 export default function CategoryBreakdown({ events, eventDishes: propEventDishes, getEffectivePlannedCost }) {
   // If eventDishes are passed directly, use them. Otherwise fetch from API
   const { data: fetchedEventsDishes = [] } = useQuery({
-    queryKey: ['eventsDishes'],
-    queryFn: () => base44.entities.Events_Dish.list(),
+    ...eventDishSummaryQuery,
     initialData: [],
     enabled: !propEventDishes, // Only fetch if not provided via props
   });

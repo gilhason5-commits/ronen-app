@@ -186,7 +186,7 @@ function AgencyReportsTab() {
   const { data: shifts = [] } = useQuery({
     queryKey: ["monthShifts", month],
     queryFn: async () => {
-      const all = await base44.entities.EventShift.list("event_date", 10000);
+      const all = await base44.entities.EventShift.list("event_date");
       return all.filter((s) => (s.event_date || "").startsWith(month));
     },
     initialData: [],

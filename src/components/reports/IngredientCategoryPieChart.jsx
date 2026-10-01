@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { subMonths, format } from 'date-fns';
 import { applyWasteToQty } from "@/lib/foodWaste";
+import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 
 const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#6366f1'];
 
@@ -27,8 +28,7 @@ export default function IngredientCategoryPieChart() {
 
   // 2. Fetch Events_Dish to get planned dishes
   const { data: eventsDishes = [] } = useQuery({
-    queryKey: ['eventsDishes'],
-    queryFn: () => base44.entities.Events_Dish.list(),
+    ...eventDishSummaryQuery,
     initialData: []
   });
 
