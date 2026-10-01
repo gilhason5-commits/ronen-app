@@ -7,24 +7,18 @@ import { Plus, Trash2, Pencil, X, Check } from "lucide-react";
 import { toast } from "sonner";
 import { fmtCurrency } from "../components/utils/formatNumbers";
 
-// The 4 section titles are user-editable — stored as AppSetting key/value
-// rows rather than a new table, matching the existing pattern (see
-// RoleEditDialog.jsx's paused-employee flags).
-const TITLE_KEYS = {
-  cat1: "fixed_expenses_title_cat1",
-  cat2: "fixed_expenses_title_cat2",
-  cat3: "fixed_expenses_title_cat3",
-  cat4: "fixed_expenses_title_cat4",
-};
-const DEFAULT_TITLES = { cat1: "קטגוריה 1", cat2: "קטגוריה 2", cat3: "קטגוריה 3", cat4: "קטגוריה 4" };
-// The 4 categories are fixed slots (FixedExpense.category CHECK), so
-// "deleting" one hides its slot until it's added back.
-const HIDDEN_KEYS = {
-  cat1: "fixed_expenses_hidden_cat1",
-  cat2: "fixed_expenses_hidden_cat2",
-  cat3: "fixed_expenses_hidden_cat3",
-  cat4: "fixed_expenses_hidden_cat4",
-};
+// The categories are fixed slots cat1..cat8 (FixedExpense.category CHECK).
+// Their titles are user-editable — stored as AppSetting key/value rows rather
+// than a new table, matching the existing pattern (see RoleEditDialog.jsx's
+// paused-employee flags) — and "deleting" one hides its slot until it's
+// added back.
+const CATEGORY_COUNT = 8;
+const CATEGORIES = Array.from({ length: CATEGORY_COUNT }, (_, i) => `cat${i + 1}`);
+const TITLE_KEYS = Object.fromEntries(CATEGORIES.map((c) => [c, `fixed_expenses_title_${c}`]));
+const DEFAULT_TITLES = Object.fromEntries(CATEGORIES.map((c, i) => [c, `קטגוריה ${i + 1}`]));
+const HIDDEN_KEYS = Object.fromEntries(CATEGORIES.map((c) => [c, `fixed_expenses_hidden_${c}`]));
+// Right column holds the first half, left column the second (RTL).
+const COLUMNS = [CATEGORIES.slice(0, CATEGORY_COUNT / 2), CATEGORIES.slice(CATEGORY_COUNT / 2)];
 const SETTING_KEYS = [...Object.values(TITLE_KEYS), ...Object.values(HIDDEN_KEYS)];
 
 // Category title with a pencil to rename it in place and an X to delete it.
@@ -289,15 +283,11 @@ export default function FixedExpenses() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6 items-start">
-        <div className="space-y-6">
-          {renderTable("cat1")}
-          {renderTable("cat2")}
-        </div>
-
-        <div className="space-y-6">
-          {renderTable("cat3")}
-          {renderTable("cat4")}
-        </div>
+        {COLUMNS.map((column, i) => (
+          <div key={i} className="space-y-6">
+            {column.map((cat) => <React.Fragment key={cat}>{renderTable(cat)}</React.Fragment>)}
+          </div>
+        ))}
       </div>
 
       {hiddenCats.length > 0 && (
