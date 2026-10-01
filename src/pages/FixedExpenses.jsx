@@ -100,7 +100,7 @@ function ExpenseTable({ title, category, expenses, onSaveTitle, onDeleteCategory
         <thead>
           <tr className="border-b border-stone-200 text-stone-500 text-xs">
             <th className="text-right font-medium px-4 py-2">שם</th>
-            <th className="text-right font-medium px-2 py-2 w-28">סכום</th>
+            <th className="text-right font-medium px-2 py-2 w-32 whitespace-nowrap">סכום <span className="font-normal text-stone-400">(ללא מע״מ)</span></th>
             <th className="text-right font-medium px-4 py-2">הערות</th>
             <th className="w-8"></th>
           </tr>
@@ -300,7 +300,7 @@ export default function FixedExpenses() {
       )}
 
       <div className="border-2 border-emerald-700 rounded-lg bg-emerald-50 px-6 py-4 flex items-center justify-between">
-        <span className="text-lg font-bold text-emerald-900">סך הכל הוצאות קבועות</span>
+        <span className="text-lg font-bold text-emerald-900">סך הכל הוצאות קבועות <span className="text-base font-medium text-emerald-700">(ללא מע״מ)</span></span>
         <span className="text-2xl font-bold text-emerald-700">{fmtCurrency(grandTotal)}</span>
       </div>
     </div>
