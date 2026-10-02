@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Pencil, X, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Pencil, X, Check, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { fmtCurrency } from "../components/utils/formatNumbers";
 import { fetchEventsInRange } from "@/lib/kitchenShifts";
@@ -87,9 +87,34 @@ function EditableSetting({ value, placeholder, className, multiline, onSave }) {
   );
 }
 
+// Moves a row one step up/down within its table. The table's rows are
+// renumbered 0..n-1 in the new order and shown that way at once; only rows
+// whose sort_order actually changed are saved.
+async function reorderRows({ queryClient, queryKey, entity, rows, index, dir }) {
+  const target = index + dir;
+  if (target < 0 || target >= rows.length) return;
+  const ordered = rows.slice();
+  [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+  const newOrder = new Map();
+  ordered.forEach((r, i) => { if (r.sort_order !== i) newOrder.set(r.id, i); });
+  queryClient.setQueryData(queryKey, (old = []) =>
+    old
+      .map((r) => (newOrder.has(r.id) ? { ...r, sort_order: newOrder.get(r.id) } : r))
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+  );
+  try {
+    await Promise.all([...newOrder].map(([id, sort_order]) => entity.update(id, { sort_order })));
+  } catch (e) {
+    toast.error(`שינוי הסדר לא נשמר: ${e.message}`);
+  } finally {
+    queryClient.invalidateQueries({ queryKey });
+  }
+}
+
 // One editable expenses table (name / pre-VAT amount / notes + add row),
 // shared by the fixed-expense categories and the general-expense sections.
-function ExpenseRowsTable({ header, rows, newRowDefaults, onAdd, onUpdate, onRemove, footer }) {
+// The arrows beside each name move it up/down in the list.
+function ExpenseRowsTable({ header, rows, newRowDefaults, onAdd, onUpdate, onRemove, onMove, footer }) {
   const [newName, setNewName] = useState("");
   const [newAmount, setNewAmount] = useState("");
 
@@ -106,14 +131,36 @@ function ExpenseRowsTable({ header, rows, newRowDefaults, onAdd, onUpdate, onRem
           </tr>
         </thead>
         <tbody>
-          {rows.map((exp) => (
+          {rows.map((exp, index) => (
             <tr key={exp.id} className="border-b border-stone-100 last:border-0">
-              <td className="px-4 py-1.5">
-                <EditableSetting
-                  value={exp.name || ""}
-                  className="border-0 bg-transparent px-0 h-auto focus-visible:ring-0"
-                  onSave={(v) => onUpdate(exp.id, { name: v })}
-                />
+              <td className="ps-1 pe-4 py-1.5">
+                <div className="flex items-center gap-1">
+                  <div className="flex flex-col shrink-0">
+                    <button
+                      type="button"
+                      title="הזז למעלה"
+                      disabled={index === 0}
+                      onClick={() => onMove(rows, index, -1)}
+                      className="h-4 w-5 flex items-center justify-center rounded text-stone-400 hover:text-emerald-700 hover:bg-stone-100 disabled:opacity-25 disabled:pointer-events-none"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title="הזז למטה"
+                      disabled={index === rows.length - 1}
+                      onClick={() => onMove(rows, index, 1)}
+                      className="h-4 w-5 flex items-center justify-center rounded text-stone-400 hover:text-emerald-700 hover:bg-stone-100 disabled:opacity-25 disabled:pointer-events-none"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <EditableSetting
+                    value={exp.name || ""}
+                    className="border-0 bg-transparent px-0 h-auto focus-visible:ring-0"
+                    onSave={(v) => onUpdate(exp.id, { name: v })}
+                  />
+                </div>
               </td>
               <td className="px-2 py-1.5">
                 <Input
@@ -182,7 +229,7 @@ function ExpenseRowsTable({ header, rows, newRowDefaults, onAdd, onUpdate, onRem
   );
 }
 
-function ExpenseTable({ title, category, expenses, onSaveTitle, onDeleteCategory, onAdd, onUpdate, onRemove }) {
+function ExpenseTable({ title, category, expenses, onSaveTitle, onDeleteCategory, onAdd, onUpdate, onRemove, onMove }) {
   const rows = expenses.filter((e) => (e.category || "cat1") === category);
   const subtotal = rows.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
   return (
@@ -193,6 +240,7 @@ function ExpenseTable({ title, category, expenses, onSaveTitle, onDeleteCategory
       onAdd={onAdd}
       onUpdate={onUpdate}
       onRemove={onRemove}
+      onMove={onMove}
       footer={<>
         <span className="text-stone-500">סה״כ {title}</span>
         <span className="font-bold text-stone-900">{fmtCurrency(subtotal)}</span>
@@ -204,7 +252,7 @@ function ExpenseTable({ title, category, expenses, onSaveTitle, onDeleteCategory
 // "הוצאות כלליות פר אירוע / פר אורח": the items' amounts are per one event
 // or per one guest; the month's total multiplies them by the month's
 // approved/completed events or their total guests.
-function GeneralExpenseSection({ title, basis, items, unitLabel, count, countLabel, monthTotal, onAdd, onUpdate, onRemove }) {
+function GeneralExpenseSection({ title, basis, items, unitLabel, count, countLabel, monthTotal, onAdd, onUpdate, onRemove, onMove }) {
   const rows = items.filter((i) => i.basis === basis);
   const unitSum = rows.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
   return (
@@ -220,6 +268,7 @@ function GeneralExpenseSection({ title, basis, items, unitLabel, count, countLab
       onAdd={onAdd}
       onUpdate={onUpdate}
       onRemove={onRemove}
+      onMove={onMove}
       footer={<>
         <span className="text-stone-500">{fmtCurrency(unitSum)} {unitLabel} × {count.toLocaleString("he-IL")}</span>
         <span className="font-bold text-stone-900">{fmtCurrency(monthTotal)}</span>
@@ -252,6 +301,7 @@ export default function FixedExpenses() {
     onAdd: (data) => addGeneral.mutate(data),
     onUpdate: (id, data) => updateGeneral.mutate({ id, data }),
     onRemove: (id) => removeGeneral.mutate(id),
+    onMove: (rows, index, dir) => reorderRows({ queryClient, queryKey: ["generalExpenses"], entity: base44.entities.GeneralExpense, rows, index, dir }),
   };
   const addGeneral = useMutation({
     mutationFn: (data) => base44.entities.GeneralExpense.create({ ...data, sort_order: generalItems.length }),
@@ -350,6 +400,7 @@ export default function FixedExpenses() {
       onAdd={(data) => addExpense.mutate(data)}
       onUpdate={(id, data) => updateExpense.mutate({ id, data })}
       onRemove={(id) => removeExpense.mutate(id)}
+      onMove={(rows, index, dir) => reorderRows({ queryClient, queryKey: ["fixedExpenses"], entity: base44.entities.FixedExpense, rows, index, dir })}
     />
   );
 
