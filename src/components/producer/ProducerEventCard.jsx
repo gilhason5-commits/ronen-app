@@ -2,8 +2,9 @@ import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Users, Pencil, Send, CheckCircle2, Printer, Trash2, Download } from "lucide-react";
+import { Calendar, Users, Pencil, Send, CheckCircle2, Printer, Trash2, Download, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
+import { isApprovalTooLate, APPROVAL_TOO_LATE_MSG } from "@/lib/eventApproval";
 
 const eventTypeLabels = {
   serving: "אירוע הגשה",
@@ -11,8 +12,11 @@ const eventTypeLabels = {
   party: "מסיבה"
 };
 
-export default function ProducerEventCard({ event, dishCount, onEdit, onApprove, onPrint, onDelete, onSavePdf, canApprove = true, canDelete = true }) {
+export default function ProducerEventCard({ event, dishCount, onEdit, onApprove, onOverrideApprove, onPrint, onDelete, onSavePdf, canApprove = true, canDelete = true }) {
   const isApproved = event.producer_approved;
+  // Fewer than APPROVAL_MIN_BUSINESS_DAYS left: the producer can no longer
+  // approve; only the office account can (onOverrideApprove).
+  const tooLate = isApprovalTooLate(event);
 
   return (
     <Card className={`border-stone-200 ${isApproved ? "bg-emerald-50 border-emerald-200" : ""}`}>
@@ -72,7 +76,7 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
                   </Button>
                 )}
                 <div className="flex flex-col items-end gap-1 max-w-[280px]">
-                  {canApprove ? (
+                  {canApprove && !tooLate ? (
                     <Button
                       size="sm"
                       className="bg-emerald-600 hover:bg-emerald-700"
@@ -82,7 +86,7 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
                       אושר - העבר להנהלה
                     </Button>
                   ) : (
-                    <Button size="sm" disabled className="bg-stone-300 hover:bg-stone-300 cursor-not-allowed text-stone-600" title="רק המפיק יכול לאשר אירועים">
+                    <Button size="sm" disabled className="bg-stone-300 hover:bg-stone-300 cursor-not-allowed text-stone-600" title={canApprove ? APPROVAL_TOO_LATE_MSG : "רק המפיק יכול לאשר אירועים"}>
                       <Send className="w-4 h-4 ml-1" />
                       אושר - העבר להנהלה
                     </Button>
@@ -90,10 +94,25 @@ export default function ProducerEventCard({ event, dishCount, onEdit, onApprove,
                   <p className="text-[11px] text-stone-500 leading-snug text-right">
                     לחיצה על אישור היא התחייבות סופית מבחינת כמות העובדים והמטבח. לאחר האישור הכמויות נחשבות סופיות לאירוע.
                   </p>
-                  {!canApprove && (
+                  {!canApprove && !(tooLate && onOverrideApprove) && (
                     <p className="text-[11px] text-amber-700 leading-snug text-right">
                       רק המפיק יכול לאשר אירועים.
                     </p>
+                  )}
+                  {tooLate && (
+                    <p className="text-[11px] text-amber-700 leading-snug text-right">
+                      {APPROVAL_TOO_LATE_MSG}.
+                    </p>
+                  )}
+                  {tooLate && onOverrideApprove && (
+                    <Button
+                      size="sm"
+                      className="bg-amber-600 hover:bg-amber-700"
+                      onClick={() => onOverrideApprove(event)}
+                    >
+                      <ShieldCheck className="w-4 h-4 ml-1" />
+                      אישור חריג
+                    </Button>
                   )}
                 </div>
               </>

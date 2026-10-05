@@ -2,14 +2,17 @@ import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Users, Edit, Trash2, CheckCircle2, Clock } from "lucide-react";
+import { Calendar, Users, Edit, Trash2, CheckCircle2, Clock, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fmtCurrency } from "../utils/formatNumbers";
 import { useAuth } from "@/lib/AuthContext";
+import { isApprovalTooLate } from "@/lib/eventApproval";
+import { canOverrideApprovalWindow } from "@/lib/officeUser";
 
-export default function EventsList({ events, isLoading, onEdit, onDelete }) {
+export default function EventsList({ events, isLoading, onEdit, onDelete, onOverrideApprove }) {
   const { user } = useAuth();
+  const canOverride = canOverrideApprovalWindow(user) && !!onOverrideApprove;
   const hideFinancials = !!user?.hide_financials;
   if (isLoading) {
     return (
@@ -121,6 +124,16 @@ export default function EventsList({ events, isLoading, onEdit, onDelete }) {
                 )}
               </div>
               <div className="flex gap-2">
+                {canOverride && !event.producer_approved && isApprovalTooLate(event) && (
+                  <Button
+                    size="sm"
+                    className="bg-amber-600 hover:bg-amber-700"
+                    onClick={() => onOverrideApprove(event)}
+                  >
+                    <ShieldCheck className="w-4 h-4 ml-1" />
+                    אישור חריג
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"

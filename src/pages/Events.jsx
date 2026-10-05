@@ -7,6 +7,10 @@ import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import EventsList from "../components/events/EventsList";
 import EventForm from "../components/events/EventForm";
+import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
+import { approveEvent, TASKS_FAILED_MSG } from "@/lib/eventApproval";
+import { useAuth } from "@/lib/AuthContext";
+import { canOverrideApprovalWindow } from "@/lib/officeUser";
 import { computeEventFoodCost } from "@/lib/eventFoodCost";
 import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 
@@ -74,6 +78,32 @@ export default function Events() {
       return { ...event, event_price: foodRevenue, food_cost_sum: foodCostSum, food_cost_pct: foodCostPct };
     });
   }, [events, allEventDishes, allDishes, allCategories]);
+
+  // Manual approval ("אישור חריג") after the producer's approval window has
+  // closed — EventsList only shows the button to the office account.
+  const { user } = useAuth();
+  const overrideApproveMutation = useSingleFlightMutation({
+    mutationFn: async (event) => {
+      if (!canOverrideApprovalWindow(user)) throw new Error("אין הרשאה לאישור חריג");
+      return approveEvent(event);
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      queryClient.invalidateQueries({ queryKey: ['producer_events'] });
+      queryClient.invalidateQueries({ queryKey: ['producer_approved_events'] });
+      queryClient.invalidateQueries({ queryKey: ['taskAssignments'] });
+      if (result?.tasksFailed) toast.error(TASKS_FAILED_MSG);
+      else toast.success('האירוע אושר והמשימות נוצרו');
+    },
+    onError: (err) => toast.error(err?.message || 'שגיאה באישור האירוע'),
+  });
+
+  const handleOverrideApprove = (event) => {
+    if (overrideApproveMutation.isPending) return;
+    if (confirm(`אישור חריג: חלון האישור לאירוע "${event.event_name}" כבר נסגר. לאשר בכל זאת ולהעביר להנהלה?`)) {
+      overrideApproveMutation.mutate(event);
+    }
+  };
 
   const deleteEventMutation = useMutation({
     mutationFn: async (eventId) => {
@@ -187,7 +217,7 @@ export default function Events() {
           </div>
 
           {isLoading ? (
-            <EventsList events={[]} isLoading onEdit={handleEditEvent} onDelete={handleDeleteEvent} />
+            <EventsList events={[]} isLoading onEdit={handleEditEvent} onDelete={handleDeleteEvent} onOverrideApprove={handleOverrideApprove} />
           ) : (
             <>
               {closestEvent && (
@@ -197,7 +227,7 @@ export default function Events() {
                     events={[closestEvent]}
                     isLoading={false}
                     onEdit={handleEditEvent}
-                    onDelete={handleDeleteEvent}
+                    onDelete={handleDeleteEvent} onOverrideApprove={handleOverrideApprove}
                   />
                 </div>
               )}
@@ -209,7 +239,7 @@ export default function Events() {
                     events={restFutureEvents}
                     isLoading={false}
                     onEdit={handleEditEvent}
-                    onDelete={handleDeleteEvent}
+                    onDelete={handleDeleteEvent} onOverrideApprove={handleOverrideApprove}
                   />
                 </div>
               )}
@@ -221,13 +251,13 @@ export default function Events() {
                     events={pastEvents}
                     isLoading={false}
                     onEdit={handleEditEvent}
-                    onDelete={handleDeleteEvent}
+                    onDelete={handleDeleteEvent} onOverrideApprove={handleOverrideApprove}
                   />
                 </div>
               )}
 
               {futureEvents.length === 0 && pastEvents.length === 0 && (
-                <EventsList events={[]} isLoading={false} onEdit={handleEditEvent} onDelete={handleDeleteEvent} />
+                <EventsList events={[]} isLoading={false} onEdit={handleEditEvent} onDelete={handleDeleteEvent} onOverrideApprove={handleOverrideApprove} />
               )}
             </>
           )}

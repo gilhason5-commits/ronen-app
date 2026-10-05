@@ -8,13 +8,15 @@ import { toast } from "sonner";
 import EventForm from "../components/events/EventForm";
 import ProducerEventCard from "../components/producer/ProducerEventCard";
 import ProducerEventPrint from "../components/producer/ProducerEventPrint";
-import { generateEventTasks } from "@/lib/eventTaskGeneration";
+import { approveEvent, isApprovalTooLate, APPROVAL_TOO_LATE_MSG, TASKS_FAILED_MSG } from "@/lib/eventApproval";
+import { canOverrideApprovalWindow } from "@/lib/officeUser";
 import { useAuth } from "@/lib/AuthContext";
 import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 
 export default function ProducerPage() {
   const { user } = useAuth();
   const canApprove = user?.role === "producer";
+  const canOverride = canOverrideApprovalWindow(user);
   // The producer role only approves events the main user creates — it no
   // longer creates or deletes events itself.
   const isProducerRole = user?.role === "producer";
@@ -61,34 +63,26 @@ export default function ProducerPage() {
   });
 
   const approveMutation = useSingleFlightMutation({
-    mutationFn: async (event) => {
-      // Defensive: only the producer role may approve — the button is
-      // disabled otherwise, but the mutation re-checks in case of a stale
-      // render or a direct call. There's no time window: an event can be
-      // approved at any point before it.
-      if (!canApprove) {
-        throw new Error("רק המפיק יכול לאשר אירועים");
+    mutationFn: async ({ event, override }) => {
+      // Defensive: the buttons are hidden/disabled otherwise, but re-check in
+      // case of a stale render or a direct call. The producer approves while
+      // at least APPROVAL_MIN_BUSINESS_DAYS remain; after that only the
+      // office account can approve (manual approval).
+      if (override) {
+        if (!canOverride) throw new Error("אין הרשאה לאישור חריג");
+      } else {
+        if (!canApprove) throw new Error("רק המפיק יכול לאשר אירועים");
+        if (isApprovalTooLate(event)) throw new Error(APPROVAL_TOO_LATE_MSG);
       }
-      await base44.entities.Event.update(event.id, {
-        producer_approved: true,
-        status: "in_progress",
-      });
-      // Fire the event-task generation immediately. Wrapped in try/catch so a
-      // failure surfaces a toast but doesn't roll back the approval — the
-      // PerEventTasks page still acts as a safety net for missing rows.
-      try {
-        await generateEventTasks({ ...event, producer_approved: true });
-      } catch (taskErr) {
-        console.error("Failed to generate event tasks on approval:", taskErr);
-        toast.error("האירוע אושר אך יצירת המשימות נכשלה — נסה לפתוח את עמוד משימות אירועים כדי להשלים");
-      }
+      return approveEvent(event);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["producer_events"] });
       queryClient.invalidateQueries({ queryKey: ["producer_approved_events"] });
       queryClient.invalidateQueries({ queryKey: ["events"] });
       queryClient.invalidateQueries({ queryKey: ["taskAssignments"] });
-      toast.success("האירוע אושר והמשימות נוצרו");
+      if (result?.tasksFailed) toast.error(TASKS_FAILED_MSG);
+      else toast.success("האירוע אושר והמשימות נוצרו");
     },
     onError: (err) => {
       toast.error(err?.message || "שגיאה באישור האירוע");
@@ -134,7 +128,14 @@ export default function ProducerPage() {
   const handleApprove = (event) => {
     if (approveMutation.isPending) return; // approving twice would create the event's tasks twice
     if (confirm(`האם אתה בטוח שברצונך לאשר את האירוע "${event.event_name}" ולהעביר אותו להנהלה?`)) {
-      approveMutation.mutate(event);
+      approveMutation.mutate({ event, override: false });
+    }
+  };
+
+  const handleOverrideApprove = (event) => {
+    if (approveMutation.isPending) return;
+    if (confirm(`אישור חריג: חלון האישור לאירוע "${event.event_name}" כבר נסגר. לאשר בכל זאת ולהעביר להנהלה?`)) {
+      approveMutation.mutate({ event, override: true });
     }
   };
 
@@ -199,6 +200,7 @@ export default function ProducerPage() {
               dishCount={allEventDishes.filter(ed => ed.event_id === event.id).length}
               onEdit={handleEdit}
               onApprove={handleApprove}
+              onOverrideApprove={canOverride ? handleOverrideApprove : null}
               onPrint={setPrintEvent}
               onDelete={handleDelete}
               canDelete={!isProducerRole}
@@ -218,6 +220,7 @@ export default function ProducerPage() {
               dishCount={allEventDishes.filter(ed => ed.event_id === event.id).length}
               onEdit={handleEdit}
               onApprove={handleApprove}
+              onOverrideApprove={canOverride ? handleOverrideApprove : null}
               onPrint={setPrintEvent}
               onDelete={handleDelete}
               canDelete={!isProducerRole}

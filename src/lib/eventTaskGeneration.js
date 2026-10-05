@@ -101,3 +101,34 @@ export function daysUntilEvent(eventDateStr) {
   eventDate.setHours(0, 0, 0, 0);
   return Math.floor((eventDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
 }
+
+// Business days for the approval window: Sunday–Friday (Friday counts —
+// events run on Fridays), only Saturday is off.
+function isBusinessDay(date) {
+  return date.getDay() !== 6;
+}
+
+// Count business days after today up to and including the event_date string
+// (YYYY-MM-DD). Returns 0 if the event is today or already in the past.
+export function businessDaysUntilEvent(eventDateStr) {
+  if (!eventDateStr) return Infinity;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const eventDate = new Date(eventDateStr);
+  eventDate.setHours(0, 0, 0, 0);
+  if (eventDate <= today) return 0;
+
+  let count = 0;
+  const cursor = new Date(today);
+  cursor.setDate(cursor.getDate() + 1);
+  while (cursor <= eventDate) {
+    if (isBusinessDay(cursor)) count++;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+}
+
+// The producer can only approve an event while at least this many business
+// days remain — after that staffing/kitchen must already be locked in, and
+// only the office account can still approve it (manual approval).
+export const APPROVAL_MIN_BUSINESS_DAYS = 4;
