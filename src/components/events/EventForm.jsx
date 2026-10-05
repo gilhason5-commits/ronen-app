@@ -26,6 +26,7 @@ import DepartmentPrintDialog from "../events/DepartmentPrintDialog";
 import { fmtCurrency } from "../utils/formatNumbers";
 import { calculateTotalGuests, calculateAdultPortions, parseRangeMax } from "@/lib/dinerCount";
 import { useAuth } from "@/lib/AuthContext";
+import { isGuestCountLocked, GUEST_COUNT_LOCKED_MSG } from "@/lib/officeUser";
 import { applyWasteToValue, wasteLabel } from "@/lib/foodWaste";
 
 // producerMode: the same form opened from עמוד מפיק — full event details
@@ -36,6 +37,8 @@ export default function EventForm({ event, onClose, producerMode = false }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const hideFinancials = producerMode || !!user?.hide_financials;
+  // Guest counts freeze for the office account once the event is approved.
+  const guestCountLocked = isGuestCountLocked(user, event);
 
   const [formData, setFormData] = useState({
     event_name: '',
@@ -485,8 +488,13 @@ export default function EventForm({ event, onClose, producerMode = false }) {
                           inputMode="numeric"
                           value={formData.guest_count || ''}
                           onChange={(e) => updateGuestData({ guest_count: parseInt(e.target.value) || 0 })}
+                          disabled={guestCountLocked}
+                          title={guestCountLocked ? GUEST_COUNT_LOCKED_MSG : undefined}
                           placeholder="0"
                           required />
+                        {guestCountLocked && (
+                          <p className="text-xs text-amber-700 mt-1">{GUEST_COUNT_LOCKED_MSG}</p>
+                        )}
                         {wasteLabel(formData.guest_count) ? (
                           <p className="text-xs text-amber-700 mt-1">
                             פחת אוכל: {wasteLabel(formData.guest_count)}
@@ -502,6 +510,8 @@ export default function EventForm({ event, onClose, producerMode = false }) {
                           type="text"
                           value={formData.vegan_count || ''}
                           onChange={(e) => updateGuestData({ vegan_count: e.target.value })}
+                          disabled={guestCountLocked}
+                          title={guestCountLocked ? GUEST_COUNT_LOCKED_MSG : undefined}
                           placeholder="0 או טווח" />
                       </div>
                       <div>
@@ -511,6 +521,8 @@ export default function EventForm({ event, onClose, producerMode = false }) {
                           inputMode="numeric"
                           value={formData.children_count ?? ''}
                           onChange={(e) => updateGuestData({ children_count: parseInt(e.target.value) || 0 })}
+                          disabled={guestCountLocked}
+                          title={guestCountLocked ? GUEST_COUNT_LOCKED_MSG : undefined}
                           placeholder="0" />
                       </div>
 
@@ -520,6 +532,8 @@ export default function EventForm({ event, onClose, producerMode = false }) {
                           type="text"
                           value={formData.reserves || ''}
                           onChange={(e) => updateGuestData({ reserves: e.target.value })}
+                          disabled={guestCountLocked}
+                          title={guestCountLocked ? GUEST_COUNT_LOCKED_MSG : undefined}
                           placeholder="טווח (10-20)" />
                         {(() => {
                           const reservesMax = parseRangeMax(formData.reserves);
@@ -541,6 +555,8 @@ export default function EventForm({ event, onClose, producerMode = false }) {
                             className="w-16 shrink-0 text-center font-semibold"
                             value={formData.glatt_count || ''}
                             onChange={(e) => updateGuestData({ glatt_count: e.target.value })}
+                            disabled={guestCountLocked}
+                            title={guestCountLocked ? GUEST_COUNT_LOCKED_MSG : undefined}
                             placeholder="0" />
                           <Input
                             type="text"

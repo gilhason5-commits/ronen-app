@@ -28,7 +28,9 @@ export default function KitchenView() {
     const eventDate = new Date(e.event_date);
     eventDate.setHours(23, 59, 59, 999);
     return eventDate >= today;
-  });
+  })
+  // Nearest upcoming event on top; undated events sink to the bottom.
+  .sort((a, b) => (a.event_date || '9999').localeCompare(b.event_date || '9999'));
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
