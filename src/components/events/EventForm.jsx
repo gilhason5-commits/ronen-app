@@ -26,7 +26,7 @@ import DepartmentPrintDialog from "../events/DepartmentPrintDialog";
 import { fmtCurrency } from "../utils/formatNumbers";
 import { calculateTotalGuests, calculateAdultPortions, parseRangeMax } from "@/lib/dinerCount";
 import { useAuth } from "@/lib/AuthContext";
-import { isGuestCountLocked, GUEST_COUNT_LOCKED_MSG } from "@/lib/officeUser";
+import { isGuestCountLocked, GUEST_COUNT_LOCKED_MSG, GUEST_COUNT_FIELDS, EVENT_TYPE_LOCKED_MSG, clearEventMenu } from "@/lib/eventApproval";
 import { applyWasteToValue, wasteLabel } from "@/lib/foodWaste";
 
 // producerMode: the same form opened from עמוד מפיק — full event details
@@ -38,7 +38,9 @@ export default function EventForm({ event, onClose, producerMode = false }) {
   const { user } = useAuth();
   const hideFinancials = producerMode || !!user?.hide_financials;
   // Guest counts freeze for the office account once the event is approved.
-  const guestCountLocked = isGuestCountLocked(user, event);
+  const guestCountLocked = isGuestCountLocked(event);
+  const eventTypeLocked = !!event?.producer_approved;
+  const [isChangingType, setIsChangingType] = useState(false);
 
   const [formData, setFormData] = useState({
     event_name: '',
@@ -236,6 +238,11 @@ export default function EventForm({ event, onClose, producerMode = false }) {
       // children_count is an integer column — an untouched field leaves it as '' in
       // form state, which Postgres rejects ("invalid input syntax for type integer").
       dataToSave.children_count = parseInt(dataToSave.children_count, 10) || 0;
+      // Approved events: never write guest counts or the serving type, even
+      // if a stale form still holds edited values.
+      if (event?.producer_approved) {
+        for (const f of [...GUEST_COUNT_FIELDS, "event_type"]) delete dataToSave[f];
+      }
       if (event?.id) {
         return await base44.entities.Event.update(event.id, dataToSave);
       } else {
@@ -251,6 +258,39 @@ export default function EventForm({ event, onClose, producerMode = false }) {
       toast.error('Failed to save event');
     }
   });
+
+  // Switching the serving type of a saved event replaces its menu: the old
+  // type's dishes are deleted right away (with confirmation when there are
+  // any) and the new type is saved immediately, so the event never holds
+  // dishes from the other menu.
+  const handleEventTypeChange = async (value) => {
+    if (value === formData.event_type || isChangingType) return;
+    if (!event?.id) {
+      setFormData((prev) => ({ ...prev, event_type: value }));
+      return;
+    }
+    if (eventTypeLocked) return;
+    if (eventDishes.length > 0 &&
+      !confirm(`שינוי סוג ההגשה ימחק את כל ${eventDishes.length} המנות שנבחרו לאירוע (תפריט אחר). להמשיך?`)) {
+      return;
+    }
+    setIsChangingType(true);
+    try {
+      await clearEventMenu(event.id);
+      await base44.entities.Event.update(event.id, { event_type: value, food_cost_sum: 0, food_cost_pct: 0 });
+      setFormData((prev) => ({ ...prev, event_type: value, food_cost_sum: 0, food_cost_pct: 0 }));
+      await refetchEventDishes();
+      queryClient.invalidateQueries({ queryKey: ["all_dish_notes", event.id] });
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      queryClient.invalidateQueries({ queryKey: ['eventsDishes'] });
+      toast.success('סוג ההגשה עודכן והמנות של התפריט הקודם נמחקו');
+    } catch (error) {
+      console.error('Error changing event type:', error);
+      toast.error('שינוי סוג ההגשה נכשל');
+    } finally {
+      setIsChangingType(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -462,8 +502,8 @@ export default function EventForm({ event, onClose, producerMode = false }) {
                     <Label>סוג הגשה *</Label>
                     <Select
                       value={formData.event_type}
-                      onValueChange={(value) => setFormData({ ...formData, event_type: value })}
-                      disabled={!!event?.id}>
+                      onValueChange={handleEventTypeChange}
+                      disabled={eventTypeLocked || isChangingType}>
 
                       <SelectTrigger>
                         <SelectValue />
@@ -473,8 +513,10 @@ export default function EventForm({ event, onClose, producerMode = false }) {
                         <SelectItem value="wedding">אירוע הפוכה</SelectItem>
                       </SelectContent>
                     </Select>
-                    {event?.id &&
-                    <p className="text-xs text-stone-500 mt-1">לא ניתן לשנות סוג הגשה לאחר היצירה</p>
+                    {eventTypeLocked ?
+                    <p className="text-xs text-stone-500 mt-1">{EVENT_TYPE_LOCKED_MSG}</p> :
+                    event?.id && eventDishes.length > 0 &&
+                    <p className="text-xs text-amber-700 mt-1">שינוי סוג ההגשה ימחק את כל המנות שנבחרו (תפריט אחר)</p>
                     }
                   </div>
 
