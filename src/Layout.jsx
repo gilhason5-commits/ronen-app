@@ -284,7 +284,10 @@ export default function Layout({ children, currentPageName }) {
             </div>
           </SidebarHeader>
           
-          <SidebarContent className="p-3">
+          {/* dir="ltr" on the scroll container puts its scrollbar on the right;
+              the content inside is switched back to RTL. */}
+          <SidebarContent className="p-3" dir="ltr">
+            <div dir="rtl" className="flex flex-col gap-2">
             {sections.main.length > 0 && (
               <SidebarGroup>
                 <SidebarGroupContent>
@@ -410,6 +413,7 @@ export default function Layout({ children, currentPageName }) {
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
+            </div>
             </SidebarContent>
         </Sidebar>
 
@@ -421,8 +425,11 @@ export default function Layout({ children, currentPageName }) {
             </div>
           </header>
 
-          <div className="flex-1 overflow-auto">
-            {children}
+          {/* Same trick as the sidebar: scrollbar on the right, page stays RTL. */}
+          <div className="flex-1 overflow-auto" dir="ltr">
+            <div dir="rtl" className="min-h-full">
+              {children}
+            </div>
           </div>
         </main>
       </div>
