@@ -30,11 +30,12 @@ const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"))
 // The native picker's segment order (and which one gets focus first) depends
 // on the device's regional format, which is what was causing hours and
 // minutes to get entered into the wrong segment on the iPad — this makes the
-// two fields unambiguous regardless of device locale.
+// two fields unambiguous regardless of device locale. Laid out right-to-left
+// like the rest of the sheet: hour on the right, minutes on the left.
 function TimePicker({ value, onChange }) {
   const [h, m] = (value || "").split(":");
   return (
-    <div className="flex items-center gap-1" dir="ltr">
+    <div className="flex items-center gap-1" dir="rtl">
       <select
         value={h || ""}
         onChange={(e) => onChange(`${e.target.value}:${m || "00"}`)}
