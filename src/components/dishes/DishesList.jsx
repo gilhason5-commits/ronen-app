@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit, UtensilsCrossed } from "lucide-react";
+import { Edit, UtensilsCrossed, CalendarSearch } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import DishPrintButton from "./DishPrintButton";
+import DishEventsDialog from "./DishEventsDialog";
 
 export default function DishesList({ dishes, isLoading, onEdit, categories = [], ingredients = [], specialIngredients = [] }) {
+  const [eventsDish, setEventsDish] = useState(null);
+
   if (isLoading) {
     return (
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -110,10 +113,24 @@ export default function DishesList({ dishes, isLoading, onEdit, categories = [],
                   specialIngredients={specialIngredients} 
                 />
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-2"
+                onClick={() => setEventsDish(dish)}
+              >
+                <CalendarSearch className="w-3 h-3 mr-2" />
+                מופיע באירועים
+              </Button>
             </CardContent>
           </Card>
         );
       })}
+      <DishEventsDialog
+        dish={eventsDish}
+        open={!!eventsDish}
+        onOpenChange={(open) => !open && setEventsDish(null)}
+      />
     </div>
   );
 }
