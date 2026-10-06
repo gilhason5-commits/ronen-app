@@ -23,7 +23,9 @@ import LoadingState from "@/components/utils/LoadingState";
 
 export default function RecentActivity() {
   const { data: events = [], isLoading: activityLoading } = useQuery({
-    queryKey: ['events'],
+    // Own cache key: this is only the 10 newest events — sharing ['events']
+    // with the dashboard calendar made the calendar show just these 10.
+    queryKey: ['events', 'recent', 10],
     queryFn: () => base44.entities.Event.list('-created_date', 10),
   });
 

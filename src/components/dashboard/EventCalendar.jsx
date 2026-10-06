@@ -25,10 +25,18 @@ import {
 } from "@/components/ui/dialog";
 
 const statusColors = {
+  producer_draft: "bg-amber-100 text-amber-800",
+  in_progress: "bg-emerald-100 text-emerald-700",
   draft: "bg-stone-100 text-stone-700",
   active: "bg-emerald-100 text-emerald-700",
   completed: "bg-blue-100 text-blue-700",
   cancelled: "bg-red-100 text-red-700"
+};
+
+const statusLabels = {
+  producer_draft: "ממתין לאישור",
+  in_progress: "מאושר",
+  completed: "הושלם",
 };
 
 export default function EventCalendar({ events = [], onEventClick }) {
@@ -218,7 +226,7 @@ export default function EventCalendar({ events = [], onEventClick }) {
                       </div>
                     </div>
                     <Badge className={statusColors[event.status]}>
-                      {event.status}
+                      {statusLabels[event.status] || event.status}
                     </Badge>
                   </div>
                 </div>
@@ -264,7 +272,7 @@ export default function EventCalendar({ events = [], onEventClick }) {
                       <span>{event.guest_count} סועדים</span>
                     </div>
                   </div>
-                  <Badge className={statusColors[event.status]}>{event.status}</Badge>
+                  <Badge className={statusColors[event.status]}>{statusLabels[event.status] || event.status}</Badge>
                 </div>
               </div>
             ))}
@@ -338,7 +346,7 @@ export default function EventCalendar({ events = [], onEventClick }) {
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Badge className={statusColors[selectedEvent.status]}>
-                  {selectedEvent.status}
+                  {statusLabels[selectedEvent.status] || selectedEvent.status}
                 </Badge>
                 <span className="text-sm text-stone-500 capitalize">
                   {selectedEvent.event_type}
