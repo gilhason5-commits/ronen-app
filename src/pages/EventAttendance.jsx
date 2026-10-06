@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ClipboardCheck, Trash2, Clock, UserPlus, Users, AlertTriangle, Check } from "lucide-react";
+import { ClipboardCheck, Trash2, Clock, UserPlus, Users, AlertTriangle, Check, Search } from "lucide-react";
 import { toast } from "sonner";
 import { FORMAT_LABELS, computeStaffing, orderAgenciesForDisplay, isWaiterEmployee, payFromEmployee, shiftHours } from "@/lib/staffingEngine";
 import { Link } from "react-router-dom";
@@ -272,10 +272,20 @@ function ShiftRow({ shift, employee, onUpdate, onDelete, hideWaiterFlags = false
 // card; their pay rate is copied onto the shift.
 function AddWorkerDialog({ event, agency, employees, shifts, open, onOpenChange }) {
   const [isSubstitute, setIsSubstitute] = useState(false);
+  const [search, setSearch] = useState("");
   const queryClient = useQueryClient();
 
   const existingIds = new Set(shifts.map((s) => s.worker_id).filter(Boolean));
-  const knownWorkers = employees.filter((e) => e.agency_id === agency.id && isWaiterEmployee(e) && e.is_active && !existingIds.has(e.id));
+  const knownWorkers = employees
+    .filter((e) => e.agency_id === agency.id && isWaiterEmployee(e) && e.is_active && !existingIds.has(e.id))
+    .sort((a, b) => (a.full_name || "").localeCompare(b.full_name || "", "he"));
+  const query = search.trim();
+  const shownWorkers = query ? knownWorkers.filter((w) => (w.full_name || "").includes(query)) : knownWorkers;
+
+  const handleOpenChange = (next) => {
+    if (!next) setSearch("");
+    onOpenChange(next);
+  };
 
   const addShift = useMutation({
     mutationFn: (employee) => base44.entities.EventShift.create({
@@ -292,21 +302,36 @@ function AddWorkerDialog({ event, agency, employees, shifts, open, onOpenChange 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["eventShifts"] });
       setIsSubstitute(false);
-      onOpenChange(false);
+      handleOpenChange(false);
     },
     onError: (e) => toast.error(e.message),
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent dir="rtl" className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><UserPlus className="w-4 h-4" /> הוספת עובד — {agency.name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          {knownWorkers.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {knownWorkers.map((w) => (
+          {knownWorkers.length > 0 && (
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="חיפוש מלצר..."
+                className="pr-8"
+              />
+            </div>
+          )}
+          {knownWorkers.length === 0 ? (
+            <div className="text-sm text-slate-400">אין מלצרים פנויים של {agency.name}</div>
+          ) : shownWorkers.length === 0 ? (
+            <div className="text-sm text-slate-400">לא נמצא מלצר בשם "{query}"</div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5 max-h-72 overflow-y-auto">
+              {shownWorkers.map((w) => (
                 <button
                   key={w.id}
                   className="rounded-full border px-3 py-1.5 text-sm bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 active:scale-95 transition"
@@ -317,8 +342,6 @@ function AddWorkerDialog({ event, agency, employees, shifts, open, onOpenChange 
                 </button>
               ))}
             </div>
-          ) : (
-            <div className="text-sm text-slate-400">אין מלצרים פנויים של {agency.name}</div>
           )}
 
           <div className="text-xs text-slate-500">
