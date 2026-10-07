@@ -28,6 +28,7 @@ import { calculateTotalGuests, calculateAdultPortions, parseRangeMax } from "@/l
 import { useAuth } from "@/lib/AuthContext";
 import { isGuestCountLocked, GUEST_COUNT_LOCKED_MSG, GUEST_COUNT_FIELDS, EVENT_TYPE_LOCKED_MSG, clearEventMenu } from "@/lib/eventApproval";
 import { applyWasteToValue, wasteLabel } from "@/lib/foodWaste";
+import { isPastEvent } from "@/lib/ingredientPriceRefresh";
 
 // producerMode: the same form opened from עמוד מפיק — full event details
 // and the stage-based dish picker, but no money (price, amounts, revenue,
@@ -376,8 +377,11 @@ export default function EventForm({ event, onClose, producerMode = false }) {
 
 
 
-  // Recalculate when dishes load for the first time or when price/guests change
+  // Recalculate when dishes load for the first time or when price/guests change.
+  // A past event keeps its stored cost — later ingredient price changes must
+  // not rewrite it (an explicit menu edit above still recalculates).
   useEffect(() => {
+    if (isPastEvent(event) && Number(event.food_cost_sum) > 0) return;
     if (event?.id && dishesLoadedOnce && eventDishes.length > 0) {
       const timer = setTimeout(() => {
         const pricePerPlate = parseFloat(formData.price_per_plate);

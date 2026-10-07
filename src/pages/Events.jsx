@@ -12,6 +12,7 @@ import { approveEvent, TASKS_FAILED_MSG } from "@/lib/eventApproval";
 import { useAuth } from "@/lib/AuthContext";
 import { canOverrideApprovalWindow } from "@/lib/officeUser";
 import { computeEventFoodCost } from "@/lib/eventFoodCost";
+import { isPastEvent } from "@/lib/ingredientPriceRefresh";
 import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 
 export default function Events() {
@@ -75,6 +76,11 @@ export default function Events() {
     return events.map((event) => {
       const eventDishes = allEventDishes.filter((ed) => ed.event_id === event.id);
       const { foodRevenue, foodCostSum, foodCostPct } = computeEventFoodCost(event, eventDishes, dishesById, categoriesById);
+      // Past events show the cost stored for them — a later ingredient price
+      // change applies from today on, not retroactively.
+      if (isPastEvent(event) && Number(event.food_cost_sum) > 0) {
+        return { ...event, event_price: foodRevenue };
+      }
       return { ...event, event_price: foodRevenue, food_cost_sum: foodCostSum, food_cost_pct: foodCostPct };
     });
   }, [events, allEventDishes, allDishes, allCategories]);

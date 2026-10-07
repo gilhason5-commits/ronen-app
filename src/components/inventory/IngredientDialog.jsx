@@ -44,6 +44,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { TrendingUp, TrendingDown, ChevronsUpDown } from "lucide-react";
 import { fmtCurrency, fmtNum } from "../utils/formatNumbers";
+import { refreshAfterIngredientPriceChange } from "@/lib/ingredientPriceRefresh";
 
 export default function IngredientDialog({ ingredient, suppliers = [], ingredientCategories = [], open, onClose }) {
   const queryClient = useQueryClient();
@@ -172,16 +173,29 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
         }
         
         result = await base44.entities.Ingredient.update(ingredient.id, dataToSave);
+
+        // A new price applies from today: re-store the cost of the dishes /
+        // sub-dishes that use it and of future events serving them. Past
+        // events keep their cost. (A new supplier needs nothing extra — the
+        // purchase page reads the current supplier for upcoming events.)
+        if (oldPricePerSystem !== pricePerSystem) {
+          return { result, refreshed: await refreshAfterIngredientPriceChange(ingredient.id) };
+        }
       } else {
         result = await base44.entities.Ingredient.create(dataToSave);
       }
       
       return result;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ingredients'] });
-      queryClient.invalidateQueries({ queryKey: ['ingredient-price-history'] });
-      toast.success(ingredient ? 'הרכיב עודכן' : 'הרכיב נוצר');
+    onSuccess: (saved) => {
+      ['ingredients', 'ingredient-price-history', 'specialIngredients', 'dishes', 'events', 'eventsDishes']
+        .forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
+      const r = saved?.refreshed;
+      if (r && (r.dishes || r.events)) {
+        toast.success(`המחיר עודכן — ${r.dishes} מנות ו-${r.events} אירועים עתידיים עודכנו`);
+      } else {
+        toast.success(ingredient ? 'הרכיב עודכן' : 'הרכיב נוצר');
+      }
       onClose();
     },
     onError: () => {
