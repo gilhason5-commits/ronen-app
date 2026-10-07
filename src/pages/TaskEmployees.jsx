@@ -170,7 +170,16 @@ export default function TaskEmployees() {
       note: '',
       pay_type: '',
       hourly_rate: '',
-      global_rate: ''
+      global_rate: '',
+      secondary_role_id: '',
+      secondary_role_name: '',
+      secondary_rate: '',
+      travel_type: '',
+      travel_amount: '',
+      salary_basis: '',
+      employer_cost_hourly: '',
+      employer_cost_global: '',
+      certifications: ''
     });
   };
 
@@ -219,6 +228,12 @@ export default function TaskEmployees() {
     if (!dataToSave.pay_type) dataToSave.pay_type = null;
     if (dataToSave.hourly_rate === '') dataToSave.hourly_rate = null;
     if (dataToSave.global_rate === '') dataToSave.global_rate = null;
+    if (!dataToSave.secondary_role_id) { dataToSave.secondary_role_id = null; dataToSave.secondary_role_name = ''; }
+    for (const f of ['secondary_rate', 'travel_amount', 'employer_cost_hourly', 'employer_cost_global']) {
+      if (dataToSave[f] === '' || dataToSave[f] === undefined) dataToSave[f] = null;
+    }
+    if (!dataToSave.travel_type) { dataToSave.travel_type = null; dataToSave.travel_amount = null; }
+    if (!dataToSave.salary_basis) dataToSave.salary_basis = null;
     if (id === 'new') {
       createEmployeeMutation.mutate(dataToSave);
     } else {
@@ -342,19 +357,150 @@ export default function TaskEmployees() {
     setEditForm({ ...editForm, pay_type });
   };
 
+  // Small on/off pill used for the card's either/or choices (שכר, נסיעות, נטו/ברוטו).
+  const Chip = ({ active, onClick, children }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-md border px-3 py-1 text-sm transition-colors ${active ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-stone-300 text-stone-700 hover:bg-stone-50'}`}
+    >
+      {children}
+    </button>
+  );
+
+  const numberValue = (v) => (v === null || v === undefined ? '' : v);
+  const setNumber = (field) => (e) =>
+    setEditForm({ ...editForm, [field]: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 });
+
+  const handleSecondaryRoleChange = (roleId) => {
+    const role = roles.find(r => r.id === roleId);
+    setEditForm({
+      ...editForm,
+      secondary_role_id: roleId === '__none__' ? '' : roleId,
+      secondary_role_name: roleId === '__none__' ? '' : (role?.role_name || ''),
+    });
+  };
+
+  // Order follows the paper "כרטיס עובד": name, mobile, role, additional role,
+  // pay, travel, net/gross, employer cost, certifications, notes. The fields
+  // the system runs on (category, agency, backup, agreement, active, WhatsApp)
+  // follow under "הגדרות מערכת".
   const renderEditFields = (excludeEmployeeId) => (
     <>
-      <Input
-        value={editForm.full_name}
-        onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
-        placeholder="שם מלא"
-        className="font-semibold"
-      />
-      <Input
-        value={editForm.phone_e164}
-        onChange={(e) => setEditForm({ ...editForm, phone_e164: e.target.value })}
-        placeholder="+972501234567"
-      />
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-stone-500">שם העובד</p>
+        <Input
+          value={editForm.full_name}
+          onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+          placeholder="שם מלא"
+          className="font-semibold"
+        />
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-stone-500">נייד</p>
+        <Input
+          value={editForm.phone_e164}
+          onChange={(e) => setEditForm({ ...editForm, phone_e164: e.target.value })}
+          placeholder="+972501234567"
+        />
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-stone-500">תפקיד</p>
+      <Select value={editForm.role_id || "__none__"} onValueChange={handleRoleChange}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="תפקיד" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">ללא תפקיד</SelectItem>
+          {roles.filter(r => r.is_active && (!editForm.department_id || r.department_id === editForm.department_id)).map(role => {
+            const taken = employees.some(e => e.is_active && e.role_id === role.id && e.id !== excludeEmployeeId);
+            return (
+              <SelectItem key={role.id} value={role.id} disabled={taken}>
+                {role.role_name} ({role.department_name || '-'}){taken ? ' ✓' : ''}
+              </SelectItem>
+            );
+          })}
+        </SelectContent>
+      </Select>
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-stone-500">תפקיד נוסף</p>
+        <div className="flex gap-2">
+          <Select value={editForm.secondary_role_id || "__none__"} onValueChange={handleSecondaryRoleChange}>
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="תפקיד נוסף" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">ללא</SelectItem>
+              {roles.filter(r => r.is_active && r.id !== editForm.role_id).map(role => (
+                <SelectItem key={role.id} value={role.id}>{role.role_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {editForm.secondary_role_id && (
+            <Input
+              type="number"
+              className="w-28"
+              placeholder="₪ בתפקיד"
+              value={numberValue(editForm.secondary_rate)}
+              onChange={setNumber('secondary_rate')}
+            />
+          )}
+        </div>
+        {editForm.secondary_role_id && (
+          <p className="text-[11px] text-stone-400">שכר בתפקיד הנוסף (השכר למטה הוא לתפקיד הראשי)</p>
+        )}
+      </div>
+      {renderPayFields()}
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-stone-500">נסיעות</p>
+        <div className="flex items-center gap-2">
+          <Chip active={editForm.travel_type === 'daily'} onClick={() => setEditForm({ ...editForm, travel_type: editForm.travel_type === 'daily' ? '' : 'daily' })}>לפי יום</Chip>
+          <Chip active={editForm.travel_type === 'monthly'} onClick={() => setEditForm({ ...editForm, travel_type: editForm.travel_type === 'monthly' ? '' : 'monthly' })}>חופשי חודשי</Chip>
+          {editForm.travel_type && (
+            <Input
+              type="number"
+              className="w-28"
+              placeholder={editForm.travel_type === 'daily' ? '₪ ליום' : '₪ לחודש'}
+              value={numberValue(editForm.travel_amount)}
+              onChange={setNumber('travel_amount')}
+            />
+          )}
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-stone-500">שכר נטו או ברוטו</p>
+        <div className="flex gap-2">
+          <Chip active={editForm.salary_basis === 'net'} onClick={() => setEditForm({ ...editForm, salary_basis: editForm.salary_basis === 'net' ? '' : 'net' })}>נטו</Chip>
+          <Chip active={editForm.salary_basis === 'gross'} onClick={() => setEditForm({ ...editForm, salary_basis: editForm.salary_basis === 'gross' ? '' : 'gross' })}>ברוטו</Chip>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-stone-500">סה״כ עלות מעסיק</p>
+        <div className="flex gap-2">
+          <Input type="number" placeholder="₪ לשעה" value={numberValue(editForm.employer_cost_hourly)} onChange={setNumber('employer_cost_hourly')} />
+          <Input type="number" placeholder="₪ גלובלי" value={numberValue(editForm.employer_cost_global)} onChange={setNumber('employer_cost_global')} />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-stone-500">הסמכות / הכשרות נוספות</p>
+        <Input
+          value={editForm.certifications || ''}
+          onChange={(e) => setEditForm({ ...editForm, certifications: e.target.value })}
+          placeholder="למשל: תעודת מזון, עזרה ראשונה"
+        />
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-stone-500">הערות</p>
+        <Input
+          value={editForm.note || ''}
+          onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+          placeholder="הערות"
+        />
+      </div>
+
+      <div className="space-y-2 border-t border-stone-200 pt-3">
+        <p className="text-xs font-semibold text-stone-400">הגדרות מערכת</p>
       <div className="space-y-1">
         <p className="text-xs font-medium text-stone-500">קטגוריה</p>
         <Select value={editForm.department_id || "__none__"} onValueChange={handleDepartmentChange}>
@@ -384,29 +530,9 @@ export default function TaskEmployees() {
         </div>
       )}
       <div className="space-y-1">
-        <p className="text-xs font-medium text-stone-500">תפקיד</p>
-      <Select value={editForm.role_id || "__none__"} onValueChange={handleRoleChange}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="תפקיד" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__none__">ללא תפקיד</SelectItem>
-          {roles.filter(r => r.is_active && (!editForm.department_id || r.department_id === editForm.department_id)).map(role => {
-            const taken = employees.some(e => e.is_active && e.role_id === role.id && e.id !== excludeEmployeeId);
-            return (
-              <SelectItem key={role.id} value={role.id} disabled={taken}>
-                {role.role_name} ({role.department_name || '-'}){taken ? ' ✓' : ''}
-              </SelectItem>
-            );
-          })}
-        </SelectContent>
-      </Select>
-      </div>
-      <div className="space-y-1">
         <p className="text-xs font-medium text-stone-500">עובד חלופי</p>
         {renderBackupSelect()}
       </div>
-      {renderPayFields()}
       <div className="space-y-1.5 border border-stone-200 rounded-md p-2">
         <p className="text-xs font-medium text-stone-500">הסכם עבודה</p>
         {editForm.work_agreement ? (
@@ -452,11 +578,6 @@ export default function TaskEmployees() {
           </div>
         )}
       </div>
-      <Input
-        value={editForm.note || ''}
-        onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
-        placeholder="הערה"
-      />
       <div className="flex items-center gap-4 text-sm pt-1">
         <label className="flex items-center gap-1.5">
           <input type="checkbox" checked={!!editForm.is_active} onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })} />
@@ -467,6 +588,7 @@ export default function TaskEmployees() {
           WhatsApp
         </label>
       </div>
+      </div>
     </>
   );
 
@@ -474,39 +596,35 @@ export default function TaskEmployees() {
     const isHourly = editForm.pay_type === 'hourly' || editForm.pay_type === 'both';
     const isGlobal = editForm.pay_type === 'global' || editForm.pay_type === 'both';
     return (
-      <div className="space-y-2 border border-stone-200 rounded-md p-2">
-        <p className="text-xs font-medium text-stone-500">סוג שכר</p>
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-stone-500">שכר</p>
         {editIsWaiter && (
           <p className="text-[11px] text-stone-400">נמשך אוטומטית למסך הנוכחות ומחושב לפי שעות הכניסה/יציאה</p>
         )}
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1.5 text-sm shrink-0 w-16">
-            <input type="checkbox" checked={isHourly} onChange={(e) => togglePayFlag('hourly', e.target.checked)} />
-            שעתי
-          </label>
-          {isHourly && (
-            <Input
-              type="number"
-              placeholder="₪ לשעה"
-              value={editForm.hourly_rate ?? ''}
-              onChange={(e) => setEditForm({ ...editForm, hourly_rate: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-            />
-          )}
+        <div className="flex gap-2">
+          <Chip active={isGlobal} onClick={() => togglePayFlag('global', !isGlobal)}>{editIsWaiter ? 'לאירוע' : 'גלובלי'}</Chip>
+          <Chip active={isHourly} onClick={() => togglePayFlag('hourly', !isHourly)}>שעתי</Chip>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1.5 text-sm shrink-0 w-16">
-            <input type="checkbox" checked={isGlobal} onChange={(e) => togglePayFlag('global', e.target.checked)} />
-            {editIsWaiter ? 'לאירוע' : 'גלובלי'}
-          </label>
-          {isGlobal && (
-            <Input
-              type="number"
-              placeholder={editIsWaiter ? "₪ לאירוע" : "₪ גלובלי"}
-              value={editForm.global_rate ?? ''}
-              onChange={(e) => setEditForm({ ...editForm, global_rate: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 })}
-            />
-          )}
-        </div>
+        {(isGlobal || isHourly) && (
+          <div className="flex gap-2">
+            {isGlobal && (
+              <Input
+                type="number"
+                placeholder={editIsWaiter ? "₪ לאירוע" : "₪ גלובלי"}
+                value={numberValue(editForm.global_rate)}
+                onChange={setNumber('global_rate')}
+              />
+            )}
+            {isHourly && (
+              <Input
+                type="number"
+                placeholder="₪ לשעה"
+                value={numberValue(editForm.hourly_rate)}
+                onChange={setNumber('hourly_rate')}
+              />
+            )}
+          </div>
+        )}
       </div>
     );
   };
