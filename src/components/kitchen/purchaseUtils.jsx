@@ -1,6 +1,7 @@
 import { format, startOfWeek, endOfWeek, addDays, subDays } from 'date-fns';
 import { applyWasteToQty } from '@/lib/foodWaste';
 import { calculateAdultPortions } from '@/lib/dinerCount';
+import { ingredientAt, hasDatedChange } from '@/lib/ingredientTerms';
 
 export const roundToPurchaseUnit = (qty, purchaseUnit) => {
   if (!purchaseUnit || purchaseUnit <= 0) return qty;
@@ -11,8 +12,9 @@ export const roundToPurchaseUnit = (qty, purchaseUnit) => {
  * Calculate ingredient needs per event for all approved events in a given week.
  * Returns: { eventId: { ingredientId: { ingredient_name, unit, qty, price_per_unit, total_price, supplier_id, supplier_name } } }
  */
-export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingredients, specialIngredients, categories, suppliers) {
+export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingredients, specialIngredients, categories, suppliers, priceIndex = null) {
   const result = {};
+  const supplierTypeById = Object.fromEntries((suppliers || []).map((s) => [s.id, s.supplier_type || 'daily']));
 
   // Build supplier lookup by ingredient_id
   const supplierByIngredient = {};
@@ -29,6 +31,26 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
       }
     });
   });
+
+  // Price / supplier / purchase unit for an ingredient on this event's date.
+  // A dated change (ingredientTerms.js) applies only to events from its
+  // effective date — earlier events keep the old price and supplier. Without
+  // one, the supplier catalog (items_supplied) still takes precedence.
+  const termsFor = (ingredient, event) => {
+    const ing = ingredientAt(ingredient, event?.event_date, priceIndex);
+    const supInfo = supplierByIngredient[ingredient.id];
+    const datedPrice = hasDatedChange(ingredient.id, priceIndex, 'price') || ing.price_per_system !== ingredient.price_per_system;
+    const datedSupplier = hasDatedChange(ingredient.id, priceIndex, 'supplier');
+    return {
+      price_per_unit: datedPrice
+        ? (ing.price_per_system || 0)
+        : (supInfo?.price_per_unit || ing.price_per_system || 0),
+      supplier_id: datedSupplier ? (ing.current_supplier_id || '') : (supInfo?.supplier_id || ing.current_supplier_id || ''),
+      supplier_name: datedSupplier ? (ing.current_supplier_name || '') : (supInfo?.supplier_name || ing.current_supplier_name || ''),
+      supplier_type: datedSupplier ? (supplierTypeById[ing.current_supplier_id] || 'daily') : (supInfo?.supplier_type || 'daily'),
+      purchase_unit: ing.purchase_unit || 1,
+    };
+  };
 
   const isFirstCourseDish = (dish) => {
     const dishCategories = (categories || []).filter(cat => dish.categories?.includes(cat.id));
@@ -96,8 +118,7 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
         const rawQtyNeeded = (ing.qty || 0) * effectiveQty;
         const wastePct = ingredient.waste_pct || 0;
         const qtyNeeded = wastePct > 0 ? rawQtyNeeded / (1 - wastePct / 100) : rawQtyNeeded;
-        const supInfo = supplierByIngredient[ing.ingredient_id];
-        const pricePerUnit = supInfo?.price_per_unit || ingredient.price_per_system || 0;
+        const terms = termsFor(ingredient, event);
 
         const key = ing.ingredient_id;
         if (!eventNeeds[key]) {
@@ -107,11 +128,7 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
             unit: ingredient.system_unit || ing.unit,
             qty: 0,
             waste_pct: ingredient.waste_pct || 0,
-            price_per_unit: pricePerUnit,
-            supplier_id: supInfo?.supplier_id || ingredient.current_supplier_id || '',
-            supplier_name: supInfo?.supplier_name || ingredient.current_supplier_name || '',
-            supplier_type: supInfo?.supplier_type || 'daily',
-            purchase_unit: ingredient.purchase_unit || 1
+            ...terms
           };
         }
         eventNeeds[key].qty += qtyNeeded;
@@ -133,8 +150,7 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
         const rawCompQty = (comp.qty || 0) * batches;
         const compWastePct = compIngredient.waste_pct || 0;
         const compQty = compWastePct > 0 ? rawCompQty / (1 - compWastePct / 100) : rawCompQty;
-        const supInfo = supplierByIngredient[comp.ingredient_id];
-        const pricePerUnit = supInfo?.price_per_unit || compIngredient.price_per_system || 0;
+        const terms = termsFor(compIngredient, event);
 
         const key = comp.ingredient_id;
         if (!eventNeeds[key]) {
@@ -144,11 +160,7 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
             unit: compIngredient.system_unit || comp.unit,
             qty: 0,
             waste_pct: compIngredient.waste_pct || 0,
-            price_per_unit: pricePerUnit,
-            supplier_id: supInfo?.supplier_id || compIngredient.current_supplier_id || '',
-            supplier_name: supInfo?.supplier_name || compIngredient.current_supplier_name || '',
-            supplier_type: supInfo?.supplier_type || 'daily',
-            purchase_unit: compIngredient.purchase_unit || 1
+            ...terms
           };
         }
         eventNeeds[key].qty += compQty;

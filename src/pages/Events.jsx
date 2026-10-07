@@ -12,6 +12,7 @@ import { approveEvent, TASKS_FAILED_MSG } from "@/lib/eventApproval";
 import { useAuth } from "@/lib/AuthContext";
 import { canOverrideApprovalWindow } from "@/lib/officeUser";
 import { computeEventFoodCost } from "@/lib/eventFoodCost";
+import { usePriceContext } from "@/lib/usePriceContext";
 import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 
 export default function Events() {
@@ -66,6 +67,8 @@ export default function Events() {
   // Food revenue/cost shown on each card is computed live from the event's
   // current dishes every render — never from a stored snapshot, so it can
   // never drift out of sync with what the event's own page shows.
+  // Prices each event's dishes as of its own date (dated ingredient changes).
+  const priceCtx = usePriceContext();
   const eventsWithLiveCosts = useMemo(() => {
     const dishesById = {};
     allDishes.forEach((d) => { dishesById[d.id] = d; });
@@ -74,10 +77,10 @@ export default function Events() {
 
     return events.map((event) => {
       const eventDishes = allEventDishes.filter((ed) => ed.event_id === event.id);
-      const { foodRevenue, foodCostSum, foodCostPct } = computeEventFoodCost(event, eventDishes, dishesById, categoriesById);
+      const { foodRevenue, foodCostSum, foodCostPct } = computeEventFoodCost(event, eventDishes, dishesById, categoriesById, priceCtx);
       return { ...event, event_price: foodRevenue, food_cost_sum: foodCostSum, food_cost_pct: foodCostPct };
     });
-  }, [events, allEventDishes, allDishes, allCategories]);
+  }, [events, allEventDishes, allDishes, allCategories, priceCtx]);
 
   // Manual approval ("אישור חריג") after the producer's approval window has
   // closed — EventsList only shows the button to the office account.

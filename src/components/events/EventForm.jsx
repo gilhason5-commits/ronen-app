@@ -28,6 +28,8 @@ import { calculateTotalGuests, calculateAdultPortions, parseRangeMax } from "@/l
 import { useAuth } from "@/lib/AuthContext";
 import { isGuestCountLocked, GUEST_COUNT_LOCKED_MSG, GUEST_COUNT_FIELDS, EVENT_TYPE_LOCKED_MSG, clearEventMenu } from "@/lib/eventApproval";
 import { applyWasteToValue, wasteLabel } from "@/lib/foodWaste";
+import { usePriceContext } from "@/lib/usePriceContext";
+import { dishUnitCostAt } from "@/lib/ingredientTerms";
 
 // producerMode: the same form opened from עמוד מפיק — full event details
 // and the stage-based dish picker, but no money (price, amounts, revenue,
@@ -94,7 +96,16 @@ export default function EventForm({ event, onClose, producerMode = false }) {
     queryFn: () => base44.entities.Dish.list(),
   });
 
-  const dishes = allDishes.filter((dish) => dish.event_type === formData.event_type);
+  // Each dish's unit_cost is replaced by its cost on the event's date (dated
+  // ingredient price changes — see ingredientTerms.js), so everything below
+  // — the cost when a dish is added, the stage breakdown, prints, the event
+  // food cost — prices the menu as of this event, not as of today.
+  const priceCtx = usePriceContext();
+  const dishes = React.useMemo(() => {
+    const ofType = allDishes.filter((dish) => dish.event_type === formData.event_type);
+    if (!priceCtx || !formData.event_date) return ofType;
+    return ofType.map((dish) => ({ ...dish, unit_cost: dishUnitCostAt(dish, formData.event_date, priceCtx) }));
+  }, [allDishes, formData.event_type, formData.event_date, priceCtx]);
 
   const { data: ingredients = [] } = useQuery({
     queryKey: ['ingredients'],
@@ -160,11 +171,17 @@ export default function EventForm({ event, onClose, producerMode = false }) {
 
   const getEffectivePlannedCost = useCallback((eventDish) => {
     const guestCount = formData.guest_count || 0;
-    // Apply the event-level food reduction (פחת) to the stored cost as well —
-    // planned_cost is saved as the pre-reduction base, so reduce it here.
+    // Apply the event-level food reduction (פחת) to the cost as well.
     // The waste bracket is driven by the full committed headcount (guest_count),
     // same as revenue — it's a billing concept, unrelated to who eats what.
+    // A stored quantity is re-priced with the dish's cost on the event date
+    // (dishes above) rather than the planned_cost snapshot from when it was
+    // added, so a dated price change reaches it.
     if (eventDish.planned_cost && eventDish.planned_cost > 0) {
+      const storedDish = dishes.find(d => d.id === eventDish.dish_id);
+      if (storedDish && eventDish.planned_qty > 0) {
+        return applyWasteToValue(eventDish.planned_qty * (storedDish.unit_cost || 0), guestCount);
+      }
       return applyWasteToValue(eventDish.planned_cost, guestCount);
     }
     // If planned_cost is 0, calculate from suggested quantity. Standard dish

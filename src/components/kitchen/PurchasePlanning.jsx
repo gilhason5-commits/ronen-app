@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { calcIngredientNeedsPerEvent, buildSupplierTickets } from "./purchaseUtils";
+import { buildChangeIndex } from "@/lib/ingredientTerms";
+import { INGREDIENT_CHANGES_QUERY } from "@/lib/usePriceContext";
 import MultiEventDailyTicket from "./MultiEventDailyTicket";
 import WeeklyOrderTicket from "./WeeklyOrderTicket";
 
@@ -70,13 +72,18 @@ export default function PurchasePlanning({ events }) {
     [events, selectedEventIds]
   );
 
+  const { data: ingredientChanges = [] } = useQuery(INGREDIENT_CHANGES_QUERY);
+  const priceIndex = useMemo(() => buildChangeIndex(ingredientChanges), [ingredientChanges]);
+
   const { dailyGrouped, weeklyTickets } = useMemo(() => {
     if (!confirmed || selectedEvents.length === 0 || allDishes.length === 0 || ingredients.length === 0 || suppliers.length === 0) {
       return { dailyGrouped: [], weeklyTickets: [] };
     }
 
+    // Dated price/supplier changes: each event is ordered at the price and
+    // from the supplier in effect on its own date.
     const needsPerEvent = calcIngredientNeedsPerEvent(
-      selectedEvents, eventDishesMap, allDishes, ingredients, specialIngredients, categories, suppliers
+      selectedEvents, eventDishesMap, allDishes, ingredients, specialIngredients, categories, suppliers, priceIndex
     );
 
     const { dailyTickets, weeklyTickets } = buildSupplierTickets(selectedEvents, needsPerEvent, suppliers);
@@ -101,7 +108,7 @@ export default function PurchasePlanning({ events }) {
     const dailyGrouped = Object.values(supplierGroups);
 
     return { dailyGrouped, weeklyTickets };
-  }, [confirmed, selectedEvents, eventDishesMap, allDishes, ingredients, specialIngredients, categories, suppliers]);
+  }, [confirmed, selectedEvents, eventDishesMap, allDishes, ingredients, specialIngredients, categories, suppliers, priceIndex]);
 
   const toggleEvent = (eventId) => {
     setSelectedEventIds(prev => 
