@@ -145,6 +145,7 @@ export default function TaskEmployees() {
   const whatsappEnabledCount = employees.filter(e => e.whatsapp_enabled).length;
 
   const handleEdit = (employee) => {
+    setEmployerCostTypeChoice(null);
     setEditingId(employee.id);
     setEditForm(employee);
   };
@@ -152,6 +153,7 @@ export default function TaskEmployees() {
   // Adding while a department (and agency) filter is on pre-fills them, so
   // "new waiter for עמי" is one click from the filtered view.
   const handleAddNew = () => {
+    setEmployerCostTypeChoice(null);
     const dept = departments.find(d => d.id === selectedDeptFilter);
     const agency = agencies.find(a => a.id === selectedAgencyFilter);
     setEditingId('new');
@@ -242,6 +244,7 @@ export default function TaskEmployees() {
   };
 
   const handleCancel = () => {
+    setEmployerCostTypeChoice(null);
     setEditingId(null);
     setEditForm({});
   };
@@ -372,6 +375,23 @@ export default function TaskEmployees() {
   const setNumber = (field) => (e) =>
     setEditForm({ ...editForm, [field]: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 });
 
+  // Employer cost (עלות מעביד) is either monthly or hourly: the amount lives
+  // in employer_cost_global (monthly) or employer_cost_hourly, and its net /
+  // gross marking in salary_basis. Picking a type clears the other amount.
+  const [employerCostTypeChoice, setEmployerCostTypeChoice] = useState(null);
+  const employerCostType = employerCostTypeChoice
+    ?? (editForm.employer_cost_hourly != null && editForm.employer_cost_hourly !== '' ? 'hourly'
+      : editForm.employer_cost_global != null && editForm.employer_cost_global !== '' ? 'monthly' : '');
+  const setEmployerCostType = (type) => {
+    const next = employerCostType === type ? '' : type;
+    setEmployerCostTypeChoice(next);
+    setEditForm({
+      ...editForm,
+      employer_cost_hourly: next === 'hourly' ? editForm.employer_cost_hourly : '',
+      employer_cost_global: next === 'monthly' ? editForm.employer_cost_global : '',
+    });
+  };
+
   const handleSecondaryRoleChange = (roleId) => {
     const role = roles.find(r => r.id === roleId);
     setEditForm({
@@ -468,18 +488,25 @@ export default function TaskEmployees() {
           )}
         </div>
       </div>
-      <div className="space-y-1.5">
-        <p className="text-xs font-medium text-stone-500">שכר נטו או ברוטו</p>
+      <div className="space-y-1.5 border border-stone-200 rounded-md p-2">
+        <p className="text-xs font-medium text-stone-500">עלות מעביד</p>
+        <p className="text-[11px] text-stone-400">העלות של האולם על העובד — בנפרד מהשכר שלו</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip active={employerCostType === 'monthly'} onClick={() => setEmployerCostType('monthly')}>חודשי</Chip>
+          <Chip active={employerCostType === 'hourly'} onClick={() => setEmployerCostType('hourly')}>שעתי</Chip>
+          {employerCostType && (
+            <Input
+              type="number"
+              className="w-28"
+              placeholder={employerCostType === 'hourly' ? '₪ לשעה' : '₪ לחודש'}
+              value={numberValue(employerCostType === 'hourly' ? editForm.employer_cost_hourly : editForm.employer_cost_global)}
+              onChange={setNumber(employerCostType === 'hourly' ? 'employer_cost_hourly' : 'employer_cost_global')}
+            />
+          )}
+        </div>
         <div className="flex gap-2">
           <Chip active={editForm.salary_basis === 'net'} onClick={() => setEditForm({ ...editForm, salary_basis: editForm.salary_basis === 'net' ? '' : 'net' })}>נטו</Chip>
           <Chip active={editForm.salary_basis === 'gross'} onClick={() => setEditForm({ ...editForm, salary_basis: editForm.salary_basis === 'gross' ? '' : 'gross' })}>ברוטו</Chip>
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <p className="text-xs font-medium text-stone-500">סה״כ עלות מעסיק</p>
-        <div className="flex gap-2">
-          <Input type="number" placeholder="₪ לשעה" value={numberValue(editForm.employer_cost_hourly)} onChange={setNumber('employer_cost_hourly')} />
-          <Input type="number" placeholder="₪ גלובלי" value={numberValue(editForm.employer_cost_global)} onChange={setNumber('employer_cost_global')} />
         </div>
       </div>
       <div className="space-y-1">
