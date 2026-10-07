@@ -1,3 +1,5 @@
+import { applyIngredientChanges } from './_applyIngredientChanges.js';
+
 /**
  * GET/POST /api/run-all
  * Calls all scheduled automations. Designed to be called every 10 minutes by cron-job.org.
@@ -13,7 +15,6 @@ export default async function handler(req, res) {
     '/api/ceo-escalation',
     '/api/tasks-scheduler',
     '/api/recurring-tasks-generator',
-    '/api/apply-ingredient-changes',
   ];
 
   const results = {};
@@ -25,6 +26,14 @@ export default async function handler(req, res) {
     } catch (err) {
       results[path] = { error: err.message };
     }
+  }
+
+  // Future-dated ingredient price/supplier changes whose date has arrived.
+  try {
+    results.applyIngredientChanges = await applyIngredientChanges();
+  } catch (err) {
+    console.error('applyIngredientChanges failed:', err);
+    results.applyIngredientChanges = { error: err.message };
   }
 
   return res.status(200).json({ ok: true, results });
