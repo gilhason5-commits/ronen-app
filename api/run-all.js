@@ -13,7 +13,6 @@ export default async function handler(req, res) {
     '/api/ceo-escalation',
     '/api/tasks-scheduler',
     '/api/recurring-tasks-generator',
-    '/api/apply-ingredient-changes',
   ];
 
   const results = {};

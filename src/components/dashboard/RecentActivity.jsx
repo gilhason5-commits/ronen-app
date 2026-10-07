@@ -35,9 +35,7 @@ export default function RecentActivity() {
   });
 
   const { data: ingredients = [] } = useQuery({
-    // Own key: only the 10 newest — the shared ['ingredients'] key holds the
-    // full list that dish/event costs are priced from.
-    queryKey: ['ingredients', 'recent', 10],
+    queryKey: ['ingredients'],
     queryFn: () => base44.entities.Ingredient.list('-created_date', 10),
   });
 

@@ -44,13 +44,6 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { TrendingUp, TrendingDown, ChevronsUpDown } from "lucide-react";
 import { fmtCurrency, fmtNum } from "../utils/formatNumbers";
-import { localDateString } from "@/lib/ingredientTerms";
-import {
-  datedTermsChanged,
-  minEffectiveDate,
-  saveIngredientWithDatedChange,
-  cancelPendingChange,
-} from "@/lib/ingredientChanges";
 
 export default function IngredientDialog({ ingredient, suppliers = [], ingredientCategories = [], open, onClose }) {
   const queryClient = useQueryClient();
@@ -134,7 +127,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
   };
 
   const saveMutation = useSingleFlightMutation({
-    mutationFn: async ({ data, effectiveFrom }) => {
+    mutationFn: async (data) => {
       const purchaseUnit = parseFloat(data.purchase_unit) || 1;
       const basePrice = parseFloat(data.base_price) || 0;
       const wastePct = data.waste_pct === '' ? 0 : parseFloat(data.waste_pct) || 0;
@@ -157,11 +150,27 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
       });
       
       let result;
-      if (ingredient?.id && effectiveFrom) {
-        // Price and/or supplier changed — applies to events from effectiveFrom
-        // on; earlier events keep the old price and supplier.
-        result = await saveIngredientWithDatedChange(ingredient, dataToSave, effectiveFrom);
-      } else if (ingredient?.id) {
+      if (ingredient?.id) {
+        // Check if price changed
+        const oldBasePrice = parseFloat(ingredient.base_price) || 0;
+        const oldPurchaseUnit = parseFloat(ingredient.purchase_unit) || 1;
+        const oldPricePerSystem = oldPurchaseUnit > 0 ? oldBasePrice / oldPurchaseUnit : 0;
+        
+        if (oldBasePrice !== basePrice) {
+          // Log price change
+          await base44.entities.Ingredient_Price_History.create({
+            ingredient_id: ingredient.id,
+            ingredient_name: data.name,
+            old_price: oldBasePrice,
+            new_price: basePrice,
+            old_price_per_system: oldPricePerSystem,
+            new_price_per_system: pricePerSystem,
+            supplier_id: data.current_supplier_id || null,
+            supplier_name: data.current_supplier_name || '',
+            change_date: new Date().toISOString().split('T')[0]
+          });
+        }
+        
         result = await base44.entities.Ingredient.update(ingredient.id, dataToSave);
       } else {
         result = await base44.entities.Ingredient.create(dataToSave);
@@ -169,37 +178,15 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
       
       return result;
     },
-    onSuccess: (_result, { effectiveFrom }) => {
-      invalidateCostQueries();
-      setDatePrompt(null);
-      if (effectiveFrom && effectiveFrom > localDateString()) {
-        toast.success(`השינוי נשמר ויכנס לתוקף ב-${effectiveFrom.split('-').reverse().join('/')}`);
-      } else {
-        toast.success(ingredient ? 'הרכיב עודכן' : 'הרכיב נוצר');
-      }
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ingredients'] });
+      queryClient.invalidateQueries({ queryKey: ['ingredient-price-history'] });
+      toast.success(ingredient ? 'הרכיב עודכן' : 'הרכיב נוצר');
       onClose();
     },
-    onError: (err) => {
-      toast.error(err?.message || 'שמירת הרכיב נכשלה');
+    onError: () => {
+      toast.error('שמירת הרכיב נכשלה');
     }
-  });
-
-  const invalidateCostQueries = () => {
-    ['ingredients', 'ingredient-price-history', 'ingredient-price-changes', 'dishes', 'specialIngredients', 'events']
-      .forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
-  };
-
-  // "From which date?" prompt shown when a save changes the price or the
-  // supplier: { date, minDate } while open.
-  const [datePrompt, setDatePrompt] = useState(null);
-
-  const cancelPending = useSingleFlightMutation({
-    mutationFn: cancelPendingChange,
-    onSuccess: () => {
-      invalidateCostQueries();
-      toast.success('השינוי העתידי בוטל');
-    },
-    onError: (err) => toast.error(err?.message || 'ביטול השינוי נכשל'),
   });
 
   const handleSupplierChange = (supplierId) => {
@@ -236,19 +223,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
       return;
     }
     setValidationError('');
-    if (ingredient?.id && datedTermsChanged(ingredient, formData).any) {
-      const minDate = minEffectiveDate(ingredient.id, priceHistory);
-      const today = localDateString();
-      setDatePrompt({ date: minDate && minDate > today ? minDate : today, minDate });
-      return;
-    }
-    saveMutation.mutate({ data: formData, effectiveFrom: null });
-  };
-
-  const confirmDatedSave = () => {
-    if (!datePrompt?.date) return;
-    if (datePrompt.minDate && datePrompt.date < datePrompt.minDate) return;
-    saveMutation.mutate({ data: formData, effectiveFrom: datePrompt.date });
+    saveMutation.mutate(formData);
   };
 
   return (
@@ -450,7 +425,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>בתוקף מ-</TableHead>
+                      <TableHead>תאריך</TableHead>
                       <TableHead>ספק</TableHead>
                       <TableHead className="text-right">מחיר ישן</TableHead>
                       <TableHead className="text-right">מחיר חדש</TableHead>
@@ -458,34 +433,16 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {[...priceHistory]
-                      .sort((a, b) => String(b.effective_from || b.change_date).localeCompare(String(a.effective_from || a.change_date)))
-                      .map((record) => {
+                    {priceHistory.map((record) => {
                       const priceDiff = record.new_price_per_system - record.old_price_per_system;
                       const isIncrease = priceDiff > 0;
-                      const pending = record.applied === false;
                       return (
-                        <TableRow key={record.id} className={pending ? 'bg-amber-50' : ''}>
+                        <TableRow key={record.id}>
                           <TableCell className="text-sm">
-                            {format(new Date(record.effective_from || record.change_date), 'dd/MM/yyyy')}
-                            {pending && (
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-xs text-amber-700 font-medium">ממתין</span>
-                                <button
-                                  type="button"
-                                  className="text-xs text-red-600 underline"
-                                  disabled={cancelPending.isPending}
-                                  onClick={() => cancelPending.mutate(record)}
-                                >
-                                  ביטול
-                                </button>
-                              </div>
-                            )}
+                            {format(new Date(record.change_date), 'MMM d, yyyy')}
                           </TableCell>
                           <TableCell className="text-sm">
-                            {record.supplier_changed
-                              ? `${record.old_supplier_name || '-'} ← ${record.new_supplier_name || '-'}`
-                              : (record.supplier_name || '-')}
+                            {record.supplier_name || '-'}
                           </TableCell>
                           <TableCell className="text-right text-sm">
                             {fmtCurrency(record.old_price_per_system)}
@@ -527,49 +484,6 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
           </DialogFooter>
         </div>
       </DialogContent>
-
-      <Dialog open={!!datePrompt} onOpenChange={(o) => !o && setDatePrompt(null)}>
-        <DialogContent className="max-w-sm" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="text-right">החל מאיזה תאריך השינוי רלוונטי?</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-stone-600">
-              המחיר / הספק החדש יחול על אירועים מהתאריך הזה והלאה — גם בעלות האוכל וגם בהזמנות הרכש.
-              אירועים לפניו נשארים עם המחיר והספק הקודמים.
-            </p>
-            <Input
-              type="date"
-              value={datePrompt?.date || ''}
-              min={datePrompt?.minDate || undefined}
-              onChange={(e) => setDatePrompt((p) => ({ ...p, date: e.target.value }))}
-            />
-            {datePrompt?.minDate && (
-              <p className="text-xs text-stone-500">
-                כבר נרשם שינוי החל מ-{datePrompt.minDate.split('-').reverse().join('/')} — אפשר לבחור מהתאריך הזה והלאה.
-              </p>
-            )}
-            {datePrompt?.date > localDateString() && (
-              <p className="text-xs text-amber-700">
-                תאריך עתידי: עד אליו הרכיב ממשיך עם המחיר והספק הנוכחיים, והשינוי ייכנס לתוקף אוטומטית.
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDatePrompt(null)}>
-              ביטול
-            </Button>
-            <Button
-              type="button"
-              onClick={confirmDatedSave}
-              disabled={saveMutation.isPending || !datePrompt?.date || (datePrompt?.minDate && datePrompt.date < datePrompt.minDate)}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
-              {saveMutation.isPending ? 'שומר...' : 'שמירה'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Dialog>
   );
 }
