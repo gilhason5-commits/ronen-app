@@ -8,7 +8,8 @@ import {
   Calendar as CalendarIcon,
   Clock,
   Users,
-  X
+  X,
+  Plus
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, 
   addDays, addMonths, addWeeks, subMonths, subWeeks, subDays,
@@ -39,7 +40,9 @@ const statusLabels = {
   completed: "הושלם",
 };
 
-export default function EventCalendar({ events = [], onEventClick }) {
+// onEventClick(event): open the event's own page instead of the details popup.
+// onCreateEvent(date): adds "new event on this day" to the selected day's panel.
+export default function EventCalendar({ events = [], onEventClick, onCreateEvent }) {
   const { user } = useAuth();
   const hideFinancials = !!user?.hide_financials;
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -73,10 +76,26 @@ export default function EventCalendar({ events = [], onEventClick }) {
     setSelectedDate(date);
   };
 
+  const openEvent = (event) => {
+    if (onEventClick) onEventClick(event);
+    else setSelectedEvent(event);
+  };
+
   const handleEventClick = (event, e) => {
     e.stopPropagation();
-    setSelectedEvent(event);
+    openEvent(event);
   };
+
+  const createButton = (date) => onCreateEvent && (
+    <Button
+      size="sm"
+      className="bg-emerald-600 hover:bg-emerald-700"
+      onClick={() => onCreateEvent(format(date, 'yyyy-MM-dd'))}
+    >
+      <Plus className="w-4 h-4 ml-1" />
+      אירוע חדש ב-{format(date, 'dd/MM')}
+    </Button>
+  );
 
   // Month View
   const renderMonthView = () => {
@@ -197,16 +216,17 @@ export default function EventCalendar({ events = [], onEventClick }) {
         
         <div className="max-h-[400px] overflow-y-auto">
           {dayEvents.length === 0 ? (
-            <div className="p-8 text-center text-stone-500">
+            <div className="p-8 text-center text-stone-500 space-y-3">
               <CalendarIcon className="w-12 h-12 mx-auto mb-2 text-stone-300" />
               <p>אין אירועים מתוכננים</p>
+              {createButton(currentDate)}
             </div>
           ) : (
             <div className="divide-y divide-stone-100">
               {dayEvents.map(event => (
                 <div
                   key={event.id}
-                  onClick={() => setSelectedEvent(event)}
+                  onClick={() => openEvent(event)}
                   className="p-4 hover:bg-stone-50 cursor-pointer transition-colors"
                 >
                   <div className="flex items-start justify-between">
@@ -249,9 +269,12 @@ export default function EventCalendar({ events = [], onEventClick }) {
           <h3 className="font-semibold text-stone-900">
             {format(selectedDate, 'EEEE, MMMM d, yyyy')}
           </h3>
-          <Button variant="ghost" size="sm" onClick={() => setSelectedDate(null)}>
-            <X className="w-4 h-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            {createButton(selectedDate)}
+            <Button variant="ghost" size="sm" onClick={() => setSelectedDate(null)}>
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
         {dayEvents.length === 0 ? (
           <p className="text-sm text-stone-500">אין אירועים מתוכננים</p>
@@ -260,7 +283,7 @@ export default function EventCalendar({ events = [], onEventClick }) {
             {dayEvents.map(event => (
               <div
                 key={event.id}
-                onClick={() => setSelectedEvent(event)}
+                onClick={() => openEvent(event)}
                 className="p-3 bg-stone-50 rounded-lg cursor-pointer hover:bg-stone-100 transition-colors"
               >
                 <div className="flex items-center justify-between">
@@ -384,7 +407,7 @@ export default function EventCalendar({ events = [], onEventClick }) {
               )}
 
               <div className="flex gap-2 pt-2">
-                <Link to={`${createPageUrl('Events')}?edit=${selectedEvent.id}`} className="flex-1">
+                <Link to={`${createPageUrl('Events')}?event=${selectedEvent.id}`} className="flex-1">
                   <Button className="w-full bg-emerald-600 hover:bg-emerald-700">
                     צפייה בפרטים
                   </Button>

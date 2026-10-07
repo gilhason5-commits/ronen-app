@@ -175,7 +175,11 @@ export default function Dashboard() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <EventCalendar events={events} />
+          <EventCalendar
+            events={events}
+            onEventClick={(event) => navigate(`${createPageUrl("Events")}?event=${event.id}`)}
+            onCreateEvent={(date) => navigate(`${createPageUrl("Events")}?new=${date}`)}
+          />
           
         </div>
 

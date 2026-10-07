@@ -23,6 +23,7 @@ import EventSummary from "../events/EventSummary";
 
 import EventPrintDialog from "../events/EventPrintDialog";
 import DepartmentPrintDialog from "../events/DepartmentPrintDialog";
+import EventApprovalBar from "./EventApprovalBar";
 import { fmtCurrency } from "../utils/formatNumbers";
 import { calculateTotalGuests, calculateAdultPortions, parseRangeMax } from "@/lib/dinerCount";
 import { useAuth } from "@/lib/AuthContext";
@@ -33,7 +34,8 @@ import { isPastEvent } from "@/lib/ingredientPriceRefresh";
 // producerMode: the same form opened from עמוד מפיק — full event details
 // and the stage-based dish picker, but no money (price, amounts, revenue,
 // cost summary, general expenses, cost reports) and no recipe editing.
-export default function EventForm({ event, onClose, producerMode = false }) {
+// initialDate: prefills the date of a new event (picked on the calendar).
+export default function EventForm({ event, onClose, producerMode = false, initialDate = '' }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -45,7 +47,7 @@ export default function EventForm({ event, onClose, producerMode = false }) {
 
   const [formData, setFormData] = useState({
     event_name: '',
-    event_date: '',
+    event_date: initialDate || '',
     event_time: '',
     event_type: 'serving',
     price_per_plate: '',
@@ -434,6 +436,8 @@ export default function EventForm({ event, onClose, producerMode = false }) {
         </div>
         }
       </div>
+
+      {event?.id && <EventApprovalBar event={event} onDeleted={onClose} />}
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className={producerMode ? "lg:col-span-3 space-y-6" : "lg:col-span-2 space-y-6"}>
