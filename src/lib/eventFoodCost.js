@@ -1,5 +1,6 @@
 import { applyWasteToValue } from "./foodWaste";
 import { calculateAdultPortions } from "./dinerCount";
+import { computeFixedItemsCost } from "./fixedEventItems";
 
 function isFirstCourseDish(dish, categoriesById) {
   const dishCategories = (dish.categories || []).map((id) => categoriesById[id]).filter(Boolean);
@@ -46,7 +47,7 @@ export function computeEventFoodCost(event, eventDishes, dishesById, categoriesB
   const foodCostSum = eventDishes.reduce(
     (sum, ed) => sum + getEffectivePlannedCost(ed, event, dishesById, categoriesById),
     0
-  );
+  ) + computeFixedItemsCost(event.event_type, Object.values(dishesById), Object.values(categoriesById));
   const foodCostPct = foodRevenue > 0 ? (foodCostSum / foodRevenue) * 100 : 0;
   return { foodRevenue, foodCostSum, foodCostPct };
 }

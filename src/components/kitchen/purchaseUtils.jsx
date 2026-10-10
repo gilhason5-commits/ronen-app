@@ -1,6 +1,7 @@
 import { format, startOfWeek, endOfWeek, addDays, subDays } from 'date-fns';
 import { applyWasteToQty } from '@/lib/foodWaste';
 import { calculateAdultPortions } from '@/lib/dinerCount';
+import { getFixedEventDishes, getFixedEventQty } from '@/lib/fixedEventItems';
 
 export const roundToPurchaseUnit = (qty, purchaseUnit) => {
   if (!purchaseUnit || purchaseUnit <= 0) return qty;
@@ -74,10 +75,22 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
     // components). siDemand: siId -> { si, totalDemand }
     const siDemand = {};
 
-    evDishes.forEach(ed => {
-      const dish = dishes.find(d => d.id === ed.dish_id);
-      if (!dish) return;
-      const effectiveQty = getEffectivePlannedQty(ed, event);
+    // Menu dishes (guest-count driven) plus the event type's fixed items,
+    // which every event gets once at their fixed quantity.
+    const fixedDishes = getFixedEventDishes(event.event_type, dishes, categories);
+    const fixedIds = new Set(fixedDishes.map(d => d.id));
+    const dishLines = [
+      ...evDishes
+        .filter(ed => !fixedIds.has(ed.dish_id))
+        .map(ed => {
+          const dish = dishes.find(d => d.id === ed.dish_id);
+          return dish && { dish, effectiveQty: getEffectivePlannedQty(ed, event) };
+        })
+        .filter(Boolean),
+      ...fixedDishes.map(dish => ({ dish, effectiveQty: getFixedEventQty(dish) })),
+    ];
+
+    dishLines.forEach(({ dish, effectiveQty }) => {
       if (!effectiveQty || effectiveQty <= 0) return;
 
       (dish.ingredients || []).forEach(ing => {

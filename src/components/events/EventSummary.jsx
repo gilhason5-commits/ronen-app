@@ -6,7 +6,7 @@ import { fmtCurrency } from "../utils/formatNumbers";
 import { excludeVat } from "@/lib/vat";
 import { useAuth } from "@/lib/AuthContext";
 
-export default function EventSummary({ foodRevenue = 0, pricePerPlate = 0, guestCount = 0, eventDishes = [], getEffectivePlannedCost, eventId = null, additions = {} }) {
+export default function EventSummary({ foodRevenue = 0, pricePerPlate = 0, guestCount = 0, eventDishes = [], getEffectivePlannedCost, eventId = null, additions = {}, extraCostRows = [] }) {
   const { user } = useAuth();
   if (user?.hide_financials) return null;
 
@@ -35,7 +35,7 @@ export default function EventSummary({ foodRevenue = 0, pricePerPlate = 0, guest
 
         {eventId && (
           <div className="pt-4 border-t border-stone-200">
-            <CategoryBreakdown events={[{ id: eventId }]} eventDishes={eventDishes} getEffectivePlannedCost={getEffectivePlannedCost} />
+            <CategoryBreakdown events={[{ id: eventId }]} eventDishes={eventDishes} getEffectivePlannedCost={getEffectivePlannedCost} extraRows={extraCostRows} />
           </div>
         )}
       </CardContent>

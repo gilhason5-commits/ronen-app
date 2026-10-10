@@ -29,6 +29,7 @@ import IngredientDetailsDialog from "./IngredientDetailsDialog";
 import IngredientDialog from "../inventory/IngredientDialog";
 import SpecialIngredientDialog from "../ingredients/SpecialIngredientDialog";
 import { calculateAdultPortions } from "@/lib/dinerCount";
+import { isFixedPerEventCategory, getFixedEventQty } from "@/lib/fixedEventItems";
 
 const SUB_MANA_CATEGORY_ID = '694ab43b7f41f262f932394d';
 
@@ -125,6 +126,10 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
       return name.includes('first course') || name.includes('מנה ראשונה') || name.includes('מנות ראשונות');
     });
   };
+
+  const isFixedItem = categories.some(
+    cat => formData.categories.includes(cat.id) && isFixedPerEventCategory(cat)
+  );
 
   const saveMutation = useSingleFlightMutation({
     mutationFn: async (data) => {
@@ -343,6 +348,8 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
     };
     // Clean UUID fields
     if (!dataToSave.sub_category_id) dataToSave.sub_category_id = null;
+    if (isFixedItem) dataToSave.fixed_event_qty = getFixedEventQty(dataToSave);
+    else if (dataToSave.fixed_event_qty === '') dataToSave.fixed_event_qty = null;
 
     saveMutation.mutate(dataToSave);
   };
@@ -401,6 +408,21 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
               </Select>
             </div>
 
+            {isFixedItem ? (
+            <div className="col-span-2">
+              <Label>כמות לאירוע *</Label>
+              <p className="text-xs text-stone-500 mb-1">
+                פריט קבוע: נכנס לכל אירוע פעם אחת בכמות הזו, בלי קשר למספר הסועדים
+              </p>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={formData.fixed_event_qty ?? getFixedEventQty(formData)}
+                onChange={(e) => setFormData({...formData, fixed_event_qty: e.target.value === '' ? '' : parseFloat(e.target.value) || 0})}
+                placeholder="1"
+              />
+            </div>
+            ) : (
             <div className="col-span-2">
               <Label>אחוז מנות לכלל האורחים *</Label>
               <p className="text-xs text-stone-500 mb-1">
@@ -421,6 +443,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">%</span>
               </div>
             </div>
+            )}
           </div>
 
           <div>

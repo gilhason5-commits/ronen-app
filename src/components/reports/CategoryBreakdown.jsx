@@ -8,7 +8,9 @@ import { applyWasteToValue } from "@/lib/foodWaste";
 import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 import LoadingState from "@/components/utils/LoadingState";
 
-export default function CategoryBreakdown({ events, eventDishes: propEventDishes, getEffectivePlannedCost, isLoading = false }) {
+// extraRows: [{ id, name, total }] — costs outside Events_Dish (e.g. fixed
+// per-event items) shown as their own rows and included in the total.
+export default function CategoryBreakdown({ events, eventDishes: propEventDishes, getEffectivePlannedCost, isLoading = false, extraRows = [] }) {
   // If eventDishes are passed directly, use them. Otherwise fetch from API
   const { data: fetchedEventsDishes = [], isLoading: dishesLoading } = useQuery({
     ...eventDishSummaryQuery,
@@ -62,6 +64,7 @@ export default function CategoryBreakdown({ events, eventDishes: propEventDishes
 
   // Sort by display order
   categoryData.sort((a, b) => a.displayOrder - b.displayOrder);
+  extraRows.filter(r => r.total > 0).forEach(r => categoryData.push({ ...r, displayOrder: 1000 }));
 
   const totalCost = categoryData.reduce((sum, cat) => sum + cat.total, 0);
 

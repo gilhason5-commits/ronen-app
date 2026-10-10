@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -111,6 +112,20 @@ export default function CategoryDialog({ category, eventType = 'serving', groupT
               </SelectContent>
             </Select>
           </div>
+
+          <label className="flex items-start gap-2 cursor-pointer">
+            <Checkbox
+              checked={!!formData.fixed_per_event}
+              onCheckedChange={(checked) => setFormData({ ...formData, fixed_per_event: !!checked })}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="text-sm font-medium">פריטים קבועים לכל אירוע (לא בעץ מוצר)</span>
+              <span className="block text-xs text-stone-500">
+                המנות בקטגוריה נכנסות לכל אירוע פעם אחת, בכמות שמוגדרת במנה, ולא לפי מספר הסועדים
+              </span>
+            </span>
+          </label>
 
           <div>
             <Label>תיאור</Label>

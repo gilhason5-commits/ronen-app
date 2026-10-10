@@ -30,6 +30,8 @@ import { useAuth } from "@/lib/AuthContext";
 import { isGuestCountLocked, GUEST_COUNT_LOCKED_MSG, GUEST_COUNT_FIELDS, EVENT_TYPE_LOCKED_MSG, clearEventMenu } from "@/lib/eventApproval";
 import { applyWasteToValue, wasteLabel } from "@/lib/foodWaste";
 import { isPastEvent } from "@/lib/ingredientPriceRefresh";
+import { isFixedPerEventCategory, getFixedEventDishes, computeFixedItemsCost } from "@/lib/fixedEventItems";
+import EventFixedItems from "./EventFixedItems";
 
 // producerMode: the same form opened from עמוד מפיק — full event details
 // and the stage-based dish picker, but no money (price, amounts, revenue,
@@ -88,8 +90,10 @@ export default function EventForm({ event, onClose, producerMode = false, initia
   // Excludes group_type 'general' categories — the old per-event "כלליות"
   // catalog. Those expenses now live on עמוד הוצאות as monthly general
   // expenses, so they must stay out of the guest-count driven dish tree.
+  // Also excludes fixed per-event categories (see EventFixedItems).
   const categories = allCategories.filter(
-    (cat) => cat.event_type === formData.event_type && (cat.group_type || "food") !== "general"
+    (cat) => cat.event_type === formData.event_type && (cat.group_type || "food") !== "general" &&
+      !isFixedPerEventCategory(cat)
   );
 
   const { data: allDishes = [] } = useQuery({
@@ -98,6 +102,8 @@ export default function EventForm({ event, onClose, producerMode = false, initia
   });
 
   const dishes = allDishes.filter((dish) => dish.event_type === formData.event_type);
+  const fixedDishes = getFixedEventDishes(formData.event_type, allDishes, allCategories);
+  const fixedItemsCost = computeFixedItemsCost(formData.event_type, allDishes, allCategories);
 
   const { data: ingredients = [] } = useQuery({
     queryKey: ['ingredients'],
@@ -200,7 +206,7 @@ export default function EventForm({ event, onClose, producerMode = false, initia
     setIsRecalculating(true);
     try {
       // Use effective cost that falls back to suggested quantity when planned is 0
-      const totalCost = eventDishes.reduce((sum, d) => sum + getEffectivePlannedCost(d), 0);
+      const totalCost = eventDishes.reduce((sum, d) => sum + getEffectivePlannedCost(d), 0) + fixedItemsCost;
 
       const pricePerPlate = overrideRevenue !== null ?
       overrideRevenue :
@@ -233,7 +239,7 @@ export default function EventForm({ event, onClose, producerMode = false, initia
       recalcRef.current = false;
       setIsRecalculating(false);
     }
-  }, [event?.id, formData.price_per_plate, formData.guest_count, eventDishes, queryClient]);
+  }, [event?.id, formData.price_per_plate, formData.guest_count, eventDishes, fixedItemsCost, queryClient]);
 
   const saveEventMutation = useSingleFlightMutation({
     mutationFn: async (data) => {
@@ -772,6 +778,7 @@ export default function EventForm({ event, onClose, producerMode = false, initia
               }}
               producerMode={producerMode} />
 
+              <EventFixedItems dishes={fixedDishes} hidePrices={producerMode} />
 
             </>
           }
@@ -805,6 +812,7 @@ export default function EventForm({ event, onClose, producerMode = false, initia
             dishes={dishes}
             getEffectivePlannedCost={getEffectivePlannedCost}
             eventId={event?.id}
+            extraCostRows={[{ id: 'fixed-items', name: 'פריטים קבועים (לא בעץ מוצר)', total: fixedItemsCost }]}
             additions={{
               lighting_sound_cost: formData.lighting_sound_cost,
               after_party_food_cost: formData.after_party_food_cost,
