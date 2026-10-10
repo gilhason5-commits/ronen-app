@@ -52,7 +52,7 @@ export default function KitchenView() {
             className={mode === "planning" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
           >
             <ShoppingCart className="w-4 h-4 ml-2" />
-            תכנון הזמנות רכש
+            תכנון רכש חצי שבועי
           </Button>
           <Button
             onClick={() => setMode(mode === "manual" ? "events" : "manual")}
