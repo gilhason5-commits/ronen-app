@@ -168,9 +168,26 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
 }
 
 /**
+ * Weekly-supplier deliveries are split into two per week: events on
+ * Sun–Tue are delivered on Sunday, events on Wed–Sat on Wednesday.
+ * Returns { weekStart, half: 'A' | 'B', deliveryDate } for an event date.
+ */
+export function getWeeklyDeliverySlot(eventDateStr) {
+  const eventDate = eventDateStr ? new Date(eventDateStr) : new Date();
+  const weekStart = startOfWeek(eventDate, { weekStartsOn: 0 });
+  const half = eventDate.getDay() <= 2 ? 'A' : 'B';
+  return {
+    weekStart: format(weekStart, 'yyyy-MM-dd'),
+    half,
+    deliveryDate: format(half === 'A' ? weekStart : addDays(weekStart, 3), 'yyyy-MM-dd')
+  };
+}
+
+/**
  * Group ingredient needs by supplier for a list of events.
  * For daily suppliers: one ticket per event per supplier
- * For weekly suppliers: one ticket per supplier aggregating all events
+ * For weekly suppliers: one ticket per supplier per delivery slot
+ * (Sunday for Sun–Tue events, Wednesday for Wed–Sat events)
  */
 export function buildSupplierTickets(events, needsPerEvent, suppliers) {
   const supplierMap = {};
@@ -196,21 +213,21 @@ export function buildSupplierTickets(events, needsPerEvent, suppliers) {
       if (!supplier) return;
 
       if (supplier.supplier_type === 'weekly') {
-        if (!weeklyTicketsMap[supId]) {
-          // Find the coming Sunday for default delivery
-          const eventDate = event.event_date ? new Date(event.event_date) : new Date();
-          const weekStart = startOfWeek(eventDate, { weekStartsOn: 0 });
-          weeklyTicketsMap[supId] = {
+        const slot = getWeeklyDeliverySlot(event.event_date);
+        const ticketKey = `${supId}|${slot.deliveryDate}`;
+        if (!weeklyTicketsMap[ticketKey]) {
+          weeklyTicketsMap[ticketKey] = {
             supplier,
             items: {},
             perEvent: {},
-            deliveryDate: format(weekStart, 'yyyy-MM-dd')
+            ...slot
           };
         }
+        const ticket = weeklyTicketsMap[ticketKey];
         items.forEach(item => {
           const key = item.ingredient_id;
-          if (!weeklyTicketsMap[supId].items[key]) {
-            weeklyTicketsMap[supId].items[key] = {
+          if (!ticket.items[key]) {
+            ticket.items[key] = {
               ingredient_id: item.ingredient_id,
               ingredient_name: item.ingredient_name,
               unit: item.unit,
@@ -220,12 +237,12 @@ export function buildSupplierTickets(events, needsPerEvent, suppliers) {
               price_per_unit: item.price_per_unit
             };
           }
-          weeklyTicketsMap[supId].items[key].qty += item.qty;
+          ticket.items[key].qty += item.qty;
 
-          if (!weeklyTicketsMap[supId].perEvent[key]) {
-            weeklyTicketsMap[supId].perEvent[key] = [];
+          if (!ticket.perEvent[key]) {
+            ticket.perEvent[key] = [];
           }
-          weeklyTicketsMap[supId].perEvent[key].push({
+          ticket.perEvent[key].push({
             event_name: event.event_name,
             event_id: event.id,
             qty: item.qty
@@ -265,7 +282,9 @@ export function buildSupplierTickets(events, needsPerEvent, suppliers) {
       total_price: i.qty * i.price_per_unit
     })),
     perEvent: wt.perEvent,
-    deliveryDate: wt.deliveryDate
+    deliveryDate: wt.deliveryDate,
+    weekStart: wt.weekStart,
+    half: wt.half
   }));
 
   return { dailyTickets, weeklyTickets };

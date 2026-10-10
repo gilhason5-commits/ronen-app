@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { calcIngredientNeedsPerEvent, buildSupplierTickets } from "./purchaseUtils";
 import MultiEventDailyTicket from "./MultiEventDailyTicket";
 import WeeklyOrderTicket from "./WeeklyOrderTicket";
+import WeeklyDeliveryStrip from "./WeeklyDeliveryStrip";
 
 export default function PurchasePlanning({ events }) {
   const [selectedEventIds, setSelectedEventIds] = useState([]);
@@ -102,6 +103,19 @@ export default function PurchasePlanning({ events }) {
 
     return { dailyGrouped, weeklyTickets };
   }, [confirmed, selectedEvents, eventDishesMap, allDishes, ingredients, specialIngredients, categories, suppliers]);
+
+  // Weekly tickets grouped by week, then by delivery slot (Sunday / Wednesday)
+  const weeklyByWeek = useMemo(() => {
+    const weeks = {};
+    weeklyTickets.forEach(t => {
+      if (!weeks[t.weekStart]) weeks[t.weekStart] = [];
+      weeks[t.weekStart].push(t);
+    });
+    return Object.keys(weeks).sort().map(weekStart => ({
+      weekStart,
+      tickets: weeks[weekStart].sort((a, b) => a.half.localeCompare(b.half))
+    }));
+  }, [weeklyTickets]);
 
   const toggleEvent = (eventId) => {
     setSelectedEventIds(prev => 
@@ -235,9 +249,29 @@ export default function PurchasePlanning({ events }) {
             <Truck className="w-5 h-5 text-blue-600" />
             <h2 className="text-xl font-bold text-stone-900">הזמנות מספקים שבועיים</h2>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {weeklyTickets.map((ticket, idx) => (
-              <WeeklyOrderTicket key={`${ticket.supplier.id}-${idx}`} ticket={ticket} />
+          <div className="space-y-8">
+            {weeklyByWeek.map(week => (
+              <div key={week.weekStart} className="space-y-4">
+                <WeeklyDeliveryStrip weekStart={week.weekStart} events={selectedEvents} tickets={week.tickets} />
+                {['A', 'B'].map(half => {
+                  const halfTickets = week.tickets.filter(t => t.half === half);
+                  if (halfTickets.length === 0) return null;
+                  return (
+                    <div key={half}>
+                      <h3 className="font-semibold text-stone-700 mb-2">
+                        {half === 'A' ? 'אספקה ביום ראשון (אירועי א׳–ג׳)' : 'אספקה ביום רביעי (אירועי ד׳–ו׳)'}
+                        {' · '}
+                        {format(new Date(halfTickets[0].deliveryDate), 'dd/MM/yyyy')}
+                      </h3>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {halfTickets.map(ticket => (
+                          <WeeklyOrderTicket key={`${ticket.supplier.id}-${ticket.deliveryDate}`} ticket={ticket} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ))}
           </div>
         </div>

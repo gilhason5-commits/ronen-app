@@ -57,7 +57,7 @@ export default function WeeklyOrderTicket({ ticket }) {
           @media print { body { padding: 15px; } }
         </style>
       </head><body>
-        <h1>הזמנה שבועית מ${ticket.supplier.name}</h1>
+        <h1>הזמנה שבועית מ${ticket.supplier.name} (${ticket.half === 'B' ? 'אירועי ד׳–ו׳' : 'אירועי א׳–ג׳'})</h1>
         <div class="meta"><strong>מספר אירועים:</strong> ${eventCount}</div>
         <div class="meta"><strong>תאריך אספקה:</strong> ${deliveryDate ? format(new Date(deliveryDate), 'dd/MM/yyyy') : '-'}</div>
         <div class="meta"><strong>תאריך הפקה:</strong> ${format(new Date(), 'dd/MM/yyyy HH:mm')}</div>
@@ -85,7 +85,7 @@ export default function WeeklyOrderTicket({ ticket }) {
               {ticket.supplier.name}
             </CardTitle>
             <p className="text-sm text-stone-600 mt-1">
-              סיכום שבועי עבור {eventCount} אירועים
+              {ticket.half === 'B' ? 'אספקת רביעי' : 'אספקת ראשון'} עבור {eventCount} אירועים
             </p>
           </div>
           <Badge className="bg-blue-100 text-blue-700">שבועי</Badge>
