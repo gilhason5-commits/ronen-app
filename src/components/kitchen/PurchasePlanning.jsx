@@ -2,16 +2,15 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { format } from 'date-fns';
-import { he } from 'date-fns/locale';
 import { ShoppingCart, Truck, CalendarDays, CheckSquare } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { calcIngredientNeedsPerEvent, buildSupplierTickets } from "./purchaseUtils";
 import MultiEventDailyTicket from "./MultiEventDailyTicket";
 import WeeklyOrderTicket from "./WeeklyOrderTicket";
 import WeeklyDeliveryStrip from "./WeeklyDeliveryStrip";
+import EventWeekPicker from "./EventWeekPicker";
 
 export default function PurchasePlanning({ events }) {
   const [selectedEventIds, setSelectedEventIds] = useState([]);
@@ -153,35 +152,14 @@ export default function PurchasePlanning({ events }) {
                 {selectedEventIds.length === events.length ? 'בטל הכל' : 'בחר הכל'}
               </Button>
             </div>
-            <div className="space-y-2">
-              {events.map(event => (
-                <label
-                  key={event.id}
-                  className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                    selectedEventIds.includes(event.id) 
-                      ? 'border-emerald-300 bg-emerald-50' 
-                      : 'border-stone-200 hover:bg-stone-50'
-                  }`}
-                >
-                  <Checkbox
-                    checked={selectedEventIds.includes(event.id)}
-                    onCheckedChange={() => toggleEvent(event.id)}
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-stone-900">{event.event_name}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {event.guest_count} סועדים
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-stone-500 mt-0.5">
-                      {event.event_date ? format(new Date(event.event_date), 'EEEE, dd/MM/yyyy', { locale: he }) : 'ללא תאריך'}
-                      {event.event_time ? ` | ${event.event_time}` : ''}
-                    </p>
-                  </div>
-                </label>
-              ))}
-            </div>
+            <EventWeekPicker
+              events={events}
+              selectedEventIds={selectedEventIds}
+              onToggleEvent={toggleEvent}
+              onSetGroup={(ids, select) => setSelectedEventIds(prev =>
+                select ? [...new Set([...prev, ...ids])] : prev.filter(id => !ids.includes(id))
+              )}
+            />
             <div className="flex justify-end mt-6">
               <Button
                 onClick={() => setConfirmed(true)}
