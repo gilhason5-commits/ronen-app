@@ -10,10 +10,12 @@ export const roundToPurchaseUnit = (qty, purchaseUnit) => {
 
 /**
  * Calculate ingredient needs per event for all approved events in a given week.
- * Returns: { eventId: { ingredientId: { ingredient_name, unit, qty, price_per_unit, total_price, supplier_id, supplier_name } } }
+ * Returns {
+ *   needsPerEvent: { eventId: { ingredientId: { ingredient_name, unit, qty, price_per_unit, total_price, supplier_id, supplier_name } } },
+ *   subDishPlan: [{ deliveryDate, half, prepEvent, preps: [{ name, demand, batch_size, batches, unit }] }]
+ * }
  */
 export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingredients, specialIngredients, categories, suppliers) {
-  const result = {};
 
   // Build supplier lookup by ingredient_id
   const supplierByIngredient = {};
@@ -65,119 +67,142 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
     return applyWasteToQty(baseQty, guestCount);
   };
 
-  events.forEach(event => {
-    const evDishes = eventDishesMap[event.id] || [];
-    const eventNeeds = {};
+  // Adds a purchasable ingredient's need (raw qty, before ingredient waste)
+  // to an event's needs map.
+  const addIngredientNeed = (eventNeeds, ingredientId, rawQty, fallback = {}) => {
+    const ingredient = ingredients.find(i => i.id === ingredientId);
+    if (!ingredient || !(rawQty > 0)) return;
+    const wastePct = ingredient.waste_pct || 0;
+    const qty = wastePct > 0 ? rawQty / (1 - wastePct / 100) : rawQty;
+    const supInfo = supplierByIngredient[ingredientId];
+    if (!eventNeeds[ingredientId]) {
+      eventNeeds[ingredientId] = {
+        ingredient_id: ingredientId,
+        ingredient_name: ingredient.name || fallback.name,
+        unit: ingredient.system_unit || fallback.unit,
+        qty: 0,
+        waste_pct: wastePct,
+        price_per_unit: supInfo?.price_per_unit || ingredient.price_per_system || 0,
+        supplier_id: supInfo?.supplier_id || ingredient.current_supplier_id || '',
+        supplier_name: supInfo?.supplier_name || ingredient.current_supplier_name || '',
+        supplier_type: supInfo?.supplier_type || 'daily',
+        purchase_unit: ingredient.purchase_unit || 1
+      };
+    }
+    eventNeeds[ingredientId].qty += qty;
+  };
 
-    // Aggregate SI demand across all dishes in this event before computing
-    // batches — otherwise each dish would round up to its own full batch
-    // (e.g., 3 dishes sharing 1 cream batch would book 3 batches' worth of
-    // components). siDemand: siId -> { si, totalDemand }
-    const siDemand = {};
+  const findSI = (id) => (specialIngredients || []).find(s => s.id === id);
 
-    // Menu dishes (guest-count driven) plus the event type's fixed items,
-    // which every event gets once at their fixed quantity.
-    const fixedDishes = getFixedEventDishes(event.event_type, dishes, categories);
-    const fixedIds = new Set(fixedDishes.map(d => d.id));
-    const dishLines = [
-      ...evDishes
-        .filter(ed => !fixedIds.has(ed.dish_id))
-        .map(ed => {
-          const dish = dishes.find(d => d.id === ed.dish_id);
-          return dish && { dish, effectiveQty: getEffectivePlannedQty(ed, event) };
-        })
-        .filter(Boolean),
-      ...fixedDishes.map(dish => ({ dish, effectiveQty: getFixedEventQty(dish) })),
-    ];
+  const result = {};
+  // Sub-dish (SI) demand per half-week delivery slot: sub-dishes are prepared
+  // once for all of the slot's events (Sun–Tue / Wed–Fri), so demand is
+  // aggregated across those events before rounding up to whole batches.
+  // slotKey -> { slot, prepEvent, demand: { siId: qty } }
+  const siBySlot = {};
 
-    dishLines.forEach(({ dish, effectiveQty }) => {
-      if (!effectiveQty || effectiveQty <= 0) return;
+  [...events]
+    .sort((a, b) => (a.event_date || '').localeCompare(b.event_date || ''))
+    .forEach(event => {
+      const evDishes = eventDishesMap[event.id] || [];
+      const eventNeeds = {};
+      result[event.id] = eventNeeds;
 
-      (dish.ingredients || []).forEach(ing => {
-        const si = (specialIngredients || []).find(s => s.id === ing.ingredient_id);
-        if (si) {
+      const slot = getWeeklyDeliverySlot(event.event_date);
+      if (!siBySlot[slot.deliveryDate]) {
+        siBySlot[slot.deliveryDate] = { slot, prepEvent: event, demand: {} };
+      }
+      const slotDemand = siBySlot[slot.deliveryDate].demand;
+
+      // Menu dishes (guest-count driven) plus the event type's fixed items,
+      // which every event gets once at their fixed quantity.
+      const fixedDishes = getFixedEventDishes(event.event_type, dishes, categories);
+      const fixedIds = new Set(fixedDishes.map(d => d.id));
+      const dishLines = [
+        ...evDishes
+          .filter(ed => !fixedIds.has(ed.dish_id))
+          .map(ed => {
+            const dish = dishes.find(d => d.id === ed.dish_id);
+            return dish && { dish, effectiveQty: getEffectivePlannedQty(ed, event) };
+          })
+          .filter(Boolean),
+        ...fixedDishes.map(dish => ({ dish, effectiveQty: getFixedEventQty(dish) })),
+      ];
+
+      dishLines.forEach(({ dish, effectiveQty }) => {
+        if (!effectiveQty || effectiveQty <= 0) return;
+        (dish.ingredients || []).forEach(ing => {
           const qtyNeeded = (ing.qty || 0) * effectiveQty;
-          if (qtyNeeded <= 0) return;
-          if (!siDemand[si.id]) siDemand[si.id] = { si, totalDemand: 0 };
-          siDemand[si.id].totalDemand += qtyNeeded;
-          return;
-        }
-
-        const ingredient = ingredients.find(i => i.id === ing.ingredient_id);
-        if (!ingredient) return;
-
-        const rawQtyNeeded = (ing.qty || 0) * effectiveQty;
-        const wastePct = ingredient.waste_pct || 0;
-        const qtyNeeded = wastePct > 0 ? rawQtyNeeded / (1 - wastePct / 100) : rawQtyNeeded;
-        const supInfo = supplierByIngredient[ing.ingredient_id];
-        const pricePerUnit = supInfo?.price_per_unit || ingredient.price_per_system || 0;
-
-        const key = ing.ingredient_id;
-        if (!eventNeeds[key]) {
-          eventNeeds[key] = {
-            ingredient_id: ing.ingredient_id,
-            ingredient_name: ingredient.name || ing.ingredient_name,
-            unit: ingredient.system_unit || ing.unit,
-            qty: 0,
-            waste_pct: ingredient.waste_pct || 0,
-            price_per_unit: pricePerUnit,
-            supplier_id: supInfo?.supplier_id || ingredient.current_supplier_id || '',
-            supplier_name: supInfo?.supplier_name || ingredient.current_supplier_name || '',
-            supplier_type: supInfo?.supplier_type || 'daily',
-            purchase_unit: ingredient.purchase_unit || 1
-          };
-        }
-        eventNeeds[key].qty += qtyNeeded;
+          if (findSI(ing.ingredient_id)) {
+            if (qtyNeeded > 0) slotDemand[ing.ingredient_id] = (slotDemand[ing.ingredient_id] || 0) + qtyNeeded;
+            return;
+          }
+          addIngredientNeed(eventNeeds, ing.ingredient_id, qtyNeeded, { name: ing.ingredient_name, unit: ing.unit });
+        });
       });
     });
 
-    // Now expand each SI's components based on the aggregated demand.
-    Object.values(siDemand).forEach(({ si, totalDemand }) => {
+  // Expand each slot's sub-dishes into whole batches. A sub-dish inside a
+  // sub-dish is demanded by its parent's batches, so parents are expanded
+  // first (by nesting rank) and each sub-dish is batched once on its total
+  // demand. The resulting ingredients are bought for the slot's first event
+  // (the sub-dishes are prepared ahead of it, for the whole slot).
+  const rankCache = {};
+  const siRank = (siId, seen = new Set()) => {
+    if (rankCache[siId] !== undefined) return rankCache[siId];
+    if (seen.has(siId)) return 0; // guard against a cyclic recipe
+    seen.add(siId);
+    const parents = (specialIngredients || []).filter(p =>
+      (p.components || []).some(c => c.ingredient_id === siId));
+    const rank = parents.length ? 1 + Math.max(...parents.map(p => siRank(p.id, seen))) : 0;
+    rankCache[siId] = rank;
+    return rank;
+  };
+
+  const subDishPlan = [];
+  Object.values(siBySlot).forEach(({ slot, prepEvent, demand }) => {
+    const prepNeeds = result[prepEvent.id];
+    const preps = [];
+    const pending = { ...demand };
+    const done = new Set();
+    for (;;) {
+      const ready = Object.keys(pending).filter(id => !done.has(id));
+      if (ready.length === 0) break;
+      const siId = ready.reduce((a, b) => (siRank(a) <= siRank(b) ? a : b));
+      done.add(siId);
+      const si = findSI(siId);
+      const totalDemand = pending[siId];
       // Batch yield = sum of all component quantities (matches what
       // SpecialIngredientDialog displays as "כמות כוללת"). The DB does not
       // currently persist a total_quantity column, so always derive it.
-      const allComps = si.components || [];
-      const batchSize = allComps.reduce((sum, c) => sum + (parseFloat(c.qty) || 0), 0) || 1;
+      const comps = si.components || [];
+      const batchSize = comps.reduce((sum, c) => sum + (parseFloat(c.qty) || 0), 0) || 1;
       const batches = Math.ceil(totalDemand / batchSize);
-
-      allComps.forEach(comp => {
-        const compIngredient = ingredients.find(i => i.id === comp.ingredient_id);
-        if (!compIngredient) return;
-        const rawCompQty = (comp.qty || 0) * batches;
-        const compWastePct = compIngredient.waste_pct || 0;
-        const compQty = compWastePct > 0 ? rawCompQty / (1 - compWastePct / 100) : rawCompQty;
-        const supInfo = supplierByIngredient[comp.ingredient_id];
-        const pricePerUnit = supInfo?.price_per_unit || compIngredient.price_per_system || 0;
-
-        const key = comp.ingredient_id;
-        if (!eventNeeds[key]) {
-          eventNeeds[key] = {
-            ingredient_id: comp.ingredient_id,
-            ingredient_name: compIngredient.name || comp.ingredient_name,
-            unit: compIngredient.system_unit || comp.unit,
-            qty: 0,
-            waste_pct: compIngredient.waste_pct || 0,
-            price_per_unit: pricePerUnit,
-            supplier_id: supInfo?.supplier_id || compIngredient.current_supplier_id || '',
-            supplier_name: supInfo?.supplier_name || compIngredient.current_supplier_name || '',
-            supplier_type: supInfo?.supplier_type || 'daily',
-            purchase_unit: compIngredient.purchase_unit || 1
-          };
+      preps.push({ si_id: siId, name: si.name, demand: totalDemand, batch_size: batchSize, batches, unit: si.system_unit || '' });
+      comps.forEach(comp => {
+        const compQty = (comp.qty || 0) * batches;
+        if (findSI(comp.ingredient_id)) {
+          if (compQty > 0 && !done.has(comp.ingredient_id)) {
+            pending[comp.ingredient_id] = (pending[comp.ingredient_id] || 0) + compQty;
+          }
+          return;
         }
-        eventNeeds[key].qty += compQty;
+        addIngredientNeed(prepNeeds, comp.ingredient_id, compQty, { name: comp.ingredient_name, unit: comp.unit });
       });
-    });
+    }
+    if (preps.length > 0) subDishPlan.push({ ...slot, prepEvent, preps });
+  });
+  subDishPlan.sort((a, b) => a.deliveryDate.localeCompare(b.deliveryDate));
 
-    // Compute total_price and purchase_qty for each
+  // Compute total_price and purchase_qty for each
+  Object.values(result).forEach(eventNeeds => {
     Object.values(eventNeeds).forEach(n => {
       n.purchase_qty = roundToPurchaseUnit(n.qty, n.purchase_unit);
       n.total_price = n.qty * n.price_per_unit;
     });
-
-    result[event.id] = eventNeeds;
   });
 
-  return result;
+  return { needsPerEvent: result, subDishPlan };
 }
 
 /**

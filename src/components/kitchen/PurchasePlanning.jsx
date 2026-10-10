@@ -2,11 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { format } from 'date-fns';
-import { ShoppingCart, Truck, CalendarDays, CheckSquare } from "lucide-react";
+import { ShoppingCart, Truck, CalendarDays, CheckSquare, ChefHat } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { calcIngredientNeedsPerEvent, buildSupplierTickets } from "./purchaseUtils";
+import { calcIngredientNeedsPerEvent, buildSupplierTickets, formatNumber, formatUnit } from "./purchaseUtils";
 import MultiEventDailyTicket from "./MultiEventDailyTicket";
 import WeeklyOrderTicket from "./WeeklyOrderTicket";
 import WeeklyDeliveryStrip from "./WeeklyDeliveryStrip";
@@ -70,12 +70,12 @@ export default function PurchasePlanning({ events }) {
     [events, selectedEventIds]
   );
 
-  const { dailyGrouped, weeklyTickets } = useMemo(() => {
+  const { dailyGrouped, weeklyTickets, subDishPlan } = useMemo(() => {
     if (!confirmed || selectedEvents.length === 0 || allDishes.length === 0 || ingredients.length === 0 || suppliers.length === 0) {
-      return { dailyGrouped: [], weeklyTickets: [] };
+      return { dailyGrouped: [], weeklyTickets: [], subDishPlan: [] };
     }
 
-    const needsPerEvent = calcIngredientNeedsPerEvent(
+    const { needsPerEvent, subDishPlan } = calcIngredientNeedsPerEvent(
       selectedEvents, eventDishesMap, allDishes, ingredients, specialIngredients, categories, suppliers
     );
 
@@ -100,7 +100,7 @@ export default function PurchasePlanning({ events }) {
 
     const dailyGrouped = Object.values(supplierGroups);
 
-    return { dailyGrouped, weeklyTickets };
+    return { dailyGrouped, weeklyTickets, subDishPlan };
   }, [confirmed, selectedEvents, eventDishesMap, allDishes, ingredients, specialIngredients, categories, suppliers]);
 
   // Weekly tickets grouped by week, then by delivery slot (Sunday / Wednesday)
@@ -204,6 +204,51 @@ export default function PurchasePlanning({ events }) {
           {selectedEvents.length} אירועים נבחרו
         </Badge>
       </div>
+
+      {/* Sub-dish prep: one batch run per half-week for all its events */}
+      {subDishPlan.length > 0 && (
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <ChefHat className="w-5 h-5 text-emerald-600" />
+            <h2 className="text-xl font-bold text-stone-900">הכנת תת מנות</h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {subDishPlan.map(plan => (
+              <Card key={plan.deliveryDate} className="border-emerald-200">
+                <CardContent className="p-4">
+                  <div className="font-bold text-stone-900">
+                    הכנה אחת לאירועי {plan.half === 'A' ? 'א׳–ג׳' : 'ד׳–ו׳'}
+                  </div>
+                  <p className="text-xs text-stone-500 mb-3">
+                    הרכיבים מוזמנים יחד עם האירוע הראשון: {plan.prepEvent.event_name}
+                    {plan.prepEvent.event_date ? ` (${format(new Date(plan.prepEvent.event_date), 'dd/MM')})` : ''}
+                  </p>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-stone-200 text-stone-500">
+                        <th className="text-right py-1.5 font-medium">תת מנה</th>
+                        <th className="text-center py-1.5 font-medium">כמות נדרשת</th>
+                        <th className="text-center py-1.5 font-medium">הכנות</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {plan.preps.map(p => (
+                        <tr key={p.si_id} className="border-b border-stone-100">
+                          <td className="py-1.5 text-stone-900">{p.name}</td>
+                          <td className="py-1.5 text-center text-stone-600">{formatNumber(p.demand)} {formatUnit(p.unit)}</td>
+                          <td className="py-1.5 text-center font-semibold">
+                            {p.batches} × {formatNumber(p.batch_size)} {formatUnit(p.unit)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Daily Suppliers */}
       {dailyGrouped.length > 0 && (
