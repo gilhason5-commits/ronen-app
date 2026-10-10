@@ -404,8 +404,8 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
             <div className="col-span-2">
               <Label>אחוז מנות לכלל האורחים *</Label>
               <p className="text-xs text-stone-500 mb-1">
-                {isFirstCourseCategory()
-                  ? 'כמות הסועדים חלקי 7 כפול האחוזים שתגדיר למטה ייקבע את כמות המנות'
+                {isFirstCourseCategory() && formData.event_type !== 'wedding'
+                  ? 'כמות הסועדים חלקי 6 כפול האחוזים שתגדיר למטה ייקבע את כמות המנות'
                   : 'דוגמא: 100% = מנות לכל הסועדים, 150% = פי 1.5 מהכמות'}
               </p>
               <div className="relative">
@@ -689,11 +689,11 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
                 </div>
               </div>
               
-              {isFirstCourseCategory() && (
+              {isFirstCourseCategory() && formData.event_type !== 'wedding' && (
                 <div className="p-3 bg-emerald-50 rounded-lg">
                   <div className="flex justify-between items-center">
-                    <span className="font-semibold text-stone-900">מחיר לסועד (÷7):</span>
-                    <span className="text-xl font-bold text-emerald-600">₪{((formData.unit_cost || 0) / 7).toFixed(2)}</span>
+                    <span className="font-semibold text-stone-900">מחיר לסועד (÷6):</span>
+                    <span className="text-xl font-bold text-emerald-600">₪{((formData.unit_cost || 0) / 6).toFixed(2)}</span>
                   </div>
                 </div>
               )}

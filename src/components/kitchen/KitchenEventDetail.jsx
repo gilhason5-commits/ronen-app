@@ -71,7 +71,7 @@ export default function KitchenEventDetail({ event }) {
       const totalPortionsNeeded = dishGuestCount * (servingPercentage / 100);
       baseQty = Math.ceil(totalPortionsNeeded / portionsPerPreparation);
     } else {
-      const portionFactor = isFirstCourseDish(dish) ? 1/6 : (dish.portion_factor ?? 1);
+      const portionFactor = (isFirstCourseDish(dish) && event?.event_type !== 'wedding') ? 1/6 : (dish.portion_factor ?? 1);
       const rawQuantity = dishGuestCount * (servingPercentage / 100) * portionFactor;
       baseQty = Math.ceil(rawQuantity);
     }
