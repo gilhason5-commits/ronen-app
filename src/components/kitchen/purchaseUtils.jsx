@@ -169,7 +169,7 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
 
 /**
  * Weekly-supplier deliveries are split into two per week: events on
- * Sun–Tue are delivered on Sunday, events on Wed–Sat on Wednesday.
+ * Sun–Tue are delivered on Sunday, events on Wed–Fri on Wednesday.
  * Returns { weekStart, half: 'A' | 'B', deliveryDate } for an event date.
  */
 export function getWeeklyDeliverySlot(eventDateStr) {
@@ -187,7 +187,7 @@ export function getWeeklyDeliverySlot(eventDateStr) {
  * Group ingredient needs by supplier for a list of events.
  * For daily suppliers: one ticket per event per supplier
  * For weekly suppliers: one ticket per supplier per delivery slot
- * (Sunday for Sun–Tue events, Wednesday for Wed–Sat events)
+ * (Sunday for Sun–Tue events, Wednesday for Wed–Fri events)
  */
 export function buildSupplierTickets(events, needsPerEvent, suppliers) {
   const supplierMap = {};

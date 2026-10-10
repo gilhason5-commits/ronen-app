@@ -3,10 +3,10 @@ import { format, addDays } from 'date-fns';
 import { Truck } from "lucide-react";
 import { formatNumber } from "./purchaseUtils";
 
-const DAY_LETTERS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+const DAY_LETTERS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳'];
 
 // Horizontal overview of one week's weekly-supplier deliveries: Sun–Tue
-// events are supplied by the Sunday order, Wed–Sat by the Wednesday order.
+// events are supplied by the Sunday order, Wed–Fri by the Wednesday order.
 // Each group shows its day boxes followed by the delivery box.
 export default function WeeklyDeliveryStrip({ weekStart, events, tickets }) {
   const start = new Date(weekStart);
@@ -14,11 +14,10 @@ export default function WeeklyDeliveryStrip({ weekStart, events, tickets }) {
     const day = format(addDays(start, offset), 'yyyy-MM-dd');
     return events.filter(e => e.event_date && e.event_date.slice(0, 10) === day);
   };
-  const hasSaturday = eventsOnDay(6).length > 0;
 
   const groups = [
     { half: 'A', days: [0, 1, 2], deliveryOffset: 0 },
-    { half: 'B', days: hasSaturday ? [3, 4, 5, 6] : [3, 4, 5], deliveryOffset: 3 },
+    { half: 'B', days: [3, 4, 5], deliveryOffset: 3 },
   ];
 
   return (
