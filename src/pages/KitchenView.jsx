@@ -38,7 +38,7 @@ export default function KitchenView() {
         <div>
           <h1 className="text-3xl font-bold text-stone-900">עמוד רכש</h1>
           <p className="text-stone-500 mt-1">אירועים מאושרים ותכנון הזמנות רכש</p>
-          <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2 text-sm font-bold">⚠️ יש לתכנן הזמנת רכש לכל האירועים של השבוע ביחד על מנת לקבל כמויות הכי מדויקות לתתי מנות ולמנוע הכנה מיותרת</p>
+          <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2 text-sm font-bold">⚠️ יש לבצע הזמנות חצי שבועיות בנפרד ולסמן את כולם על מנת לאחד הזמנות לספקים</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           {mode !== "events" && (

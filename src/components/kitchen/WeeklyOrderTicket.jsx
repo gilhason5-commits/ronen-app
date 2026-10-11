@@ -18,13 +18,11 @@ export default function WeeklyOrderTicket({ ticket }) {
     const updated = [...items];
     updated[idx] = {
       ...updated[idx],
-      purchase_qty: parseFloat(newQty) || 0,
-      total_price: (parseFloat(newQty) || 0) * updated[idx].price_per_unit
+      purchase_qty: parseFloat(newQty) || 0
     };
     setItems(updated);
   };
 
-  const totalPrice = items.reduce((sum, i) => sum + ((i.purchase_qty ?? i.qty) * i.price_per_unit), 0);
   const eventCount = new Set(
     Object.values(ticket.perEvent || {}).flatMap(arr => arr.map(e => e.event_id))
   ).size;
@@ -37,8 +35,6 @@ export default function WeeklyOrderTicket({ ticket }) {
         <td>${item.ingredient_name}${wasteLabel}</td>
         <td style="text-align:center;">${formatNumber(item.qty)} ${formatUnit(item.unit)}</td>
         <td style="text-align:center; font-weight:bold;">${formatNumber(item.purchase_qty ?? item.qty)} ${formatUnit(item.unit)}</td>
-        <td style="text-align:center;">₪${formatNumber(item.price_per_unit)}</td>
-        <td style="text-align:center; font-weight:bold;">₪${formatNumber((item.purchase_qty ?? item.qty) * item.price_per_unit)}</td>
       </tr>
     `;
     }).join('');
@@ -53,7 +49,6 @@ export default function WeeklyOrderTicket({ ticket }) {
           table { width: 100%; border-collapse: collapse; margin-top: 15px; }
           th { padding: 8px; text-align: right; border-bottom: 2px solid #333; background: #f5f5f5; font-size: 12px; }
           td { padding: 6px 8px; border-bottom: 1px solid #ddd; font-size: 12px; }
-          .total { text-align: left; font-size: 18px; font-weight: bold; margin-top: 15px; padding-top: 10px; border-top: 2px solid #333; }
           @media print { body { padding: 15px; } }
         </style>
       </head><body>
@@ -63,11 +58,10 @@ export default function WeeklyOrderTicket({ ticket }) {
         <div class="meta"><strong>תאריך הפקה:</strong> ${format(new Date(), 'dd/MM/yyyy HH:mm')}</div>
         <table>
           <thead><tr>
-            <th>רכיב</th><th style="text-align:center;">כמות נדרשת</th><th style="text-align:center;">כמות לקנייה</th><th style="text-align:center;">מחיר/יח׳</th><th style="text-align:center;">סה״כ</th>
+            <th>רכיב</th><th style="text-align:center;">כמות נדרשת</th><th style="text-align:center;">כמות לקנייה</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
-        <div class="total">סה״כ: ₪${formatNumber(totalPrice)}</div>
       </body></html>
     `;
     const w = window.open('', '_blank');
@@ -98,8 +92,6 @@ export default function WeeklyOrderTicket({ ticket }) {
               <th className="text-right py-2 font-medium">רכיב</th>
               <th className="text-center py-2 font-medium w-24">כמות נדרשת</th>
               <th className="text-center py-2 font-medium w-24">כמות לקנייה</th>
-              <th className="text-center py-2 font-medium w-20">מחיר/יח׳</th>
-              <th className="text-center py-2 font-medium w-20">סה״כ</th>
             </tr>
           </thead>
           <tbody>
@@ -125,8 +117,6 @@ export default function WeeklyOrderTicket({ ticket }) {
                     <span className="font-semibold">{formatNumber(item.purchase_qty ?? item.qty)} {formatUnit(item.unit)}</span>
                   )}
                 </td>
-                <td className="py-2 text-center text-stone-600">₪{formatNumber(item.price_per_unit)}</td>
-                <td className="py-2 text-center font-semibold">₪{formatNumber((item.purchase_qty ?? item.qty) * item.price_per_unit)}</td>
               </tr>
             ))}
           </tbody>
@@ -146,9 +136,6 @@ export default function WeeklyOrderTicket({ ticket }) {
             ) : (
               <span className="font-semibold">{deliveryDate ? format(new Date(deliveryDate), 'dd/MM/yyyy') : '-'}</span>
             )}
-          </div>
-          <div className="text-lg font-bold text-stone-900">
-            סה״כ: ₪{formatNumber(totalPrice)}
           </div>
         </div>
 

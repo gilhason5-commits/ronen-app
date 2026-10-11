@@ -1,7 +1,6 @@
 import React from 'react';
 import { format, addDays } from 'date-fns';
 import { Truck } from "lucide-react";
-import { formatNumber } from "./purchaseUtils";
 
 const DAY_LETTERS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳'];
 
@@ -25,10 +24,6 @@ export default function WeeklyDeliveryStrip({ weekStart, events, tickets }) {
       {groups.map(group => {
         const groupTickets = tickets.filter(t => t.half === group.half);
         const deliveryDate = addDays(start, group.deliveryOffset);
-        const total = groupTickets.reduce(
-          (sum, t) => sum + t.items.reduce((s, i) => s + (i.purchase_qty ?? i.qty) * i.price_per_unit, 0),
-          0
-        );
         return (
           <div
             key={group.half}
@@ -67,14 +62,11 @@ export default function WeeklyDeliveryStrip({ weekStart, events, tickets }) {
               </div>
               <div className="text-xs text-stone-500">{format(deliveryDate, 'dd/MM/yyyy')}</div>
               {groupTickets.length ? (
-                <>
                   <ul className="mt-2 space-y-0.5 text-sm text-stone-700">
                     {groupTickets.map(t => (
                       <li key={t.supplier.id} className="truncate">{t.supplier.name}</li>
                     ))}
                   </ul>
-                  <div className="mt-2 text-sm font-semibold text-stone-900">₪{formatNumber(total)}</div>
-                </>
               ) : (
                 <div className="mt-2 text-xs text-stone-400">אין הזמנה</div>
               )}
