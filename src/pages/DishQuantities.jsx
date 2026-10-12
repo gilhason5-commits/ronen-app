@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { supabase } from "@/api/supabaseClient";
 import { useQuery } from "@tanstack/react-query";
@@ -70,10 +70,25 @@ export default function DishQuantities() {
   const catById = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories]);
   const subById = useMemo(() => Object.fromEntries(subCategories.map((s) => [s.id, s])), [subCategories]);
 
-  const sortedEvents = useMemo(
-    () => [...events].sort((a, b) => new Date(b.event_date || 0) - new Date(a.event_date || 0)),
-    [events]
-  );
+  // Most relevant first: today's / the next upcoming events (nearest first),
+  // then past events (most recent first), undated last.
+  const sortedEvents = useMemo(() => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    const day = (e) => (e.event_date || "").slice(0, 10);
+    const upcoming = events.filter((e) => day(e) && day(e) >= today).sort((a, b) => day(a).localeCompare(day(b)));
+    const past = events.filter((e) => day(e) && day(e) < today).sort((a, b) => day(b).localeCompare(day(a)));
+    const undated = events.filter((e) => !day(e));
+    return [...upcoming, ...past, ...undated];
+  }, [events]);
+  const nextEventId = useMemo(() => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    return sortedEvents.find((e) => (e.event_date || "").slice(0, 10) >= today)?.id || null;
+  }, [sortedEvents]);
+
+  // Open on the most relevant event until the user picks another.
+  useEffect(() => {
+    if (!selectedEventId && nextEventId) setSelectedEventId(nextEventId);
+  }, [selectedEventId, nextEventId]);
 
   const selectedEvent = events.find((e) => e.id === selectedEventId);
 
@@ -133,6 +148,7 @@ export default function DishQuantities() {
               <SelectItem key={e.id} value={e.id}>
                 {e.event_name || "—"}
                 {e.event_date ? ` — ${format(new Date(e.event_date), "dd/MM/yyyy")}` : ""}
+                {e.id === nextEventId ? " · הקרוב" : ""}
               </SelectItem>
             ))}
           </SelectContent>
