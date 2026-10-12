@@ -12,6 +12,28 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "lucide-react";
 import { format } from "date-fns";
+import { calculateAdultPortions } from "@/lib/dinerCount";
+import { applyWasteToQty } from "@/lib/foodWaste";
+
+const isFirstCourseCategoryName = (name = "") =>
+  name.toLowerCase().includes("first course") || name.includes("מנה ראשונה") || name.includes("מנות ראשונות");
+
+// Same live formula as the event / kitchen screens. The stored
+// Events_Dish.planned_qty is only a snapshot from when the dish was added (0
+// if the guest count wasn't filled in yet), so it can't be shown as-is.
+function liveDishQty(dish, event, category) {
+  const guests = calculateAdultPortions(event?.guest_count, event?.vegan_count, event?.glatt_count);
+  const servingPct = (dish.serving_percentage ?? 100) / 100;
+  let qty;
+  if (dish.preparation_mass_grams && dish.portion_size_grams) {
+    qty = Math.ceil((guests * servingPct) / (dish.preparation_mass_grams / dish.portion_size_grams));
+  } else {
+    const firstCourse = isFirstCourseCategoryName(category?.name) && event?.event_type !== "wedding";
+    const factor = firstCourse ? 1 / 6 : (dish.portion_factor ?? 1);
+    qty = Math.ceil(guests * servingPct * factor);
+  }
+  return applyWasteToQty(qty, event?.guest_count || 0);
+}
 
 // PostgREST caps any single response at ~1000 rows regardless of the limit
 // asked for, which silently drops the tail of large tables. Paginate via
@@ -114,7 +136,7 @@ export default function DishQuantities() {
       if (!out[catId].subs[subId]) out[catId].subs[subId] = { name: subName, order: subOrder, items: [] };
       out[catId].subs[subId].items.push({
         name: dish.name,
-        qty: ed.planned_qty ?? 0,
+        qty: liveDishQty(dish, selectedEvent, catById[ed.category_id] || cat),
         unit: ed.unit || dish.base_unit || "",
       });
     }
@@ -129,7 +151,7 @@ export default function DishQuantities() {
             items: [...sub.items].sort((a, b) => a.name.localeCompare(b.name, "he")),
           })),
       }));
-  }, [selectedEventId, eventDishes, dishById, catById, subById]);
+  }, [selectedEventId, selectedEvent, eventDishes, dishById, catById, subById]);
 
   return (
     <div className="p-6 lg:p-8 space-y-6" dir="rtl">
