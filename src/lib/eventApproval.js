@@ -36,10 +36,12 @@ export function isGuestCountLocked(event) {
   return !!event?.producer_approved;
 }
 
-// Only Ronen (any account whose email starts with "ronen") can still change
-// anything on an approved event, guest counts and serving type included.
+// Only Ronen can still change anything on an approved event, guest counts
+// and serving type included.
+const APPROVED_EVENT_EDITORS = ["ronen@raytlv.co.il"];
+
 export function canEditApprovedEvent(user) {
-  return (user?.email || "").toLowerCase().startsWith("ronen");
+  return APPROVED_EVENT_EDITORS.includes((user?.email || "").toLowerCase());
 }
 
 // Serving and flipped events use different menus (dishes are per event_type),
