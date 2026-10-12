@@ -29,7 +29,7 @@ import IngredientDetailsDialog from "./IngredientDetailsDialog";
 import IngredientDialog from "../inventory/IngredientDialog";
 import SpecialIngredientDialog from "../ingredients/SpecialIngredientDialog";
 import { isFixedPerEventCategory, getFixedEventQty } from "@/lib/fixedEventItems";
-import { computePlannedDish } from "@/lib/plannedDishQty";
+import { syncDishEventQuantities } from "@/lib/plannedDishQty";
 import DishQtyModeFields from "./DishQtyModeFields";
 
 const SUB_MANA_CATEGORY_ID = '694ab43b7f41f262f932394d';
@@ -139,25 +139,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
         : await base44.entities.Dish.create(data);
 
       if (dish?.id) {
-        const eventDishes = await base44.entities.Events_Dish.filter({ dish_id: dish.id });
-        if (eventDishes.length > 0) {
-          // One batched lookup for every referenced event instead of a
-          // sequential round-trip per event — this used to be 2 serial
-          // requests per usage of the dish (dozens for a popular one).
-          const eventIds = [...new Set(eventDishes.map((ed) => ed.event_id))];
-          const events = await base44.entities.Event.filter({ id: eventIds });
-          const eventById = new Map(events.map((e) => [e.id, e]));
-          const isFirstCourse = isFirstCourseCategory();
-
-          await Promise.all(eventDishes.map((eventDish) => {
-            const event = eventById.get(eventDish.event_id);
-            if (!event) return null;
-            return base44.entities.Events_Dish.update(
-              eventDish.id,
-              computePlannedDish(data, event, isFirstCourse)
-            );
-          }));
-        }
+        await syncDishEventQuantities({ ...data, id: dish.id }, isFirstCourseCategory());
       }
 
       return savedDish;

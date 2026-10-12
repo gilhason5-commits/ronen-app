@@ -1,3 +1,4 @@
+import { base44 } from "@/api/base44Client";
 import { calculateAdultPortions } from "@/lib/dinerCount";
 
 // Dish quantity modes (Dish.qty_mode):
@@ -52,4 +53,21 @@ export function computePlannedDish(dish, event, isFirstCourse) {
     }
   }
   return { planned_qty: qty, planned_cost: qty * (dish.unit_cost || 0) };
+}
+
+// Rewrite the stored planned_qty / planned_cost of every event that uses the
+// dish, after the dish's quantity settings or cost changed.
+export async function syncDishEventQuantities(dish, isFirstCourse) {
+  const eventDishes = await base44.entities.Events_Dish.filter({ dish_id: dish.id });
+  if (eventDishes.length === 0) return;
+  // One batched lookup for every referenced event instead of a round-trip
+  // per event.
+  const eventIds = [...new Set(eventDishes.map((ed) => ed.event_id))];
+  const events = await base44.entities.Event.filter({ id: eventIds });
+  const eventById = new Map(events.map((e) => [e.id, e]));
+  await Promise.all(eventDishes.map((eventDish) => {
+    const event = eventById.get(eventDish.event_id);
+    if (!event) return null;
+    return base44.entities.Events_Dish.update(eventDish.id, computePlannedDish(dish, event, isFirstCourse));
+  }));
 }

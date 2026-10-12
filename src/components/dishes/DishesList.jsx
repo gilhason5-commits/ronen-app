@@ -10,7 +10,7 @@ import { Edit, UtensilsCrossed, CalendarSearch, SlidersHorizontal } from "lucide
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import DishQtyModeFields from "./DishQtyModeFields";
-import { isExplicitQtyMode, qtyModeLabel } from "@/lib/plannedDishQty";
+import { isExplicitQtyMode, qtyModeLabel, syncDishEventQuantities } from "@/lib/plannedDishQty";
 import { Skeleton } from "@/components/ui/skeleton";
 import DishPrintButton from "./DishPrintButton";
 import DishEventsDialog from "./DishEventsDialog";
@@ -48,7 +48,7 @@ export default function DishesList({ dishes, isLoading, onEdit, categories = [],
         
         const isFirstCourse = dishCategories.some(cat => {
           const name = cat.name.toLowerCase();
-          return name.includes('first course') || name.includes('מנה ראשונה');
+          return name.includes('first course') || name.includes('מנה ראשונה') || name.includes('מנות ראשונות');
         });
         
         const isFixedItem = dishCategories.some(isFixedPerEventCategory);
@@ -86,7 +86,7 @@ export default function DishesList({ dishes, isLoading, onEdit, categories = [],
                     <span className={`text-sm ${isExplicitQtyMode(dish) ? 'font-medium text-blue-700' : 'text-stone-600'}`}>
                       {qtyModeLabel(dish)}
                     </span>
-                    <QtyModePopover dish={dish} />
+                    <QtyModePopover dish={dish} isFirstCourse={isFirstCourse} />
                   </div>
                 )}
                 {isFixedItem ? (
@@ -197,7 +197,7 @@ function FixedQtyEditor({ dish }) {
 
 // Card shortcut for how the dish's event quantity is set (serving % / fixed
 // per event / per N guests) — saves straight to the dish.
-function QtyModePopover({ dish }) {
+function QtyModePopover({ dish, isFirstCourse }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState({});
@@ -230,6 +230,8 @@ function QtyModePopover({ dish }) {
     setSaving(true);
     try {
       await base44.entities.Dish.update(dish.id, data);
+      // Retroactively re-plan every event that already has this dish.
+      await syncDishEventQuantities({ ...dish, ...data }, isFirstCourse);
       await queryClient.invalidateQueries({ queryKey: ['dishes'] });
       setOpen(false);
       toast.success('הכמות עודכנה');
