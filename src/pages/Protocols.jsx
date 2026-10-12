@@ -2,16 +2,18 @@ import React, { useEffect, useMemo, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
+import { supabase } from "@/api/supabaseClient";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Library, Folder, FileText, ChevronDown, ChevronLeft, ChevronUp, Plus, Pencil, Trash2, Check, X, Search, Eye,
+  Library, Folder, FileText, ChevronDown, ChevronLeft, ChevronUp, Plus, Pencil, Trash2, Check, X, Search, Eye, Paperclip, Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -124,6 +126,96 @@ function TreeNode({ node, depth, ctx }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+const ATTACHMENTS_BUCKET = "protocol-files";
+
+// Upload one PDF: the API hands back a signed upload URL (admins only), the
+// browser uploads straight to Storage.
+async function uploadProtocolPdf(file) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch("/api/protocol-upload-url", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  const { error } = await supabase.storage.from(ATTACHMENTS_BUCKET).uploadToSignedUrl(body.path, body.token, file, { contentType: "application/pdf" });
+  if (error) throw error;
+  return { name: file.name, url: body.publicUrl, path: body.path };
+}
+
+// PDF attachments on any node: everyone can open them (in a popup viewer),
+// admins in edit mode can add and remove.
+function ProtocolAttachments({ node, canEdit, onSave, saving }) {
+  const attachments = node.attachments || [];
+  const [uploading, setUploading] = useState(false);
+  const [viewing, setViewing] = useState(null);
+  const inputId = `protocol-pdf-${node.id}`;
+
+  const handleFiles = async (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (!files.length) return;
+    if (files.some((f) => f.type !== "application/pdf")) {
+      toast.error("אפשר להעלות רק קבצי PDF");
+      return;
+    }
+    setUploading(true);
+    try {
+      const uploaded = [];
+      for (const f of files) uploaded.push(await uploadProtocolPdf(f));
+      onSave([...attachments, ...uploaded]);
+    } catch (err) {
+      toast.error(`העלאת PDF נכשלה: ${err.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (!attachments.length && !canEdit) return null;
+
+  return (
+    <div className="mt-6">
+      <h3 className="text-sm font-semibold text-stone-500 mb-2">קבצים מצורפים</h3>
+      <div className="flex flex-wrap gap-2">
+        {attachments.map((a, i) => (
+          <div key={a.path || a.url} className="flex items-center gap-1 rounded-lg border border-stone-200 bg-white pr-3 pl-1 py-1">
+            <button className="flex items-center gap-2 text-sm text-stone-800 hover:text-emerald-700" onClick={() => setViewing(a)}>
+              <Paperclip className="w-4 h-4 text-red-600" />
+              <span className="max-w-[16rem] truncate">{a.name}</span>
+            </button>
+            {canEdit && (
+              <Button
+                variant="ghost" size="icon" className="h-6 w-6" title="הסר קובץ" disabled={saving}
+                onClick={() => onSave(attachments.filter((_, k) => k !== i))}
+              >
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
+        ))}
+        {canEdit && (
+          <>
+            <input id={inputId} type="file" accept="application/pdf" multiple className="hidden" onChange={handleFiles} disabled={uploading} />
+            <Button variant="outline" size="sm" disabled={uploading || saving} onClick={() => document.getElementById(inputId)?.click()}>
+              <Upload className="w-4 h-4 ml-1" />
+              {uploading ? "מעלה..." : "הוסף PDF"}
+            </Button>
+          </>
+        )}
+      </div>
+
+      <Dialog open={!!viewing} onOpenChange={(open) => !open && setViewing(null)}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col p-4" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="truncate pl-8">{viewing?.name}</DialogTitle>
+          </DialogHeader>
+          {viewing && <iframe src={viewing.url} title={viewing.name} className="flex-1 w-full rounded border border-stone-200" />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -379,6 +471,14 @@ export default function Protocols() {
                 ) : childrenOf(selected.id).length === 0 ? (
                   <p className="text-stone-400 text-sm">{canEdit ? "אין תוכן עדיין. לחץ על ״ערוך תוכן״." : "אין תוכן עדיין."}</p>
                 ) : null}
+
+                <ProtocolAttachments
+                  key={selected.id}
+                  node={selected}
+                  canEdit={canEdit}
+                  saving={updateMutation.isPending}
+                  onSave={(attachments) => updateMutation.mutate({ id: selected.id, data: { attachments } })}
+                />
 
                 {childrenOf(selected.id).length > 0 && (
                   <div className="mt-6">

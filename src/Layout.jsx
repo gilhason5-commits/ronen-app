@@ -191,7 +191,15 @@ export default function Layout({ children, currentPageName }) {
   const { user, logout } = useAuth();
   const userRole = user?.role || null;
 
-  const adminOnlyPages = ["Reports", "PurchaseOrders", "Inventory", "FixedExpenses"];
+  const adminOnlyPages = ["Reports", "PurchaseOrders", "Inventory"];
+
+  // Fixed expenses are Ronen's alone — hidden from the menu and blocked by
+  // URL for every other account, admins included.
+  const ronenOnlyPages = ["FixedExpenses"];
+  const isRonen = (user?.email || "").toLowerCase() === "ronen@raytlv.co.il";
+  if (!isRonen && ronenOnlyPages.includes(currentPageName)) {
+    return <Navigate to={createPageUrl("Dashboard")} replace />;
+  }
 
   // Purchase role can only see KitchenView
   if (userRole === 'purchase') {
@@ -226,8 +234,6 @@ export default function Layout({ children, currentPageName }) {
   // Financials-restricted admin (e.g. info@raytlv.co.il): keeps normal admin
   // access to everything except the Reports page and event profitability
   // figures (those are hidden inline in the components that show them).
-  // FixedExpenses was blocked here too at first, then explicitly reopened
-  // for this account.
   if (user?.hide_financials && currentPageName === "Reports") {
     return <Navigate to={createPageUrl("Dashboard")} replace />;
   }
@@ -244,6 +250,9 @@ export default function Layout({ children, currentPageName }) {
     }
     if (userRole === 'event_manager') {
       return item.url.includes("EventAttendance") || item.url.includes("DishQuantities");
+    }
+    if (ronenOnlyPages.some(p => item.url.includes(p)) && !isRonen) {
+      return false;
     }
     if (adminOnlyPages.some(p => item.url.includes(p)) && userRole !== 'admin') {
       return false;

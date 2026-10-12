@@ -251,17 +251,20 @@ function ExpenseTable({ title, category, expenses, onSaveTitle, onDeleteCategory
 }
 
 // "הוצאות כלליות פר אירוע / פר אורח": the items' amounts are per one event
-// or per one guest; the month's total multiplies them by the month's
-// approved/completed events or their total guests.
-function GeneralExpenseSection({ title, basis, items, unitLabel, count, countLabel, monthTotal, onAdd, onUpdate, onRemove, onMove }) {
+// or per one guest; the month's total multiplies them by the month's events
+// or their total guests. Shown twice: once for approved/completed events
+// only, once for every event in the system that month (any status).
+function GeneralExpenseSection({ title, basis, items, unitLabel, counts, onAdd, onUpdate, onRemove, onMove }) {
   const rows = items.filter((i) => i.basis === basis);
   const unitSum = rows.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
   return (
     <ExpenseRowsTable
       header={
-        <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="space-y-1">
           <span className="font-bold text-stone-900 text-base">{title}</span>
-          <span className="text-sm text-stone-600">{countLabel}: <span className="font-bold text-stone-900">{count.toLocaleString("he-IL")}</span></span>
+          {counts.map((c) => (
+            <div key={c.label} className="text-sm text-stone-600">{c.label}: <span className="font-bold text-stone-900">{c.count.toLocaleString("he-IL")}</span></div>
+          ))}
         </div>
       }
       rows={rows}
@@ -270,10 +273,16 @@ function GeneralExpenseSection({ title, basis, items, unitLabel, count, countLab
       onUpdate={onUpdate}
       onRemove={onRemove}
       onMove={onMove}
-      footer={<>
-        <span className="text-stone-500">{fmtCurrency(unitSum)} {unitLabel} × {count.toLocaleString("he-IL")}</span>
-        <span className="font-bold text-stone-900">{fmtCurrency(monthTotal)}</span>
-      </>}
+      footer={
+        <div className="w-full space-y-1">
+          {counts.map((c) => (
+            <div key={c.label} className="flex items-center justify-between gap-2">
+              <span className="text-stone-500">{c.label}: {fmtCurrency(unitSum)} {unitLabel} × {c.count.toLocaleString("he-IL")}</span>
+              <span className="font-bold text-stone-900">{fmtCurrency(c.total)}</span>
+            </div>
+          ))}
+        </div>
+      }
     />
   );
 }
@@ -296,6 +305,11 @@ export default function FixedExpenses() {
   const general = useMemo(
     () => generalExpensesForMonth(generalItems, countedEventsInMonth(rangeEvents, month)),
     [generalItems, rangeEvents, month]
+  );
+  // Every event in the system this month, whatever its status.
+  const generalAll = useMemo(
+    () => generalExpensesForMonth(generalItems, rangeEvents),
+    [generalItems, rangeEvents]
   );
 
   const generalCrud = {
@@ -445,7 +459,7 @@ export default function FixedExpenses() {
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => shiftMonth(-1)}><ChevronLeft className="w-4 h-4" /></Button>
         </div>
       </div>
-      <p className="text-xs text-stone-500 -mt-3">נספרים רק אירועים מאושרים והושלמו בחודש הנבחר. הסכומים לפני מע״מ.</p>
+      <p className="text-xs text-stone-500 -mt-3">"מאושרים והושלמו" — רק אירועים מאושרים והושלמו בחודש הנבחר. "כל אירועי החודש" — כל האירועים במערכת בחודש, בכל סטטוס. הסכומים לפני מע״מ.</p>
 
       <div className="grid lg:grid-cols-2 gap-6 items-start">
         <GeneralExpenseSection
@@ -453,9 +467,10 @@ export default function FixedExpenses() {
           basis="per_event"
           items={generalItems}
           unitLabel="לאירוע"
-          count={general.eventCount}
-          countLabel="אירועים בחודש"
-          monthTotal={general.perEventTotal}
+          counts={[
+            { label: "אירועים מאושרים והושלמו", count: general.eventCount, total: general.perEventTotal },
+            { label: "כל אירועי החודש", count: generalAll.eventCount, total: generalAll.perEventTotal },
+          ]}
           {...generalCrud}
         />
         <GeneralExpenseSection
@@ -463,16 +478,24 @@ export default function FixedExpenses() {
           basis="per_guest"
           items={generalItems}
           unitLabel="לאורח"
-          count={general.guestCount}
-          countLabel="אורחים בחודש"
-          monthTotal={general.perGuestTotal}
+          counts={[
+            { label: "אורחים באירועים מאושרים והושלמו", count: general.guestCount, total: general.perGuestTotal },
+            { label: "אורחים בכל אירועי החודש", count: generalAll.guestCount, total: generalAll.perGuestTotal },
+          ]}
           {...generalCrud}
         />
       </div>
 
-      <div className="border-2 border-emerald-700 rounded-lg bg-emerald-50 px-6 py-4 flex items-center justify-between">
+      <div className="border-2 border-emerald-700 rounded-lg bg-emerald-50 px-6 py-4 space-y-2">
         <span className="text-lg font-bold text-emerald-900">סך הכל הוצאות כלליות ב{monthLabel} <span className="text-base font-medium text-emerald-700">(ללא מע״מ)</span></span>
-        <span className="text-2xl font-bold text-emerald-700">{fmtCurrency(general.total)}</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-emerald-900">מאושרים והושלמו</span>
+          <span className="text-2xl font-bold text-emerald-700">{fmtCurrency(general.total)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-emerald-900">כל אירועי החודש</span>
+          <span className="text-2xl font-bold text-emerald-700">{fmtCurrency(generalAll.total)}</span>
+        </div>
       </div>
     </div>
   );
