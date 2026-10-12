@@ -13,6 +13,7 @@ import { fmtCurrency } from "@/components/utils/formatNumbers";
 import DishNoteEditor from "@/components/events/DishNoteEditor";
 import { applyWasteToQty } from "@/lib/foodWaste";
 import { calculateAdultPortions } from "@/lib/dinerCount";
+import { explicitDishQty, isExplicitQtyMode, qtyModeLabel } from "@/lib/plannedDishQty";
 
 export default function EventStages({ 
   event, 
@@ -119,6 +120,8 @@ export default function EventStages({
   };
 
   const calculateSuggestedQuantity = (dish, currentCategory = null) => {
+    const explicitQty = explicitDishQty(dish, event);
+    if (explicitQty != null) return explicitQty;
     // Standard dish quantities are planned for guests eating the standard
     // menu — guest_count minus vegans/glatt, who get separate dishes not
     // counted in this tree (e.g. 300 committed, 20 vegan -> plan for 280).
@@ -165,7 +168,7 @@ export default function EventStages({
           const dish = dishes.find(d => d.id === ed.dish_id);
           if (!dish) return null;
           const baseQty = calculateSuggestedQuantity(dish, category);
-          const qty = applyWasteToQty(baseQty, event?.guest_count);
+          const qty = (isExplicitQtyMode(dish) ? baseQty : applyWasteToQty(baseQty, event?.guest_count));
           const cost = qty * (dish.unit_cost || 0);
           const subCat = subCategoriesData.find(sc => sc.id === dish.sub_category_id);
           return { ...dish, planned_qty: qty, base_qty: baseQty, cost, subCatOrder: subCat?.display_order ?? 999, subCatName: subCat?.name || '' };
@@ -187,7 +190,7 @@ export default function EventStages({
           <tr>
             <td>${d.name}${d.description ? `<br><span class="desc">${d.description}</span>` : ''}</td>
             <td class="text-center">${d.base_qty}${d.planned_qty !== d.base_qty ? ` (${d.planned_qty})` : ''}</td>
-            <td class="text-center">${d.serving_percentage || 100}%</td>
+            <td class="text-center">${isExplicitQtyMode(d) ? qtyModeLabel(d) : `${d.serving_percentage || 100}%`}</td>
           </tr>
         `;
       });
@@ -365,7 +368,7 @@ export default function EventStages({
                   {(() => {
                     const enriched = [...selectedDishes].map(dish => {
                       const baseQty = calculateSuggestedQuantity(dish, category);
-                      const suggestedQty = applyWasteToQty(baseQty, event?.guest_count);
+                      const suggestedQty = (isExplicitQtyMode(dish) ? baseQty : applyWasteToQty(baseQty, event?.guest_count));
                       const cost = suggestedQty * (dish.unit_cost || 0);
                       const subCat = subCategoriesData.find(sc => sc.id === dish.sub_category_id);
                       return { dish, baseQty, suggestedQty, cost, subCatOrder: subCat?.display_order ?? 999, subCatName: subCat?.name || '' };
@@ -437,16 +440,16 @@ export default function EventStages({
                                   <div className="flex flex-col justify-between">
                                     <div className="text-xs text-stone-600 space-y-0.5">
                                       {producerMode ? (
-                                        <p>אחוז הגשה: {dish.serving_percentage || 100}%</p>
+                                        <p>{qtyModeLabel(dish)}</p>
                                       ) : isFirstCourseDish(dish, category) ? (
                                         <>
                                           <p>מחיר למנה: {fmtCurrency(dish.price_per_guest || 0)}</p>
-                                          <p>אחוז הגשה: {dish.serving_percentage || 100}%</p>
+                                          <p>{qtyModeLabel(dish)}</p>
                                           <p>עלות ליחידה: {fmtCurrency(dish.unit_cost || 0)}</p>
                                         </>
                                       ) : (
                                         <>
-                                          <p>אחוז הגשה: {dish.serving_percentage || 100}%</p>
+                                          <p>{qtyModeLabel(dish)}</p>
                                           <p>עלות ליחידה: {fmtCurrency(dish.unit_cost || 0)}</p>
                                         </>
                                       )}

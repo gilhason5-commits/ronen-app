@@ -2,6 +2,7 @@ import { format, startOfWeek, endOfWeek, addDays, subDays } from 'date-fns';
 import { applyWasteToQty } from '@/lib/foodWaste';
 import { calculateAdultPortions } from '@/lib/dinerCount';
 import { getFixedEventDishes, getFixedEventQty } from '@/lib/fixedEventItems';
+import { explicitDishQty } from "@/lib/plannedDishQty";
 
 export const roundToPurchaseUnit = (qty, purchaseUnit) => {
   if (!purchaseUnit || purchaseUnit <= 0) return qty;
@@ -46,6 +47,8 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
     // then apply the event-level food reduction (פחת) — this drives purchasing.
     const dish = dishes.find(d => d.id === eventDish.dish_id);
     if (!dish) return 0;
+    const explicitQty = explicitDishQty(dish, event);
+    if (explicitQty != null) return explicitQty;
     const guestCount = event?.guest_count || 0;
     // Standard dish quantities are planned for guests eating the standard
     // menu — guest_count minus vegans/glatt, who get separate dishes not

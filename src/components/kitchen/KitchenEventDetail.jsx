@@ -8,6 +8,7 @@ import { Printer } from "lucide-react";
 import DepartmentPrintDialog from "@/components/events/DepartmentPrintDialog";
 import { applyWasteToQty } from "@/lib/foodWaste";
 import { calculateAdultPortions } from "@/lib/dinerCount";
+import { explicitDishQty, isExplicitQtyMode, qtyModeLabel } from "@/lib/plannedDishQty";
 
 export default function KitchenEventDetail({ event }) {
   const [showDeptPrint, setShowDeptPrint] = React.useState(false);
@@ -59,6 +60,8 @@ export default function KitchenEventDetail({ event }) {
   };
 
   const calculateSuggestedQuantity = (dish) => {
+    const explicitQty = explicitDishQty(dish, event);
+    if (explicitQty != null) return explicitQty;
     const guestCount = event?.guest_count || 0;
     // Standard dish quantities are planned for guests eating the standard
     // menu — guest_count minus vegans/glatt, who get separate dishes not
@@ -132,7 +135,7 @@ export default function KitchenEventDetail({ event }) {
                         {dish.description && <p className="text-xs text-stone-500 mt-0.5">{dish.description}</p>}
                       </td>
                       <td className="p-3 text-center font-semibold text-stone-900">{dish.planned_qty}</td>
-                      <td className="p-3 text-center text-stone-600">{dish.serving_percentage || 100}%</td>
+                      <td className="p-3 text-center text-stone-600">{isExplicitQtyMode(dish) ? qtyModeLabel(dish) : `${dish.serving_percentage || 100}%`}</td>
                     </tr>
                   ))}
                 </tbody>

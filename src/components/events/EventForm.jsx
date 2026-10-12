@@ -32,6 +32,7 @@ import { applyWasteToValue, wasteLabel } from "@/lib/foodWaste";
 import { isPastEvent } from "@/lib/ingredientPriceRefresh";
 import { isFixedPerEventCategory, getFixedEventDishes, computeFixedItemsCost } from "@/lib/fixedEventItems";
 import EventFixedItems from "./EventFixedItems";
+import { explicitDishQty } from "@/lib/plannedDishQty";
 
 // producerMode: the same form opened from עמוד מפיק — full event details
 // and the stage-based dish picker, but no money (price, amounts, revenue,
@@ -174,6 +175,9 @@ export default function EventForm({ event, onClose, producerMode = false, initia
     // planned_cost is saved as the pre-reduction base, so reduce it here.
     // The waste bracket is driven by the full committed headcount (guest_count),
     // same as revenue — it's a billing concept, unrelated to who eats what.
+    const modeDish = dishes.find(d => d.id === eventDish.dish_id);
+    const explicitQty = explicitDishQty(modeDish, formData);
+    if (explicitQty != null) return explicitQty * (modeDish.unit_cost || 0);
     if (eventDish.planned_cost && eventDish.planned_cost > 0) {
       return applyWasteToValue(eventDish.planned_cost, guestCount);
     }
@@ -331,8 +335,11 @@ export default function EventForm({ event, onClose, producerMode = false, initia
         let plannedQty;
         let plannedCost;
 
-        // Check if dish has new preparation_mass_grams and portion_size_grams fields
-        if (dish.preparation_mass_grams && dish.portion_size_grams) {
+        const explicitQty = explicitDishQty(dish, formData);
+        if (explicitQty != null) {
+          plannedQty = explicitQty;
+          plannedCost = plannedQty * (dish.unit_cost || 0);
+        } else if (dish.preparation_mass_grams && dish.portion_size_grams) {
           // New calculation: portions per preparation
           const portionsPerPreparation = dish.preparation_mass_grams / dish.portion_size_grams;
           // Total portions needed (considering serving percentage)

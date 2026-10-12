@@ -7,6 +7,7 @@ import { Printer, Download } from "lucide-react";
 import DepartmentPrintPreview from "./DepartmentPrintPreview";
 import { eventWastePct, eventWasteFactor, applyWasteToQty } from "@/lib/foodWaste";
 import { calculateAdultPortions } from "@/lib/dinerCount";
+import { explicitDishQty, isExplicitQtyMode, qtyModeLabel } from "@/lib/plannedDishQty";
 
 const DEPARTMENTS = {
   hot_kitchen: 'מטבח חם',
@@ -112,6 +113,8 @@ export default function DepartmentPrintDialog({
     // then apply the event-level food reduction (פחת).
     const dish = dishes.find(d => d.id === eventDish.dish_id);
     if (!dish) return 0;
+    const explicitQty = explicitDishQty(dish, event);
+    if (explicitQty != null) return explicitQty;
     const guestCount = event?.guest_count || 0;
     // Standard dish quantities are planned for guests eating the standard
     // menu — guest_count minus vegans/glatt, who get separate dishes not
@@ -369,7 +372,9 @@ export default function DepartmentPrintDialog({
         ? ` × ${eventWasteFactor(guestCount)} (פחת ${wPct * 100}%) = ${effectiveQty}`
         : '';
       let calcBreakdown = '';
-      if (dish.preparation_mass_grams && dish.portion_size_grams) {
+      if (isExplicitQtyMode(dish)) {
+        calcBreakdown = `${qtyModeLabel(dish)} ⇒ ${effectiveQty}`;
+      } else if (dish.preparation_mass_grams && dish.portion_size_grams) {
         const portionsPerPrep = dish.preparation_mass_grams / dish.portion_size_grams;
         const totalPortions = dishGuestCount * (servingPct / 100);
         const baseQty = Math.ceil(totalPortions / portionsPerPrep);

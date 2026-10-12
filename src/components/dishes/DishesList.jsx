@@ -6,7 +6,11 @@ import { isFixedPerEventCategory, getFixedEventQty } from "@/lib/fixedEventItems
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit, UtensilsCrossed, CalendarSearch } from "lucide-react";
+import { Edit, UtensilsCrossed, CalendarSearch, SlidersHorizontal } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { toast } from "sonner";
+import DishQtyModeFields from "./DishQtyModeFields";
+import { isExplicitQtyMode, qtyModeLabel } from "@/lib/plannedDishQty";
 import { Skeleton } from "@/components/ui/skeleton";
 import DishPrintButton from "./DishPrintButton";
 import DishEventsDialog from "./DishEventsDialog";
@@ -77,6 +81,14 @@ export default function DishesList({ dishes, isLoading, onEdit, categories = [],
               )}
 
               <div className="space-y-2 mb-4">
+                {!isFixedItem && (
+                  <div className="flex justify-between items-center p-2 bg-stone-50 rounded">
+                    <span className={`text-sm ${isExplicitQtyMode(dish) ? 'font-medium text-blue-700' : 'text-stone-600'}`}>
+                      {qtyModeLabel(dish)}
+                    </span>
+                    <QtyModePopover dish={dish} />
+                  </div>
+                )}
                 {isFixedItem ? (
                   <FixedQtyEditor dish={dish} />
                 ) : isFirstCourse ? (
@@ -180,5 +192,69 @@ function FixedQtyEditor({ dish }) {
         className="w-20 h-7 text-center text-sm"
       />
     </div>
+  );
+}
+
+// Card shortcut for how the dish's event quantity is set (serving % / fixed
+// per event / per N guests) — saves straight to the dish.
+function QtyModePopover({ dish }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const openChange = (o) => {
+    if (o) {
+      setDraft({
+        qty_mode: dish.qty_mode || 'percent',
+        serving_percentage: dish.serving_percentage ?? 100,
+        fixed_event_qty: dish.fixed_event_qty ?? '',
+        per_guests_qty: dish.per_guests_qty ?? '',
+        per_guests_base: dish.per_guests_base ?? 100,
+      });
+    }
+    setOpen(o);
+  };
+
+  const save = async () => {
+    const clean = (v) => (v === '' || v == null ? null : parseFloat(v));
+    const data = {
+      qty_mode: draft.qty_mode,
+      serving_percentage: clean(draft.serving_percentage) ?? 100,
+      fixed_event_qty: clean(draft.fixed_event_qty),
+      per_guests_qty: clean(draft.per_guests_qty),
+      per_guests_base: clean(draft.per_guests_base) ?? 100,
+    };
+    if (data.qty_mode === 'fixed' && data.fixed_event_qty == null) return toast.error('יש להזין כמות לאירוע');
+    if (data.qty_mode === 'per_guests' && data.per_guests_qty == null) return toast.error('יש להזין כמות');
+    setSaving(true);
+    try {
+      await base44.entities.Dish.update(dish.id, data);
+      await queryClient.invalidateQueries({ queryKey: ['dishes'] });
+      setOpen(false);
+      toast.success('הכמות עודכנה');
+    } catch (e) {
+      toast.error(`שגיאה: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={openChange}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-stone-500 hover:text-blue-700" title="אופן חישוב הכמות">
+          <SlidersHorizontal className="w-4 h-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80" align="end" dir="rtl">
+        <p className="font-semibold text-sm mb-2">אופן חישוב הכמות באירוע</p>
+        <DishQtyModeFields value={draft} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} />
+        <div className="flex justify-end gap-2 mt-3">
+          <Button variant="outline" size="sm" onClick={() => setOpen(false)}>ביטול</Button>
+          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" disabled={saving} onClick={save}>שמור</Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

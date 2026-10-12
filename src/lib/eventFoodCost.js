@@ -1,6 +1,7 @@
 import { applyWasteToValue } from "./foodWaste";
 import { calculateAdultPortions } from "./dinerCount";
 import { computeFixedItemsCost } from "./fixedEventItems";
+import { explicitDishQty } from "./plannedDishQty";
 
 function isFirstCourseDish(dish, categoriesById) {
   const dishCategories = (dish.categories || []).map((id) => categoriesById[id]).filter(Boolean);
@@ -16,6 +17,9 @@ function isFirstCourseDish(dish, categoriesById) {
 // stored, so a stale/never-saved Events_Dish row still reads correctly.
 export function getEffectivePlannedCost(eventDish, event, dishesById, categoriesById) {
   const guestCount = event.guest_count || 0;
+  const modeDish = dishesById[eventDish.dish_id];
+  const explicitQty = explicitDishQty(modeDish, event);
+  if (explicitQty != null) return explicitQty * (modeDish.unit_cost || 0);
   if (eventDish.planned_cost && eventDish.planned_cost > 0) {
     return applyWasteToValue(eventDish.planned_cost, guestCount);
   }

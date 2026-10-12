@@ -14,6 +14,7 @@ import { Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { calculateAdultPortions } from "@/lib/dinerCount";
 import { applyWasteToQty } from "@/lib/foodWaste";
+import { explicitDishQty } from "@/lib/plannedDishQty";
 
 const isFirstCourseCategoryName = (name = "") =>
   name.toLowerCase().includes("first course") || name.includes("מנה ראשונה") || name.includes("מנות ראשונות");
@@ -22,6 +23,8 @@ const isFirstCourseCategoryName = (name = "") =>
 // Events_Dish.planned_qty is only a snapshot from when the dish was added (0
 // if the guest count wasn't filled in yet), so it can't be shown as-is.
 function liveDishQty(dish, event, category) {
+  const explicitQty = explicitDishQty(dish, event);
+  if (explicitQty != null) return explicitQty;
   const guests = calculateAdultPortions(event?.guest_count, event?.vegan_count, event?.glatt_count);
   const servingPct = (dish.serving_percentage ?? 100) / 100;
   let qty;

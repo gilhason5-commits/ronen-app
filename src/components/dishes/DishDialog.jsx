@@ -30,6 +30,7 @@ import IngredientDialog from "../inventory/IngredientDialog";
 import SpecialIngredientDialog from "../ingredients/SpecialIngredientDialog";
 import { isFixedPerEventCategory, getFixedEventQty } from "@/lib/fixedEventItems";
 import { computePlannedDish } from "@/lib/plannedDishQty";
+import DishQtyModeFields from "./DishQtyModeFields";
 
 const SUB_MANA_CATEGORY_ID = '694ab43b7f41f262f932394d';
 
@@ -334,6 +335,11 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
     if (!dataToSave.sub_category_id) dataToSave.sub_category_id = null;
     if (isFixedItem) dataToSave.fixed_event_qty = getFixedEventQty(dataToSave);
     else if (dataToSave.fixed_event_qty === '') dataToSave.fixed_event_qty = null;
+    for (const f of ['per_guests_qty', 'per_guests_base']) {
+      if (dataToSave[f] === '') dataToSave[f] = null;
+    }
+    // Fixed-category items are always counted by fixed_event_qty.
+    if (isFixedItem) dataToSave.qty_mode = 'percent';
 
     saveMutation.mutate(dataToSave);
   };
@@ -408,24 +414,13 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
             </div>
             ) : (
             <div className="col-span-2">
-              <Label>אחוז מנות לכלל האורחים *</Label>
-              <p className="text-xs text-stone-500 mb-1">
-                {isFirstCourseCategory() && formData.event_type !== 'wedding'
+              <DishQtyModeFields
+                value={formData}
+                onChange={(patch) => setFormData({ ...formData, ...patch })}
+                percentHint={isFirstCourseCategory() && formData.event_type !== 'wedding'
                   ? 'כמות הסועדים חלקי 6 כפול האחוזים שתגדיר למטה ייקבע את כמות המנות'
                   : 'דוגמא: 100% = מנות לכל הסועדים, 150% = פי 1.5 מהכמות'}
-              </p>
-              <div className="relative">
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={formData.serving_percentage || ''}
-                  onChange={(e) => setFormData({...formData, serving_percentage: parseFloat(e.target.value) || 0})}
-                  placeholder="100"
-                  className="pl-8"
-                  required
-                />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">%</span>
-              </div>
+              />
             </div>
             )}
           </div>
