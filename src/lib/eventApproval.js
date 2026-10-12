@@ -1,5 +1,4 @@
 import { base44 } from "@/api/base44Client";
-import { canOverrideApprovalWindow } from "@/lib/officeUser";
 import { generateEventTasks, businessDaysUntilEvent, APPROVAL_MIN_BUSINESS_DAYS } from "@/lib/eventTaskGeneration";
 
 export const APPROVAL_TOO_LATE_MSG = `נותרו פחות מ-${APPROVAL_MIN_BUSINESS_DAYS} ימי עסקים לאירוע — אנא אשר מול רונן`;
@@ -37,11 +36,10 @@ export function isGuestCountLocked(event) {
   return !!event?.producer_approved;
 }
 
-// Ronen (a full admin — not the info@ office account, not a producer) can
-// still change anything on an approved event, guest counts and serving type
-// included.
+// Only Ronen (any account whose email starts with "ronen") can still change
+// anything on an approved event, guest counts and serving type included.
 export function canEditApprovedEvent(user) {
-  return user?.role === "admin" && !canOverrideApprovalWindow(user);
+  return (user?.email || "").toLowerCase().startsWith("ronen");
 }
 
 // Serving and flipped events use different menus (dishes are per event_type),
