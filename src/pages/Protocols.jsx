@@ -6,13 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Library, Folder, FileText, ChevronDown, ChevronLeft, ChevronUp, Plus, Pencil, Trash2, Check, X, Search,
+  Library, Folder, FileText, ChevronDown, ChevronLeft, ChevronUp, Plus, Pencil, Trash2, Check, X, Search, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -271,10 +270,14 @@ export default function Protocols() {
           <h1 className="text-2xl md:text-3xl font-bold text-stone-900">פרוטוקולים</h1>
         </div>
         {isAdmin && (
-          <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
-            <Switch checked={editMode} onCheckedChange={(v) => { setEditMode(v); setRenamingId(null); setAddingUnder(null); }} />
-            מצב עריכה
-          </label>
+          <Button
+            variant={editMode ? "default" : "outline"}
+            className={editMode ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+            onClick={() => { setEditMode(!editMode); setRenamingId(null); setAddingUnder(null); }}
+          >
+            {editMode ? <Eye className="w-4 h-4 ml-1" /> : <Pencil className="w-4 h-4 ml-1" />}
+            {editMode ? "מעבר למצב צפייה" : "מעבר למצב עריכה"}
+          </Button>
         )}
       </div>
 
