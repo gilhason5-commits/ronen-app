@@ -102,7 +102,7 @@ export default function WorkSummaries() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-stone-400 hover:text-red-600"
-                      onClick={() => deleteMutation.mutate(s.id)}
+                      onClick={() => { if (window.confirm('למחוק את הסיכום?')) deleteMutation.mutate(s.id); }}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

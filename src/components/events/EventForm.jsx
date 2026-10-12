@@ -27,7 +27,7 @@ import EventApprovalBar from "./EventApprovalBar";
 import { fmtCurrency } from "../utils/formatNumbers";
 import { calculateTotalGuests, calculateAdultPortions, parseRangeMax } from "@/lib/dinerCount";
 import { useAuth } from "@/lib/AuthContext";
-import { isGuestCountLocked, GUEST_COUNT_LOCKED_MSG, GUEST_COUNT_FIELDS, EVENT_TYPE_LOCKED_MSG, clearEventMenu } from "@/lib/eventApproval";
+import { isGuestCountLocked, canEditApprovedEvent, GUEST_COUNT_LOCKED_MSG, GUEST_COUNT_FIELDS, EVENT_TYPE_LOCKED_MSG, clearEventMenu } from "@/lib/eventApproval";
 import { applyWasteToValue, wasteLabel } from "@/lib/foodWaste";
 import { isPastEvent } from "@/lib/ingredientPriceRefresh";
 import { isFixedPerEventCategory, getFixedEventDishes, computeFixedItemsCost } from "@/lib/fixedEventItems";
@@ -43,8 +43,9 @@ export default function EventForm({ event, onClose, producerMode = false, initia
   const { user } = useAuth();
   const hideFinancials = producerMode || !!user?.hide_financials;
   // Guest counts freeze for the office account once the event is approved.
-  const guestCountLocked = isGuestCountLocked(event);
-  const eventTypeLocked = !!event?.producer_approved;
+  const approvalLockBypass = !producerMode && canEditApprovedEvent(user);
+  const guestCountLocked = isGuestCountLocked(event) && !approvalLockBypass;
+  const eventTypeLocked = !!event?.producer_approved && !approvalLockBypass;
   const [isChangingType, setIsChangingType] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -249,7 +250,7 @@ export default function EventForm({ event, onClose, producerMode = false, initia
       dataToSave.children_count = parseInt(dataToSave.children_count, 10) || 0;
       // Approved events: never write guest counts or the serving type, even
       // if a stale form still holds edited values.
-      if (event?.producer_approved) {
+      if (event?.producer_approved && !approvalLockBypass) {
         for (const f of [...GUEST_COUNT_FIELDS, "event_type"]) delete dataToSave[f];
       }
       if (event?.id) {

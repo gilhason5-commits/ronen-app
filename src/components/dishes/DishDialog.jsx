@@ -223,6 +223,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
   };
 
   const handleRemoveIngredient = (index) => {
+    if (!window.confirm('למחוק את המצרך מהמנה?')) return;
     const newIngredients = [...formData.ingredients];
     newIngredients.splice(index, 1);
     const unitCost = calculateDishCost(newIngredients);
@@ -291,6 +292,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
   };
 
   const handleRemovePdf = (index) => {
+    if (!window.confirm('למחוק את הקובץ?')) return;
     const newPdfFiles = [...formData.pdf_files];
     newPdfFiles.splice(index, 1);
     setFormData({ ...formData, pdf_files: newPdfFiles });

@@ -105,6 +105,7 @@ export default function CustomerInvoiceDialog({ invoice, events, open, onClose }
   };
 
   const handleRemoveLineItem = (index) => {
+    if (!window.confirm('למחוק את השורה?')) return;
     setFormData({
       ...formData,
       line_items: formData.line_items.filter((_, i) => i !== index)

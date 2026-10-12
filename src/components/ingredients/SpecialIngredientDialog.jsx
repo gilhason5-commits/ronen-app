@@ -161,6 +161,7 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
   };
 
   const removeComponent = (index) => {
+    if (!window.confirm('למחוק את הרכיב?')) return;
     const newComponents = formData.components.filter((_, i) => i !== index);
     setFormData({ ...formData, components: newComponents });
   };

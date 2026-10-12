@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Pencil, X, Check, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
@@ -182,7 +183,7 @@ function ExpenseRowsTable({ header, rows, newRowDefaults, onAdd, onUpdate, onRem
                 />
               </td>
               <td>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => onRemove(exp.id)}>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500" onClick={() => { if (window.confirm(`למחוק את "${exp.name || 'השורה'}"?`)) onRemove(exp.id); }}>
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               </td>

@@ -92,6 +92,7 @@ export default function SupplierInvoiceDialog({ invoice, suppliers, open, onClos
   };
 
   const handleRemoveItem = (index) => {
+    if (!window.confirm('למחוק את השורה?')) return;
     setFormData({
       ...formData,
       items: formData.items.filter((_, i) => i !== index)

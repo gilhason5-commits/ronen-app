@@ -69,6 +69,7 @@ const Suppliers = lazy(() => import('./pages/Suppliers'));
 const TaskEmployees = lazy(() => import('./pages/TaskEmployees'));
 const TaskManagement = lazy(() => import('./pages/TaskManagement'));
 const FixedExpenses = lazy(() => import('./pages/FixedExpenses'));
+const Protocols = lazy(() => import('./pages/Protocols'));
 import __Layout from './Layout.jsx';
 
 
@@ -91,6 +92,7 @@ export const PAGES = {
     "TaskEmployees": TaskEmployees,
     "TaskManagement": TaskManagement,
     "FixedExpenses": FixedExpenses,
+    "Protocols": Protocols,
 }
 
 export const pagesConfig = {

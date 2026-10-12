@@ -173,6 +173,7 @@ export default function SupplierDialog({ supplier, open, onClose }) {
   };
 
   const handleRemovePdf = (index) => {
+    if (!window.confirm('למחוק את הקובץ?')) return;
     const newPdfFiles = [...formData.pdf_files];
     newPdfFiles.splice(index, 1);
     setFormData({ ...formData, pdf_files: newPdfFiles });

@@ -1,4 +1,8 @@
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { base44 } from "@/api/base44Client";
+import { Input } from "@/components/ui/input";
+import { isFixedPerEventCategory, getFixedEventQty } from "@/lib/fixedEventItems";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +47,8 @@ export default function DishesList({ dishes, isLoading, onEdit, categories = [],
           return name.includes('first course') || name.includes('מנה ראשונה');
         });
         
+        const isFixedItem = dishCategories.some(isFixedPerEventCategory);
+
         const pricePerGuest = dish.price_per_guest ?? (dish.unit_cost || 0) / 6;
 
         return (
@@ -71,7 +77,9 @@ export default function DishesList({ dishes, isLoading, onEdit, categories = [],
               )}
 
               <div className="space-y-2 mb-4">
-                {isFirstCourse ? (
+                {isFixedItem ? (
+                  <FixedQtyEditor dish={dish} />
+                ) : isFirstCourse ? (
                   <div className="flex justify-between items-center p-2 bg-emerald-50 rounded">
                     <span className="text-sm text-stone-600">מחיר לסועד:</span>
                     <span className="font-semibold text-emerald-700">₪{pricePerGuest.toFixed(2)}</span>
@@ -130,6 +138,46 @@ export default function DishesList({ dishes, isLoading, onEdit, categories = [],
         dish={eventsDish}
         open={!!eventsDish}
         onOpenChange={(open) => !open && setEventsDish(null)}
+      />
+    </div>
+  );
+}
+// Fixed per-event items are quantified per event, not per guest: edit
+// fixed_event_qty right on the card.
+function FixedQtyEditor({ dish }) {
+  const queryClient = useQueryClient();
+  const current = getFixedEventQty(dish);
+  const [value, setValue] = useState(String(current));
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    const qty = parseFloat(value);
+    if (!Number.isFinite(qty) || qty < 0) {
+      setValue(String(current));
+      return;
+    }
+    if (qty === current && dish.fixed_event_qty != null) return;
+    setSaving(true);
+    try {
+      await base44.entities.Dish.update(dish.id, { fixed_event_qty: qty });
+      await queryClient.invalidateQueries({ queryKey: ['dishes'] });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex justify-between items-center p-2 bg-blue-50 rounded">
+      <span className="text-sm text-stone-600">כמות לאירוע:</span>
+      <Input
+        type="text"
+        inputMode="decimal"
+        value={value}
+        disabled={saving}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+        className="w-20 h-7 text-center text-sm"
       />
     </div>
   );

@@ -20,7 +20,8 @@ import {
   Map,
   ClipboardCheck,
   Coins,
-  BookOpen
+  BookOpen,
+  Library
 } from "lucide-react";
 import {
   Sidebar,
@@ -174,6 +175,12 @@ const navigationItems = [
     title: "תפריטים",
     url: createPageUrl("MenuViewer"),
     icon: UtensilsCrossed,
+    section: "operations"
+  },
+  {
+    title: "פרוטוקולים",
+    url: createPageUrl("Protocols"),
+    icon: Library,
     section: "operations"
   }
 ];
