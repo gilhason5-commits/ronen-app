@@ -132,19 +132,14 @@ function TreeNode({ node, depth, ctx }) {
 
 const ATTACHMENTS_BUCKET = "protocol-files";
 
-// Upload one PDF: the API hands back a signed upload URL (admins only), the
-// browser uploads straight to Storage.
+// Upload one PDF straight to Storage; a storage policy limits inserts into
+// the bucket to admins.
 async function uploadProtocolPdf(file) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const res = await fetch("/api/protocol-upload-url", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${session?.access_token || ""}` },
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-  const { error } = await supabase.storage.from(ATTACHMENTS_BUCKET).uploadToSignedUrl(body.path, body.token, file, { contentType: "application/pdf" });
+  const path = `${crypto.randomUUID()}.pdf`;
+  const { error } = await supabase.storage.from(ATTACHMENTS_BUCKET).upload(path, file, { contentType: "application/pdf" });
   if (error) throw error;
-  return { name: file.name, url: body.publicUrl, path: body.path };
+  const { data: { publicUrl } } = supabase.storage.from(ATTACHMENTS_BUCKET).getPublicUrl(path);
+  return { name: file.name, url: publicUrl, path };
 }
 
 // PDF attachments on any node: everyone can open them (in a popup viewer),
