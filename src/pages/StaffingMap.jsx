@@ -39,7 +39,6 @@ function staffingGuestsOf(event) {
 
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
-const DAY_LETTERS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const MONTH_ABBR = ["ינו׳", "פבר׳", "מרץ", "אפר׳", "מאי", "יוני", "יולי", "אוג׳", "ספט׳", "אוק׳", "נוב׳", "דצמ׳"];
 
 // Fixed display order for the flat table's role columns — matches the paper
@@ -331,7 +330,7 @@ const EventTableRow = React.memo(function EventTableRow({ event, rules, agencies
 // cell holds an edit that isn't saved yet (or whose save failed) the props
 // are ignored, and a failed save keeps the typed value, turns the cell red
 // and is retried on the next blur instead of vanishing behind a toast.
-const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, dateStr, onSave, registry, isEventDay = true, onFocusDay }) {
+const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, dateStr, onSave, registry, isEventDay = true }) {
   // What the cell shows when nothing is typed: the saved shift if there is
   // one (even a saved *blank* — that is an explicit day off), else the
   // person's default hours.
@@ -428,7 +427,7 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => commitRef.current(true), AUTOSAVE_DELAY_MS);
   };
-  const handleFocus = () => { focusedRef.current = true; onFocusDay?.(dateStr); };
+  const handleFocus = () => { focusedRef.current = true; };
   const handleBlur = () => {
     focusedRef.current = false;
     clearTimeout(timerRef.current);
@@ -443,17 +442,17 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
   }, []);
 
   const isOff = !clockIn.trim() && !clockOut.trim();
-  const inputClass = `w-1/2 h-[14px] p-0 leading-none min-w-0 text-[13px] text-center border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-inset focus:ring-emerald-700 ${isOff ? "opacity-40" : "font-semibold"}`;
+  const inputClass = `w-1/2 h-[18px] p-0 leading-none min-w-0 text-[15px] border-0 bg-transparent focus:outline-none focus:ring-1 focus:ring-inset focus:ring-emerald-700 ${isOff ? "opacity-40" : "font-semibold"}`;
 
   return (
     <div
       dir="rtl"
       data-cell={`${member.id}|${dateStr}`}
       title={failed ? "השמירה נכשלה — הערך עדיין לא נשמר. לחץ על כפתור השמירה כדי לנסות שוב" : undefined}
-      className={`flex items-stretch h-[14px] divide-x divide-x-reverse divide-black/10 ${failed ? "ring-2 ring-inset ring-red-600 bg-red-100/70" : ""}`}
+      className={`flex items-stretch h-[18px] divide-x divide-x-reverse divide-black/10 ${failed ? "ring-2 ring-inset ring-red-600 bg-red-100/70" : ""}`}
     >
-      <input type="text" value={clockIn} placeholder="X" className={inputClass} onChange={edit(setClockIn)} onFocus={handleFocus} onBlur={handleBlur} onKeyDown={handleKeyDown} />
-      <input type="text" value={clockOut} placeholder="X" className={inputClass} onChange={edit(setClockOut)} onFocus={handleFocus} onBlur={handleBlur} onKeyDown={handleKeyDown} />
+      <input type="text" value={clockIn} placeholder="X" className={`${inputClass} text-left pl-0.5`} onChange={edit(setClockIn)} onFocus={handleFocus} onBlur={handleBlur} onKeyDown={handleKeyDown} />
+      <input type="text" value={clockOut} placeholder="X" className={`${inputClass} text-right pr-0.5`} onChange={edit(setClockOut)} onFocus={handleFocus} onBlur={handleBlur} onKeyDown={handleKeyDown} />
     </div>
   );
 });
@@ -462,7 +461,7 @@ const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, d
 // KitchenDayNote). Same no-blur-needed autosave as the hour cells: saves ~1s
 // after the last keystroke, on Enter/blur, on unmount, and when the page's
 // שמור button flushes it.
-const DayNoteInput = React.memo(function DayNoteInput({ dateStr, note, onSave, registry, onFocusDay, narrow = false }) {
+const DayNoteInput = React.memo(function DayNoteInput({ dateStr, note, onSave, registry }) {
   const base = note?.label ?? "";
   const [text, setText] = useState(base);
   const [failed, setFailed] = useState(false);
@@ -527,9 +526,9 @@ const DayNoteInput = React.memo(function DayNoteInput({ dateStr, note, onSave, r
       type="text"
       dir="rtl"
       value={text}
-      placeholder={narrow ? "" : "שם האירוע"}
+      placeholder="שם האירוע"
       title={failed ? "השמירה נכשלה — הטקסט עדיין לא נשמר" : "יום ללא אירוע — אפשר לכתוב כאן שם"}
-      className={`w-full min-w-0 h-[14px] p-0 leading-none bg-transparent text-center text-[11px] font-medium text-stone-700 placeholder:text-stone-300 border-0 focus:outline-none focus:ring-1 focus:ring-emerald-700 ${failed ? "ring-2 ring-red-600 bg-red-100/70" : ""}`}
+      className={`w-full min-w-0 h-[18px] p-0 leading-none bg-transparent text-center text-[13px] font-medium text-stone-700 placeholder:text-stone-300 border-0 focus:outline-none focus:ring-1 focus:ring-emerald-700 ${failed ? "ring-2 ring-red-600 bg-red-100/70" : ""}`}
       onChange={(e) => {
         textRef.current = e.target.value;
         unsavedRef.current = true;
@@ -540,7 +539,7 @@ const DayNoteInput = React.memo(function DayNoteInput({ dateStr, note, onSave, r
         // box — not fire while they're about to type a new name.
         if (e.target.value.trim()) timerRef.current = setTimeout(() => saveRef.current(), 1000);
       }}
-      onFocus={() => { focusedRef.current = true; onFocusDay?.(dateStr); }}
+      onFocus={() => { focusedRef.current = true; }}
       onBlur={() => { focusedRef.current = false; clearTimeout(timerRef.current); save(); }}
       onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
     />
@@ -614,15 +613,6 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   });
   const noteByDay = useMemo(() => new Map(dayNotes.map((n) => [n.shift_date, n])), [dayNotes]);
 
-  // A day with no event and no hours/name entered is squeezed down to the
-  // width of its "X" (empty days are most of a typical month) and grows as
-  // soon as anything is entered — saved hours or a saved name keep it wide,
-  // and clicking into it widens it at once so it can be typed into.
-  const [openDays, setOpenDays] = useState(() => new Set());
-  useEffect(() => { setOpenDays(new Set()); }, [dayStrs[0]]);
-  const handleFocusDay = useCallback((ds) => {
-    setOpenDays((prev) => (prev.has(ds) ? prev : new Set(prev).add(ds)));
-  }, []);
   const guestsByDay = useMemo(() => {
     const map = new Map();
     for (const e of allEvents) {
@@ -648,34 +638,20 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   // event shows "X" in every hours cell and an editable name instead of an
   // event name.
   const eventDaySet = useMemo(() => new Set(allEvents.filter((e) => e.status !== "cancelled").map((e) => e.event_date)), [allEvents]);
-  const hoursDaySet = useMemo(() => {
-    const memberIds = new Set(activeMembers.map((m) => m.id));
-    return new Set(
-      weekShifts
-        .filter((sh) => memberIds.has(sh.member_id) && ((sh.clock_in || "").trim() || (sh.clock_out || "").trim()))
-        .map((sh) => sh.shift_date)
-    );
-  }, [weekShifts, activeMembers]);
-  const isWideDay = (ds) =>
-    eventDaySet.has(ds) || hoursDaySet.has(ds) || Boolean((noteByDay.get(ds)?.label || "").trim()) || openDays.has(ds);
   const weeks = useMemo(() => {
     const result = [];
     let current = new Array(7).fill(null);
-    // Only this month's days get a column — the first/last week is shorter
-    // instead of being padded with cells for neighbouring months.
+    // Every week has all 7 columns, every day the same width — the first/last
+    // week's days from neighbouring months are greyed-out blanks.
     for (const d of days) {
       current[d.getDay()] = d;
-      if (d.getDay() === 6) { result.push(current.filter(Boolean)); current = new Array(7).fill(null); }
+      if (d.getDay() === 6) { result.push(current); current = new Array(7).fill(null); }
     }
-    if (current.some(Boolean)) result.push(current.filter(Boolean));
+    if (current.some(Boolean)) result.push(current);
     return result;
   }, [days]);
-  // A week made only of empty days has nothing to give the leftover width
-  // to, so its days share the whole row evenly instead of leaving a void.
-  const weekHasWide = weeks.map((week) => week.some((d) => d && isWideDay(toDateStr(d))));
 
-  // Erasing a day's name also erases that day's hours in this table and
-  // collapses the column back to its "X" width.
+  // Erasing a day's name also erases that day's hours in this table.
   const handleSaveNote = useCallback(async (dateStr, label) => {
     try {
       const hadLabel = Boolean((noteByDay.get(dateStr)?.label || "").trim());
@@ -686,12 +662,6 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
         queryClient.setQueryData(shiftsKey, (old = []) =>
           old.filter((sh) => !(sh.shift_date === dateStr && memberIds.has(sh.member_id)))
         );
-        setOpenDays((prev) => {
-          if (!prev.has(dateStr)) return prev;
-          const next = new Set(prev);
-          next.delete(dateStr);
-          return next;
-        });
       }
       queryClient.setQueryData(notesKey, (old = []) => {
         const idx = old.findIndex((n) => n.shift_date === saved.shift_date);
@@ -864,36 +834,31 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
       </div>
       <div>
         {weeks.map((week, wi) => (
-          <table key={wi} className={`w-full table-fixed text-sm border-collapse ${wi > 0 ? "-mt-px" : ""}`}>
+          <table key={wi} className={`w-full table-fixed text-sm border-collapse border-2 border-black ${wi > 0 ? "mt-3" : ""}`}>
             <colgroup>
               <col style={{ width: "58px" }} />
               <col style={{ width: "108px" }} />
-              {week.map((d, di) => (
-                <col
-                  key={di}
-                  style={!d ? { width: "10px" } : isWideDay(toDateStr(d)) || !weekHasWide[wi] ? undefined : { width: "30px" }}
-                />
-              ))}
+              {week.map((_, di) => <col key={di} />)}
             </colgroup>
             <thead>
               <tr className="bg-stone-200">
                 <th className="border border-stone-300 bg-white" colSpan={2} />
                 {week.map((d, di) => d ? (
-                  <th key={toDateStr(d)} className="border border-stone-300 px-0 py-0 h-[14px] leading-none text-center font-bold text-stone-800 text-[12px] overflow-hidden">
-                    {isWideDay(toDateStr(d)) || !weekHasWide[wi] ? `${String(d.getDate()).padStart(2, "0")}-${MONTH_ABBR[d.getMonth()]}` : String(d.getDate()).padStart(2, "0")}
+                  <th key={toDateStr(d)} className="border border-stone-300 px-0 py-0 h-[18px] leading-none text-center font-bold text-stone-800 text-[14px] overflow-hidden">
+                    {`${String(d.getDate()).padStart(2, "0")}-${MONTH_ABBR[d.getMonth()]}`}
                   </th>
                 ) : <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />)}
               </tr>
               <tr className="bg-stone-100">
                 <th className="border border-stone-300 bg-white" colSpan={2} />
                 {week.map((d, di) => d ? (
-                  <th key={toDateStr(d)} className="border border-stone-300 px-0 py-0 h-[14px] leading-none text-center font-medium text-stone-600 text-[11px] overflow-hidden">
-                    {isWideDay(toDateStr(d)) || !weekHasWide[wi] ? DAY_NAMES[d.getDay()] : DAY_LETTERS[d.getDay()]}
+                  <th key={toDateStr(d)} className="border border-stone-300 px-0 py-0 h-[18px] leading-none text-center font-medium text-stone-600 text-[13px] overflow-hidden">
+                    {DAY_NAMES[d.getDay()]}
                   </th>
                 ) : <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />)}
               </tr>
               <tr className="bg-stone-100">
-                <th className="border border-stone-300 h-[14px] py-0 leading-none text-[11px] font-bold text-stone-700" colSpan={2}>שם האירוע</th>
+                <th className="border border-stone-300 h-[18px] py-0 leading-none text-[13px] font-bold text-stone-700" colSpan={2}>שם האירוע</th>
                 {week.map((d, di) => {
                   if (!d) return <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />;
                   const ds = toDateStr(d);
@@ -902,20 +867,20 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                   return (
                     <th
                       key={ds}
-                      className={`border border-stone-300 text-center font-medium text-stone-700 text-[11px] leading-none h-[14px] overflow-hidden text-ellipsis whitespace-nowrap ${hasEvent ? "px-1 py-0" : "p-0"}`}
+                      className={`border border-stone-300 text-center font-medium text-stone-700 text-[13px] leading-none h-[18px] overflow-hidden text-ellipsis whitespace-nowrap ${hasEvent ? "px-1 py-0" : "p-0"}`}
                       title={hasEvent ? names.join(" / ") : undefined}
                     >
                       {hasEvent ? (
                         names.join(" / ") || "-"
                       ) : (
-                        <DayNoteInput dateStr={ds} note={noteByDay.get(ds)} onSave={handleSaveNote} registry={cellRegistry.current} onFocusDay={handleFocusDay} narrow={!isWideDay(ds) && weekHasWide[wi]} />
+                        <DayNoteInput dateStr={ds} note={noteByDay.get(ds)} onSave={handleSaveNote} registry={cellRegistry.current} />
                       )}
                     </th>
                   );
                 })}
               </tr>
               <tr className="bg-stone-50">
-                <th className="border border-stone-300 h-[14px] py-0 leading-none text-[11px] font-bold text-stone-700" colSpan={2}>סועדים</th>
+                <th className="border border-stone-300 h-[18px] py-0 leading-none text-[13px] font-bold text-stone-700" colSpan={2}>סועדים</th>
                 {week.map((d, di) => {
                   if (!d) return <th key={`blank-${di}`} className="border border-stone-300 bg-stone-100" />;
                   const ds = toDateStr(d);
@@ -924,7 +889,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                   return (
                     <th
                       key={ds}
-                      className={`border border-stone-300 px-1 py-0 h-[14px] leading-none text-center font-semibold text-[11px] ${shortfall ? "bg-red-50" : ""}`}
+                      className={`border border-stone-300 px-1 py-0 h-[18px] leading-none text-center font-semibold text-[13px] ${shortfall ? "bg-red-50" : ""}`}
                       title={
                         shortfall
                           ? `נדרש ${shortfall.required} טבחים לפי התקן (${g} סועדים), מתוכננים ${shortfall.scheduled}` +
@@ -958,7 +923,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                 {i === 0 && (
                   <td
                     rowSpan={stationMembers.length}
-                    className={`border border-stone-300 px-0.5 text-center text-[10px] leading-none font-bold align-middle bg-white text-stone-800 ${groupBorder}`}
+                    className={`border border-stone-300 px-0.5 text-center text-[12px] leading-none font-bold align-middle bg-white text-stone-800 ${groupBorder}`}
                   >
                     {station}
                   </td>
@@ -973,7 +938,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                   >
                     <SelectTrigger
                       title={member.full_name}
-                      className="h-[14px] min-h-0 w-full border-0 bg-transparent shadow-none ring-0 focus:ring-0 px-1.5 py-0 leading-none justify-start gap-0.5 text-[12px] font-bold !text-black data-[placeholder]:!text-black truncate [&>svg]:opacity-60 [&>svg]:text-black [&>svg]:w-3 [&>svg]:h-3 [&>svg]:shrink-0"
+                      className="h-[18px] min-h-0 w-full border-0 bg-transparent shadow-none ring-0 focus:ring-0 px-1.5 py-0 leading-none justify-start gap-0.5 text-[14px] font-bold !text-black data-[placeholder]:!text-black truncate [&>svg]:opacity-60 [&>svg]:text-black [&>svg]:w-3 [&>svg]:h-3 [&>svg]:shrink-0"
                     >
                       <SelectValue placeholder={member.full_name} />
                     </SelectTrigger>
@@ -1000,7 +965,6 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                         onSave={handleSaveShift}
                         registry={cellRegistry.current}
                         isEventDay={eventDaySet.has(ds)}
-                        onFocusDay={handleFocusDay}
                       />
                     </td>
                   );
