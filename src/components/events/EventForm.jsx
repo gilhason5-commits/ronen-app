@@ -106,7 +106,7 @@ export default function EventForm({ event, onClose, producerMode = false, initia
 
   const dishes = allDishes.filter((dish) => dish.event_type === formData.event_type);
   const fixedDishes = getFixedEventDishes(formData.event_type, allDishes, allCategories);
-  const fixedItemsCost = computeFixedItemsCost(formData.event_type, allDishes, allCategories);
+  const fixedItemsCost = computeFixedItemsCost(formData, allDishes, allCategories);
 
   const { data: ingredients = [] } = useQuery({
     queryKey: ['ingredients'],
@@ -794,7 +794,7 @@ export default function EventForm({ event, onClose, producerMode = false, initia
               }}
               producerMode={producerMode} />
 
-              <EventFixedItems dishes={fixedDishes} hidePrices={producerMode} />
+              <EventFixedItems dishes={fixedDishes} event={formData} hidePrices={producerMode} />
 
             </>
           }

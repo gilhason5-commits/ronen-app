@@ -37,10 +37,16 @@ export default function Dishes() {
     queryFn: () => base44.entities.Dish.list(),
   });
 
-  // Filter dishes by event type and sort alphabetically
+  // Filter dishes by event type; manual order (arrows) first, then by name
+  // for dishes never moved (display_order null).
   const dishes = allDishes
     .filter(dish => dish.event_type === eventTypeFilter)
-    .sort((a, b) => a.name?.localeCompare(b.name, 'he'));
+    .sort((a, b) => {
+      const ao = a.display_order ?? Infinity;
+      const bo = b.display_order ?? Infinity;
+      if (ao !== bo) return ao - bo;
+      return (a.name || '').localeCompare(b.name || '', 'he');
+    });
 
   const { data: ingredients = [] } = useQuery({
     queryKey: ['ingredients'],
@@ -114,6 +120,36 @@ export default function Dishes() {
   });
 
   const categoryIdsInGroup = categories.map(cat => cat.id);
+
+  // Up/down arrows: swap the dish past its neighbour in the visible list,
+  // then renumber the whole event-type list so the order is total and
+  // stable. Only rows whose position changed are written.
+  const [moving, setMoving] = useState(false);
+  const handleMoveDish = async (dish, dir) => {
+    const visibleIdx = filteredDishes.findIndex(d => d.id === dish.id);
+    const neighbour = filteredDishes[visibleIdx + dir];
+    if (!neighbour) return;
+    const order = dishes.filter(d => d.id !== dish.id);
+    const at = order.findIndex(d => d.id === neighbour.id);
+    order.splice(dir > 0 ? at + 1 : at, 0, dish);
+    const changed = order
+      .map((d, i) => ({ d, i }))
+      .filter(({ d, i }) => d.display_order !== i);
+    if (changed.length === 0) return;
+    const newOrder = new Map(changed.map(({ d, i }) => [d.id, i]));
+    queryClient.setQueryData(['dishes'], (old = []) =>
+      old.map(d => (newOrder.has(d.id) ? { ...d, display_order: newOrder.get(d.id) } : d))
+    );
+    setMoving(true);
+    try {
+      await Promise.all(changed.map(({ d, i }) => base44.entities.Dish.update(d.id, { display_order: i })));
+    } catch (e) {
+      toast.error('שמירת סדר המנות נכשלה');
+    } finally {
+      await queryClient.invalidateQueries({ queryKey: ['dishes'] });
+      setMoving(false);
+    }
+  };
 
   const filteredDishes = dishes.filter(dish => {
     const matchesSearch = dish.name?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -451,6 +487,8 @@ export default function Dishes() {
         dishes={filteredDishes}
         isLoading={isLoading}
         onEdit={handleEditDish}
+        onMove={handleMoveDish}
+        moving={moving}
         categories={categories}
         ingredients={ingredients}
         specialIngredients={specialIngredients}

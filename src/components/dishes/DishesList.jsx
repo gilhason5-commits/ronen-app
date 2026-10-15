@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { base44 } from "@/api/base44Client";
-import { Input } from "@/components/ui/input";
-import { isFixedPerEventCategory, getFixedEventQty } from "@/lib/fixedEventItems";
+import { isFixedPerEventCategory } from "@/lib/fixedEventItems";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit, UtensilsCrossed, CalendarSearch, SlidersHorizontal } from "lucide-react";
+import { Edit, UtensilsCrossed, CalendarSearch, SlidersHorizontal, ChevronUp, ChevronDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import DishQtyModeFields from "./DishQtyModeFields";
@@ -15,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import DishPrintButton from "./DishPrintButton";
 import DishEventsDialog from "./DishEventsDialog";
 
-export default function DishesList({ dishes, isLoading, onEdit, categories = [], ingredients = [], specialIngredients = [] }) {
+export default function DishesList({ dishes, isLoading, onEdit, onMove, moving = false, categories = [], ingredients = [], specialIngredients = [] }) {
   const [eventsDish, setEventsDish] = useState(null);
 
   if (isLoading) {
@@ -41,7 +40,7 @@ export default function DishesList({ dishes, isLoading, onEdit, categories = [],
 
   return (
     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {dishes.map((dish) => {
+      {dishes.map((dish, index) => {
         const dishCategories = categories.filter(cat => 
           dish.categories?.includes(cat.id)
         );
@@ -58,7 +57,7 @@ export default function DishesList({ dishes, isLoading, onEdit, categories = [],
         return (
           <Card key={dish.id} className="border-stone-200 hover:shadow-md transition-shadow">
             <CardContent className="p-5">
-              <div className="flex items-start justify-between mb-3">
+              <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="flex-1">
                   <h3 className="font-semibold text-lg text-stone-900">{dish.name}</h3>
                   <div className="flex flex-wrap gap-1 mt-2">
@@ -74,6 +73,30 @@ export default function DishesList({ dishes, isLoading, onEdit, categories = [],
                     )}
                   </div>
                 </div>
+                {onMove && (
+                  <div className="flex flex-col shrink-0 -my-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-stone-500 hover:text-stone-900"
+                      title="הזז למעלה"
+                      disabled={moving || index === 0}
+                      onClick={() => onMove(dish, -1)}
+                    >
+                      <ChevronUp className="w-5 h-5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-stone-500 hover:text-stone-900"
+                      title="הזז למטה"
+                      disabled={moving || index === dishes.length - 1}
+                      onClick={() => onMove(dish, 1)}
+                    >
+                      <ChevronDown className="w-5 h-5" />
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {dish.description && (
@@ -81,17 +104,13 @@ export default function DishesList({ dishes, isLoading, onEdit, categories = [],
               )}
 
               <div className="space-y-2 mb-4">
-                {!isFixedItem && (
-                  <div className="flex justify-between items-center p-2 bg-stone-50 rounded">
-                    <span className={`text-sm ${isExplicitQtyMode(dish) ? 'font-medium text-blue-700' : 'text-stone-600'}`}>
-                      {qtyModeLabel(dish)}
-                    </span>
-                    <QtyModePopover dish={dish} isFirstCourse={isFirstCourse} />
-                  </div>
-                )}
-                {isFixedItem ? (
-                  <FixedQtyEditor dish={dish} />
-                ) : isFirstCourse ? (
+                <div className="flex justify-between items-center p-2 bg-stone-50 rounded">
+                  <span className={`text-sm ${isExplicitQtyMode(dish) ? 'font-medium text-blue-700' : 'text-stone-600'}`}>
+                    {qtyModeLabel(dish)}
+                  </span>
+                  <QtyModePopover dish={dish} isFirstCourse={isFirstCourse} />
+                </div>
+                {isFixedItem ? null : isFirstCourse ? (
                   <div className="flex justify-between items-center p-2 bg-emerald-50 rounded">
                     <span className="text-sm text-stone-600">מחיר לסועד:</span>
                     <span className="font-semibold text-emerald-700">₪{pricePerGuest.toFixed(2)}</span>
@@ -154,47 +173,6 @@ export default function DishesList({ dishes, isLoading, onEdit, categories = [],
     </div>
   );
 }
-// Fixed per-event items are quantified per event, not per guest: edit
-// fixed_event_qty right on the card.
-function FixedQtyEditor({ dish }) {
-  const queryClient = useQueryClient();
-  const current = getFixedEventQty(dish);
-  const [value, setValue] = useState(String(current));
-  const [saving, setSaving] = useState(false);
-
-  const save = async () => {
-    const qty = parseFloat(value);
-    if (!Number.isFinite(qty) || qty < 0) {
-      setValue(String(current));
-      return;
-    }
-    if (qty === current && dish.fixed_event_qty != null) return;
-    setSaving(true);
-    try {
-      await base44.entities.Dish.update(dish.id, { fixed_event_qty: qty });
-      await queryClient.invalidateQueries({ queryKey: ['dishes'] });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="flex justify-between items-center p-2 bg-blue-50 rounded">
-      <span className="text-sm text-stone-600">כמות לאירוע:</span>
-      <Input
-        type="text"
-        inputMode="decimal"
-        value={value}
-        disabled={saving}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={save}
-        onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-        className="w-20 h-7 text-center text-sm"
-      />
-    </div>
-  );
-}
-
 // Card shortcut for how the dish's event quantity is set (serving % / fixed
 // per event / per N guests) — saves straight to the dish.
 function QtyModePopover({ dish, isFirstCourse }) {

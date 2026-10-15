@@ -28,7 +28,7 @@ import {
 import IngredientDetailsDialog from "./IngredientDetailsDialog";
 import IngredientDialog from "../inventory/IngredientDialog";
 import SpecialIngredientDialog from "../ingredients/SpecialIngredientDialog";
-import { isFixedPerEventCategory, getFixedEventQty } from "@/lib/fixedEventItems";
+import { isFixedPerEventCategory } from "@/lib/fixedEventItems";
 import { syncDishEventQuantities } from "@/lib/plannedDishQty";
 import DishQtyModeFields from "./DishQtyModeFields";
 
@@ -315,13 +315,10 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
     };
     // Clean UUID fields
     if (!dataToSave.sub_category_id) dataToSave.sub_category_id = null;
-    if (isFixedItem) dataToSave.fixed_event_qty = getFixedEventQty(dataToSave);
-    else if (dataToSave.fixed_event_qty === '') dataToSave.fixed_event_qty = null;
+    if (dataToSave.fixed_event_qty === '') dataToSave.fixed_event_qty = null;
     for (const f of ['per_guests_qty', 'per_guests_base']) {
       if (dataToSave[f] === '') dataToSave[f] = null;
     }
-    // Fixed-category items are always counted by fixed_event_qty.
-    if (isFixedItem) dataToSave.qty_mode = 'percent';
 
     saveMutation.mutate(dataToSave);
   };
@@ -380,21 +377,6 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
               </Select>
             </div>
 
-            {isFixedItem ? (
-            <div className="col-span-2">
-              <Label>כמות לאירוע *</Label>
-              <p className="text-xs text-stone-500 mb-1">
-                פריט קבוע: נכנס לכל אירוע פעם אחת בכמות הזו, בלי קשר למספר הסועדים
-              </p>
-              <Input
-                type="text"
-                inputMode="decimal"
-                value={formData.fixed_event_qty ?? getFixedEventQty(formData)}
-                onChange={(e) => setFormData({...formData, fixed_event_qty: e.target.value === '' ? '' : parseFloat(e.target.value) || 0})}
-                placeholder="1"
-              />
-            </div>
-            ) : (
             <div className="col-span-2">
               <DishQtyModeFields
                 value={formData}
@@ -403,8 +385,12 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
                   ? 'כמות הסועדים חלקי 6 כפול האחוזים שתגדיר למטה ייקבע את כמות המנות'
                   : 'דוגמא: 100% = מנות לכל הסועדים, 150% = פי 1.5 מהכמות'}
               />
+              {isFixedItem && (
+                <p className="text-xs text-stone-500 mt-1">
+                  פריט קבוע: נכנס לכל אירוע אוטומטית, מחוץ לעץ המוצר
+                </p>
+              )}
             </div>
-            )}
           </div>
 
           <div>

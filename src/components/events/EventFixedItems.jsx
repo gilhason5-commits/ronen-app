@@ -2,18 +2,19 @@ import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { fmtCurrency } from "../utils/formatNumbers";
 import { useAuth } from "@/lib/AuthContext";
-import { getFixedEventQty } from "@/lib/fixedEventItems";
+import { getFixedItemEventQty } from "@/lib/fixedEventItems";
 
 // Fixed per-event items (dishes under a fixed_per_event category). Read-only:
-// every event of this type gets each item once at the dish's fixed quantity,
-// outside the guest-count driven dish tree. Edit them in "מנות ותפריטים".
-export default function EventFixedItems({ dishes = [], hidePrices = false }) {
+// every event of this type gets each item automatically, at the quantity the
+// dish's mode sets (fixed count or serving % of the guests), outside the
+// guest-count driven dish tree. Edit them in "מנות ותפריטים".
+export default function EventFixedItems({ dishes = [], event, hidePrices = false }) {
   const { user } = useAuth();
   if (dishes.length === 0) return null;
   const showPrices = !hidePrices && !user?.hide_financials;
 
   const rows = dishes.map((d) => {
-    const qty = getFixedEventQty(d);
+    const qty = getFixedItemEventQty(d, event);
     return { id: d.id, name: d.name, qty, total: qty * (d.unit_cost || 0) };
   });
   const total = rows.reduce((sum, r) => sum + r.total, 0);
@@ -22,7 +23,7 @@ export default function EventFixedItems({ dishes = [], hidePrices = false }) {
     <Card className="border-stone-200">
       <CardHeader className="border-b border-stone-200 p-5">
         <CardTitle className="text-lg">פריטים קבועים (לא בעץ מוצר)</CardTitle>
-        <p className="text-sm text-stone-500">נכנסים לכל אירוע פעם אחת, בכמות שמוגדרת במנה</p>
+        <p className="text-sm text-stone-500">נכנסים לכל אירוע אוטומטית, לפי כמות קבועה או אחוז הגשה שמוגדרים במנה</p>
       </CardHeader>
       <CardContent className="p-5 space-y-2">
         {rows.map((r) => (

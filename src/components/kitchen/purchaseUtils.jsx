@@ -1,7 +1,7 @@
 import { format, startOfWeek, endOfWeek, addDays, subDays } from 'date-fns';
 import { applyWasteToQty } from '@/lib/foodWaste';
 import { calculateAdultPortions } from '@/lib/dinerCount';
-import { getFixedEventDishes, getFixedEventQty } from '@/lib/fixedEventItems';
+import { getFixedEventDishes, getFixedItemEventQty } from '@/lib/fixedEventItems';
 import { explicitDishQty } from "@/lib/plannedDishQty";
 
 export const roundToPurchaseUnit = (qty, purchaseUnit) => {
@@ -131,7 +131,7 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
             return dish && { dish, effectiveQty: getEffectivePlannedQty(ed, event) };
           })
           .filter(Boolean),
-        ...fixedDishes.map(dish => ({ dish, effectiveQty: getFixedEventQty(dish) })),
+        ...fixedDishes.map(dish => ({ dish, effectiveQty: getFixedItemEventQty(dish, event) })),
       ];
 
       dishLines.forEach(({ dish, effectiveQty }) => {
