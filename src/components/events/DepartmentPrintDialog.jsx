@@ -369,7 +369,7 @@ export default function DepartmentPrintDialog({
       const servingPct = dish.serving_percentage ?? 100;
       const wPct = eventWastePct(guestCount);
       const wasteTail = wPct > 0
-        ? ` × ${eventWasteFactor(guestCount)} (פחת ${wPct * 100}%) = ${effectiveQty}`
+        ? ` × ${eventWasteFactor(guestCount)} (הפחתת כמות לאירוע גדול ${Math.round(wPct * 100)}%) = ${effectiveQty}`
         : '';
       let calcBreakdown = '';
       if (isExplicitQtyMode(dish)) {

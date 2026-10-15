@@ -569,10 +569,10 @@ export default function EventForm({ event, onClose, producerMode = false, initia
                         )}
                         {wasteLabel(formData.guest_count) ? (
                           <p className="text-xs text-amber-700 mt-1">
-                            פחת אוכל: {wasteLabel(formData.guest_count)}
+                            הפחתת כמות לאירוע גדול: {wasteLabel(formData.guest_count)}
                           </p>
                         ) : (
-                          <p className="text-xs text-stone-400 mt-1">ללא פחת (מתחת ל-150)</p>
+                          <p className="text-xs text-stone-400 mt-1">ללא הפחתת כמות (מתחת ל-250)</p>
                         )}
                       </div>
 
