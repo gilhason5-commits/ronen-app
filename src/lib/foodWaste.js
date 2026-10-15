@@ -7,13 +7,15 @@
 // per-ingredient waste.
 //
 // Brackets (guest_count = סה״כ מבוגרים להתחייבות):
-//   < 250        → 0%
-//   250 – 300    → 3%
-//   > 300        → 5%
+//   < 150        → 0%
+//   150 – 249    → 2.5%
+//   250 – 349    → 5%
+//   ≥ 350        → 7.5%
 export function eventWastePct(guestCount) {
   const n = parseInt(guestCount, 10) || 0;
-  if (n > 300) return 0.05;
-  if (n >= 250) return 0.03;
+  if (n >= 350) return 0.075;
+  if (n >= 250) return 0.05;
+  if (n >= 150) return 0.025;
   return 0;
 }
 

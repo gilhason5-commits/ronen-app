@@ -572,7 +572,7 @@ export default function EventForm({ event, onClose, producerMode = false, initia
                             הפחתת כמות לאירוע גדול: {wasteLabel(formData.guest_count)}
                           </p>
                         ) : (
-                          <p className="text-xs text-stone-400 mt-1">ללא הפחתת כמות (מתחת ל-250)</p>
+                          <p className="text-xs text-stone-400 mt-1">ללא הפחתת כמות (מתחת ל-150)</p>
                         )}
                       </div>
 
