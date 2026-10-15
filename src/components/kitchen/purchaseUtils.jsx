@@ -49,7 +49,6 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
     if (!dish) return 0;
     const explicitQty = explicitDishQty(dish, event);
     if (explicitQty != null) return explicitQty;
-    const guestCount = event?.guest_count || 0;
     // Standard dish quantities are planned for guests eating the standard
     // menu — guest_count minus vegans/glatt, who get separate dishes not
     // counted in this tree (e.g. 300 committed, 20 vegan -> plan for 280).
@@ -67,7 +66,7 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
       const rawQuantity = dishGuestCount * (servingPercentage / 100) * portionFactor;
       baseQty = Math.ceil(rawQuantity);
     }
-    return applyWasteToQty(baseQty, guestCount);
+    return applyWasteToQty(baseQty, event);
   };
 
   // Adds a purchasable ingredient's need (raw qty, before ingredient waste)

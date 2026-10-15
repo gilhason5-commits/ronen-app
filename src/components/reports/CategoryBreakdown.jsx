@@ -32,8 +32,8 @@ export default function CategoryBreakdown({ events, eventDishes: propEventDishes
   }
 
   // Map event_id → guest_count so we can apply the פחת to stored planned_cost.
-  const guestCountByEvent = {};
-  (events || []).forEach(e => { guestCountByEvent[e.id] = e.guest_count; });
+  const eventById = {};
+  (events || []).forEach(e => { eventById[e.id] = e; });
 
   // Calculate cost by category
   const categoryTotals = {};
@@ -43,7 +43,7 @@ export default function CategoryBreakdown({ events, eventDishes: propEventDishes
     // otherwise reduce the stored base planned_cost here.
     const cost = getEffectivePlannedCost
       ? getEffectivePlannedCost(ed)
-      : applyWasteToValue(ed.planned_cost || 0, guestCountByEvent[ed.event_id]);
+      : applyWasteToValue(ed.planned_cost || 0, eventById[ed.event_id]);
 
     if (!categoryTotals[categoryId]) {
       categoryTotals[categoryId] = 0;

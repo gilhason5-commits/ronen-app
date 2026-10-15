@@ -54,8 +54,8 @@ export default function IngredientCategoryPieChart() {
 
     const categoryTotals = {};
     const relevantEventIds = new Set(events.map(e => e.id));
-    const guestCountByEvent = {};
-    events.forEach(e => { guestCountByEvent[e.id] = e.guest_count; });
+    const eventById = {};
+    events.forEach(e => { eventById[e.id] = e; });
 
     // Filter relevant EventDishes
     const relevantEventDishes = eventsDishes.filter(ed => relevantEventIds.has(ed.event_id));
@@ -65,7 +65,7 @@ export default function IngredientCategoryPieChart() {
       if (!dish || !dish.ingredients) return;
 
       // Number of portions/units, after the event-level food reduction (פחת).
-      const plannedQty = applyWasteToQty(ed.planned_qty || 0, guestCountByEvent[ed.event_id]);
+      const plannedQty = applyWasteToQty(ed.planned_qty || 0, eventById[ed.event_id]);
 
       dish.ingredients.forEach(dishIng => {
         const ingredientDef = ingredients.find(i => i.id === dishIng.ingredient_id);

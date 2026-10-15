@@ -39,7 +39,7 @@ function TimePicker({ value, onChange }) {
       <select
         value={h || ""}
         onChange={(e) => onChange(`${e.target.value}:${m || "00"}`)}
-        className="h-7 rounded-md border border-input bg-white px-1.5 text-sm"
+        className="h-10 min-w-[3.5rem] rounded-md border border-input bg-white px-2 text-base"
       >
         <option value="" disabled>שעה</option>
         {HOURS.map((hh) => <option key={hh} value={hh}>{hh}</option>)}
@@ -48,7 +48,7 @@ function TimePicker({ value, onChange }) {
       <select
         value={m || ""}
         onChange={(e) => onChange(`${h || "00"}:${e.target.value}`)}
-        className="h-7 rounded-md border border-input bg-white px-1.5 text-sm"
+        className="h-10 min-w-[3.5rem] rounded-md border border-input bg-white px-2 text-base"
       >
         <option value="" disabled>דקה</option>
         {MINUTES.map((mm) => <option key={mm} value={mm}>{mm}</option>)}
@@ -101,7 +101,7 @@ function ManagerAttendanceSection({ event, rules, agencies, allEvents }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0 overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
+        <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-slate-50">
               <th className="border border-slate-200 px-1.5 py-0.5 text-center w-6">#</th>
@@ -132,7 +132,7 @@ function ManagerAttendanceSection({ event, rules, agencies, allEvents }) {
                   <td className="border border-slate-200 p-0.5">
                     <Input
                       placeholder="הערה…"
-                      className="h-7 text-xs border-0"
+                      className="h-10 text-base border-0 min-w-[8rem]"
                       defaultValue={plan.note || ""}
                       onBlur={(e) => { if (e.target.value !== (plan.note || "")) updatePlan.mutate({ id: plan.id, data: { note: e.target.value } }); }}
                     />
@@ -165,7 +165,7 @@ function PayFields({ shift, onUpdate }) {
   return (
     <div className="flex items-center gap-2 flex-wrap text-sm">
       <Select value={shift.pay_type || "none"} onValueChange={(v) => onUpdate({ pay_type: v === "none" ? null : v })}>
-        <SelectTrigger className="h-8 w-28"><SelectValue placeholder="סוג שכר" /></SelectTrigger>
+        <SelectTrigger className="h-10 w-32"><SelectValue placeholder="סוג שכר" /></SelectTrigger>
         <SelectContent>
           <SelectItem value="none">ללא</SelectItem>
           <SelectItem value="hourly">שכר שעתי</SelectItem>
@@ -174,14 +174,14 @@ function PayFields({ shift, onUpdate }) {
       </Select>
       {shift.pay_type === "hourly" && (
         <>
-          <Input key={`hours-${shift.hours ?? ""}`} type="number" step="0.25" placeholder="שעות" className="h-8 w-20"
+          <Input key={`hours-${shift.hours ?? ""}`} type="number" step="0.25" placeholder="שעות" className="h-10 w-20 text-base"
             defaultValue={shift.hours ?? ""} onBlur={(e) => onUpdate({ hours: e.target.value === "" ? null : parseFloat(e.target.value) || 0 })} />
-          <Input key={`rate-${shift.hourly_rate ?? ""}`} type="number" step="0.01" placeholder="₪/שעה" className="h-8 w-24"
+          <Input key={`rate-${shift.hourly_rate ?? ""}`} type="number" step="0.01" placeholder="₪/שעה" className="h-10 w-24 text-base"
             defaultValue={shift.hourly_rate ?? ""} onBlur={(e) => onUpdate({ hourly_rate: e.target.value === "" ? null : parseFloat(e.target.value) || 0 })} />
         </>
       )}
       {shift.pay_type === "daily" && (
-        <Input key={`daily-${shift.daily_rate ?? ""}`} type="number" step="0.01" placeholder="₪ ליום" className="h-8 w-24"
+        <Input key={`daily-${shift.daily_rate ?? ""}`} type="number" step="0.01" placeholder="₪ ליום" className="h-10 w-24 text-base"
           defaultValue={shift.daily_rate ?? ""} onBlur={(e) => onUpdate({ daily_rate: e.target.value === "" ? null : parseFloat(e.target.value) || 0 })} />
       )}
       {shift.pay_type && total > 0 && (
@@ -207,8 +207,8 @@ function ShiftRow({ shift, employee, onUpdate, onDelete, hideWaiterFlags = false
           {shift.agency_name && <span className="text-xs text-slate-500 mr-2">· {shift.agency_name}</span>}
           {shift.is_substitute && <Badge variant="outline" className="mr-2 text-[10px]">מחליף</Badge>}
         </div>
-        <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={onDelete}>
-          <Trash2 className="w-4 h-4" />
+        <Button size="icon" variant="ghost" className="h-10 w-10 text-red-500" onClick={onDelete}>
+          <Trash2 className="w-5 h-5" />
         </Button>
       </div>
       <div className="flex items-center gap-2 flex-wrap">
@@ -221,13 +221,13 @@ function ShiftRow({ shift, employee, onUpdate, onDelete, hideWaiterFlags = false
           <TimePicker value={draftClockOut} onChange={setDraftClockOut} />
         </div>
         {!draftClockOut && (
-          <Button size="sm" variant="outline" className="h-9" onClick={() => setDraftClockOut(nowTime())}>
+          <Button size="sm" variant="outline" className="h-10" onClick={() => setDraftClockOut(nowTime())}>
             <Clock className="w-3.5 h-3.5 ml-1" /> עכשיו
           </Button>
         )}
         <Button
           size="sm"
-          className="h-9"
+          className="h-10"
           disabled={!dirty}
           onClick={() => {
             const hours = shiftHours(draftClockIn, draftClockOut);
@@ -243,22 +243,22 @@ function ShiftRow({ shift, employee, onUpdate, onDelete, hideWaiterFlags = false
         </Button>
       </div>
       {!hideWaiterFlags && (
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-5 text-base">
           <label className="flex items-center gap-1.5">
-            <Checkbox checked={shift.is_runner} onCheckedChange={(v) => onUpdate({ is_runner: !!v })} /> ראנר
+            <Checkbox className="h-5 w-5" checked={shift.is_runner} onCheckedChange={(v) => onUpdate({ is_runner: !!v })} /> ראנר
           </label>
           <label className="flex items-center gap-1.5">
-            <Checkbox checked={shift.is_closing} onCheckedChange={(v) => onUpdate({ is_closing: !!v })} /> סגירה
+            <Checkbox className="h-5 w-5" checked={shift.is_closing} onCheckedChange={(v) => onUpdate({ is_closing: !!v })} /> סגירה
           </label>
           <label className="flex items-center gap-1.5">
-            <Checkbox checked={shift.is_balcony} onCheckedChange={(v) => onUpdate({ is_balcony: !!v })} /> מרפסת
+            <Checkbox className="h-5 w-5" checked={shift.is_balcony} onCheckedChange={(v) => onUpdate({ is_balcony: !!v })} /> מרפסת
           </label>
         </div>
       )}
       <PayFields shift={shift} onUpdate={onUpdate} />
       <Input
         placeholder="הערה…"
-        className="h-8 text-sm"
+        className="h-10 text-base"
         defaultValue={shift.note || ""}
         onBlur={(e) => { if (e.target.value !== (shift.note || "")) onUpdate({ note: e.target.value }); }}
       />
@@ -309,7 +309,7 @@ function AddWorkerDialog({ event, agency, employees, shifts, open, onOpenChange 
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent dir="rtl" className="max-w-sm">
+      <DialogContent dir="rtl" className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><UserPlus className="w-4 h-4" /> הוספת עובד — {agency.name}</DialogTitle>
         </DialogHeader>
@@ -321,7 +321,7 @@ function AddWorkerDialog({ event, agency, employees, shifts, open, onOpenChange 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="חיפוש מלצר..."
-                className="pr-8"
+                className="pr-8 h-11 text-base"
               />
             </div>
           )}
@@ -334,7 +334,7 @@ function AddWorkerDialog({ event, agency, employees, shifts, open, onOpenChange 
               {shownWorkers.map((w) => (
                 <button
                   key={w.id}
-                  className="rounded-full border px-3 py-1.5 text-sm bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 active:scale-95 transition"
+                  className="rounded-full border px-4 py-2.5 text-base bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 active:scale-95 transition"
                   disabled={addShift.isPending}
                   onClick={() => addShift.mutate(w)}
                 >
@@ -378,7 +378,7 @@ function AgencySection({ event, agency, employees, shifts, plannedCount, updateS
         )}
         <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
           <span>{agency.name} ({agencyShifts.length})</span>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
+          <Button className="h-10" onClick={() => setDialogOpen(true)}>
             <UserPlus className="w-4 h-4 ml-1" /> הוספת עובד
           </Button>
         </CardTitle>
@@ -430,7 +430,7 @@ function AddKitchenWorkerDialog({ event, rosterMembers, employees, shifts, open,
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir="rtl" className="max-w-sm">
+      <DialogContent dir="rtl" className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><UserPlus className="w-4 h-4" /> הוספת איש צוות מטבח/ניקיון</DialogTitle>
         </DialogHeader>
@@ -439,7 +439,7 @@ function AddKitchenWorkerDialog({ event, rosterMembers, employees, shifts, open,
             {available.map((m) => (
               <button
                 key={m.id}
-                className="rounded-full border px-3 py-1.5 text-sm bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 active:scale-95 transition"
+                className="rounded-full border px-4 py-2.5 text-base bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 active:scale-95 transition"
                 disabled={addShift.isPending}
                 onClick={() => addShift.mutate(m)}
               >
@@ -466,7 +466,7 @@ function KitchenSection({ event, rosterMembers, employees, shifts, updateShift, 
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
           <span>מטבח וניקיון ({kitchenShifts.length})</span>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
+          <Button className="h-10" onClick={() => setDialogOpen(true)}>
             <UserPlus className="w-4 h-4 ml-1" /> הוספת עובד
           </Button>
         </CardTitle>
@@ -568,7 +568,7 @@ export default function EventAttendance() {
         <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2">
           <ClipboardCheck className="w-6 h-6 text-emerald-700" /> נוכחות אירוע
         </h1>
-        <Input type="date" className="h-9 w-40" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+        <Input type="date" className="h-11 w-44 text-base" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
       </div>
 
       {events.length === 0 && eventsLoading && <LoadingState className="py-12" />}
@@ -578,7 +578,7 @@ export default function EventAttendance() {
 
       {events.length > 1 && (
         <Select value={event?.id} onValueChange={setSelectedEventId}>
-          <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger>
           <SelectContent>
             {events.map((e) => <SelectItem key={e.id} value={e.id}>{e.event_name}</SelectItem>)}
           </SelectContent>
@@ -602,7 +602,7 @@ export default function EventAttendance() {
 
           <ManagerAttendanceSection event={event} rules={rules} agencies={agencies} allEvents={events} />
 
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 items-start">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 items-start">
             {displayAgencies.map((agency) => (
               <AgencySection
                 key={agency.id}

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Printer, Download } from "lucide-react";
 import DepartmentPrintPreview from "./DepartmentPrintPreview";
-import { eventWastePct, eventWasteFactor, applyWasteToQty } from "@/lib/foodWaste";
+import { eventWastePct, eventWasteFactor, applyWasteToQty, isFridayEvent, FRIDAY_EXTRA_PCT } from "@/lib/foodWaste";
 import { calculateAdultPortions } from "@/lib/dinerCount";
 import { explicitDishQty, isExplicitQtyMode, qtyModeLabel } from "@/lib/plannedDishQty";
 
@@ -131,7 +131,7 @@ export default function DepartmentPrintDialog({
       const rawQuantity = dishGuestCount * (servingPercentage / 100) * portionFactor;
       baseQty = Math.ceil(rawQuantity);
     }
-    return applyWasteToQty(baseQty, guestCount);
+    return applyWasteToQty(baseQty, event);
   };
 
   const getIngredientSupportDept = (ingredient) => {
@@ -368,8 +368,13 @@ export default function DepartmentPrintDialog({
       const dishGuestCount = calculateAdultPortions(event?.guest_count, event?.vegan_count, event?.glatt_count);
       const servingPct = dish.serving_percentage ?? 100;
       const wPct = eventWastePct(guestCount);
-      const wasteTail = wPct > 0
-        ? ` × ${eventWasteFactor(guestCount)} (הפחתת כמות לאירוע גדול ${wPct * 100}%) = ${effectiveQty}`
+      const friday = isFridayEvent(event);
+      const tailNotes = [
+        wPct > 0 ? `הפחתת כמות לאירוע גדול ${wPct * 100}%` : '',
+        friday ? `תוספת יום שישי ${FRIDAY_EXTRA_PCT * 100}%` : '',
+      ].filter(Boolean).join(', ');
+      const wasteTail = tailNotes
+        ? ` × ${eventWasteFactor(event)} (${tailNotes}) = ${effectiveQty}`
         : '';
       let calcBreakdown = '';
       if (isExplicitQtyMode(dish)) {

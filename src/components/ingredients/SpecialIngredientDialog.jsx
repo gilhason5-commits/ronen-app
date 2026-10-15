@@ -21,6 +21,8 @@ import {
 import { Plus, Trash2, Search, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import IngredientDialog from "@/components/inventory/IngredientDialog";
+import PdfFilesField from "@/components/shared/PdfFilesField";
+import { dropMissingRefs, removeIngredientFromRecipes } from "@/lib/missingIngredients";
 
 export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
   const queryClient = useQueryClient();
@@ -59,6 +61,21 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
     },
   });
 
+  // "מופיע במנות": dishes and other sub-dishes whose recipe uses this one.
+  const { data: allDishes = [] } = useQuery({
+    queryKey: ['dishes', 'usage'],
+    queryFn: () => base44.entities.Dish.list(),
+    enabled: open && !!ingredient?.id,
+  });
+  const usedIn = ingredient?.id ? [
+    ...allDishes
+      .filter(d => (d.ingredients || []).some(r => r.ingredient_id === ingredient.id))
+      .map(d => ({ id: d.id, name: d.name, kind: 'מנה', ref: d.ingredients.find(r => r.ingredient_id === ingredient.id) })),
+    ...allSpecialIngredients
+      .filter(si => (si.components || []).some(r => r.ingredient_id === ingredient.id))
+      .map(si => ({ id: si.id, name: si.name, kind: 'תת מנה', ref: si.components.find(r => r.ingredient_id === ingredient.id) })),
+  ].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he')) : [];
+
   // Filter out current ingredient to prevent circular reference
   const otherSpecialIngredients = allSpecialIngredients.filter(si => si.id !== ingredient?.id);
 
@@ -68,17 +85,29 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
         name: ingredient.name || "",
         description: ingredient.description || "",
         system_unit: ingredient.system_unit || "קילוגרם",
-        components: ingredient.components || []
+        components: ingredient.components || [],
+        pdf_files: ingredient.pdf_files || []
       });
     } else {
       setFormData({
         name: "",
         description: "",
         system_unit: "ק״ג",
-        components: []
+        components: [],
+        pdf_files: []
       });
     }
   }, [ingredient, open]);
+
+  // Same as DishDialog: hide component rows whose ingredient was deleted.
+  useEffect(() => {
+    if (!ingredients.length || !allSpecialIngredients.length) return;
+    const known = new Set([...ingredients, ...allSpecialIngredients].map(i => i.id));
+    setFormData(f => {
+      const kept = dropMissingRefs(f.components, known);
+      return kept.length === f.components.length ? f : { ...f, components: kept };
+    });
+  }, [ingredient, open, ingredients, allSpecialIngredients]);
 
   const calculateTotals = (components) => {
     let totalCost = 0;
@@ -118,23 +147,27 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['specialIngredients'] });
-      toast.success(ingredient ? 'רכיב מיוחד עודכן בהצלחה' : 'רכיב מיוחד נוצר בהצלחה');
+      toast.success(ingredient ? 'תת המנה עודכנה בהצלחה' : 'תת המנה נוצרה בהצלחה');
       onClose();
     },
     onError: (error) => {
-      toast.error('שגיאה בשמירת רכיב מיוחד: ' + error.message);
+      toast.error('שגיאה בשמירת תת המנה: ' + error.message);
     }
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => base44.entities.SpecialIngredient.delete(id),
+    mutationFn: async (id) => {
+      await removeIngredientFromRecipes(base44, id);
+      await base44.entities.SpecialIngredient.delete(id);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['specialIngredients'] });
-      toast.success('רכיב מיוחד נמחק בהצלחה');
+      queryClient.invalidateQueries({ queryKey: ['dishes'] });
+      toast.success('תת המנה נמחקה בהצלחה');
       onClose();
     },
     onError: (error) => {
-      toast.error('שגיאה במחיקת רכיב מיוחד: ' + error.message);
+      toast.error('שגיאה במחיקת תת המנה: ' + error.message);
     }
   });
 
@@ -143,7 +176,7 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
   const handleSubmit = (e) => {
     if (e?.preventDefault) e.preventDefault();
     const errors = [];
-    if (!formData.name?.trim()) errors.push('שם הרכיב המיוחד');
+    if (!formData.name?.trim()) errors.push('שם תת המנה');
     if (formData.components.length === 0) errors.push('יש להוסיף לפחות רכיב אחד');
     if (errors.length > 0) {
       setValidationError(errors.join(' | '));
@@ -216,14 +249,14 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {ingredient ? 'עריכת רכיב מיוחד' : 'רכיב מיוחד חדש'}
+            {ingredient ? 'כרטיס תת מנה' : 'תת מנה חדשה'}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
           <div className="space-y-4">
             <div>
-              <Label>שם הרכיב המיוחד *</Label>
+              <Label>שם תת המנה *</Label>
               <Input
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -392,7 +425,7 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
                             }}
                             className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-xs px-2"
                           >
-                            עריכת רכיב
+                            כרטיס רכיב
                           </Button>
                         )}
                         <Button
@@ -412,7 +445,7 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
 
               {formData.components.length === 0 && (
                 <div className="text-center py-8 text-stone-500">
-                  לחץ על "הוסף רכיב" כדי להתחיל לבנות את הרכיב המיוחד
+                  לחץ על "הוסף רכיב" כדי להתחיל לבנות את תת המנה
                 </div>
               )}
             </div>
@@ -439,6 +472,29 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
             )}
           </div>
 
+          {ingredient?.id && (
+            <div className="pt-4 border-t border-stone-200">
+              <Label className="text-base mb-3 block">מופיע במנות ({usedIn.length})</Label>
+              {usedIn.length === 0 ? (
+                <p className="text-sm text-stone-400">לא בשימוש באף מנה</p>
+              ) : (
+                <div className="border border-stone-200 rounded-lg divide-y divide-stone-100 max-h-64 overflow-y-auto">
+                  {usedIn.map(u => (
+                    <div key={u.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                      <span className="text-stone-900">
+                        {u.name}
+                        {u.kind === 'תת מנה' && <span className="text-xs text-stone-500 mr-2">(תת מנה)</span>}
+                      </span>
+                      <span className="text-stone-600 whitespace-nowrap">{u.ref?.qty ?? ''} {u.ref?.unit || ''}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <PdfFilesField value={formData.pdf_files} onChange={(pdf_files) => setFormData(f => ({ ...f, pdf_files }))} />
+
           <div className="flex justify-between pt-4 border-t">
             <div>
               {ingredient && (
@@ -446,12 +502,12 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
                   type="button"
                   variant="destructive"
                   onClick={() => {
-                    if (confirm('האם אתה בטוח שברצונך למחוק רכיב מיוחד זה?')) {
+                    if (confirm('האם אתה בטוח שברצונך למחוק תת מנה זו?')) {
                       deleteMutation.mutate(ingredient.id);
                     }
                   }}
                 >
-                  מחק רכיב מיוחד
+                  מחק תת מנה
                 </Button>
               )}
             </div>
@@ -469,7 +525,7 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
                   disabled={saveMutation.isPending}
                   className="bg-emerald-600 hover:bg-emerald-700"
                 >
-                  {saveMutation.isPending ? 'שומר...' : (ingredient ? 'עדכן' : 'צור') + ' רכיב מיוחד'}
+                  {saveMutation.isPending ? 'שומר...' : (ingredient ? 'עדכן' : 'צור') + ' תת מנה'}
                 </Button>
               </div>
             </div>

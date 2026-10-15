@@ -16,12 +16,11 @@ function isFirstCourseDish(dish, categoriesById) {
 // the event's current guest_count whenever no positive planned_cost is
 // stored, so a stale/never-saved Events_Dish row still reads correctly.
 export function getEffectivePlannedCost(eventDish, event, dishesById, categoriesById) {
-  const guestCount = event.guest_count || 0;
   const modeDish = dishesById[eventDish.dish_id];
   const explicitQty = explicitDishQty(modeDish, event);
   if (explicitQty != null) return explicitQty * (modeDish.unit_cost || 0);
   if (eventDish.planned_cost && eventDish.planned_cost > 0) {
-    return applyWasteToValue(eventDish.planned_cost, guestCount);
+    return applyWasteToValue(eventDish.planned_cost, event);
   }
   const dishGuestCount = calculateAdultPortions(event.guest_count, event.vegan_count, event.glatt_count);
   const dish = dishesById[eventDish.dish_id];
@@ -38,7 +37,7 @@ export function getEffectivePlannedCost(eventDish, event, dishesById, categories
     const rawQuantity = dishGuestCount * (servingPercentage / 100) * portionFactor;
     plannedQty = Math.ceil(rawQuantity);
   }
-  return applyWasteToValue(plannedQty * (dish.unit_cost || 0), guestCount);
+  return applyWasteToValue(plannedQty * (dish.unit_cost || 0), event);
 }
 
 // Live food revenue/cost for one event — computed fresh from its selected

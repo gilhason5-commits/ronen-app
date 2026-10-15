@@ -65,7 +65,7 @@ export default function SpecialIngredientsPage() {
                 className="inline-flex items-center gap-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-4 py-2 rounded-lg text-sm font-semibold border border-emerald-300 transition-colors w-fit"
               >
                 <ArrowRight className="w-5 h-5" />
-                חזור לעריכת מנה
+                חזור לכרטיס מנה
               </Link>
             ) : (
               <Link to={createPageUrl('Ingredients')}>

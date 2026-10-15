@@ -35,7 +35,7 @@ function liveDishQty(dish, event, category) {
     const factor = firstCourse ? 1 / 6 : (dish.portion_factor ?? 1);
     qty = Math.ceil(guests * servingPct * factor);
   }
-  return applyWasteToQty(qty, event?.guest_count || 0);
+  return applyWasteToQty(qty, event);
 }
 
 // PostgREST caps any single response at ~1000 rows regardless of the limit
@@ -157,15 +157,15 @@ export default function DishQuantities() {
   }, [selectedEventId, selectedEvent, eventDishes, dishById, catById, subById]);
 
   return (
-    <div className="p-6 lg:p-8 space-y-6" dir="rtl">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6" dir="rtl">
       <div>
-        <h1 className="text-3xl font-bold text-stone-900">כמויות מנות לאירוע</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-stone-900">כמויות מנות לאירוע</h1>
         <p className="text-stone-500 mt-1">בחרי אירוע כדי לראות את כל המנות וכמות הצלחות לכל אחת</p>
       </div>
 
       <div className="max-w-md">
         <Select value={selectedEventId} onValueChange={setSelectedEventId} disabled={isLoading}>
-          <SelectTrigger>
+          <SelectTrigger className="h-11 text-base">
             <SelectValue placeholder={isLoading ? "טוען אירועים..." : "בחר אירוע..."} />
           </SelectTrigger>
           <SelectContent>
@@ -185,7 +185,7 @@ export default function DishQuantities() {
       ) : catGroups.length === 0 ? (
         <div className="text-center py-16 text-stone-400">אין מנות באירוע זה</div>
       ) : (
-        <Card className="overflow-hidden max-w-2xl">
+        <Card className="overflow-hidden max-w-3xl">
           <CardHeader className="bg-stone-50 border-b border-stone-200">
             <CardTitle className="text-lg text-stone-900">{selectedEvent?.event_name || "—"}</CardTitle>
             {selectedEvent?.event_date && (
@@ -198,19 +198,19 @@ export default function DishQuantities() {
           <CardContent className="pt-4 space-y-6">
             {catGroups.map((cat, ci) => (
               <div key={ci}>
-                <h4 className="font-bold text-stone-800 border-b border-stone-200 pb-1 mb-2">{cat.name}</h4>
+                <h4 className="text-lg font-bold text-stone-800 border-b border-stone-200 pb-1 mb-2">{cat.name}</h4>
                 <div className="space-y-3">
                   {cat.subs.map((sub, si) => (
                     <div key={si}>
-                      {sub.name && <p className="text-xs font-medium text-stone-600 mb-1">{sub.name}</p>}
+                      {sub.name && <p className="text-sm font-medium text-stone-600 mb-1">{sub.name}</p>}
                       <ul className="space-y-1 mr-2">
                         {sub.items.map((item, ii) => (
                           <li
                             key={ii}
-                            className="flex items-center justify-between text-sm text-stone-700 border-b border-dashed border-stone-100 pb-1"
+                            className="flex items-center justify-between gap-3 text-base text-stone-700 border-b border-dashed border-stone-100 py-1.5"
                           >
                             <span>{item.name}</span>
-                            <span className="font-semibold text-stone-900">
+                            <span className="font-semibold text-stone-900 whitespace-nowrap">
                               {item.qty} {item.unit}
                             </span>
                           </li>

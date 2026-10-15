@@ -62,7 +62,6 @@ export default function KitchenEventDetail({ event }) {
   const calculateSuggestedQuantity = (dish) => {
     const explicitQty = explicitDishQty(dish, event);
     if (explicitQty != null) return explicitQty;
-    const guestCount = event?.guest_count || 0;
     // Standard dish quantities are planned for guests eating the standard
     // menu — guest_count minus vegans/glatt, who get separate dishes not
     // counted in this tree (e.g. 300 committed, 20 vegan -> plan for 280).
@@ -78,7 +77,7 @@ export default function KitchenEventDetail({ event }) {
       const rawQuantity = dishGuestCount * (servingPercentage / 100) * portionFactor;
       baseQty = Math.ceil(rawQuantity);
     }
-    return applyWasteToQty(baseQty, guestCount);
+    return applyWasteToQty(baseQty, event);
   };
 
   const sortedCategories = [...categories]

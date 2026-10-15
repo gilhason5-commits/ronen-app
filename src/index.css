@@ -156,3 +156,11 @@ button:focus-visible {
     @apply bg-background text-foreground;
   }
 }
+
+/* Protocol rich text (react-quill): RTL toolbar/editor, readable min height. */
+.protocol-rich-text .ql-editor { direction: rtl; text-align: right; font-size: 1rem; }
+.protocol-rich-text .ql-container { min-height: 300px; font-family: inherit; }
+.protocol-rich-text .ql-snow.ql-toolbar, .protocol-rich-text .ql-container.ql-snow { border-color: #e7e5e4; }
+.protocol-rich-text.ql-snow .ql-editor { min-height: 0; overflow: visible; }
+.protocol-rich-text .ql-editor ol, .protocol-rich-text .ql-editor ul { padding-right: 1.5em; padding-left: 0; }
+.protocol-rich-text .ql-editor li:not(.ql-direction-rtl)::before { margin-left: 0.3em; margin-right: -1.5em; text-align: left; }

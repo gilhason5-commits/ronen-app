@@ -5,7 +5,7 @@ import { isFixedPerEventCategory } from "@/lib/fixedEventItems";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit, UtensilsCrossed, CalendarSearch, SlidersHorizontal, ChevronUp, ChevronDown } from "lucide-react";
+import { Edit, UtensilsCrossed, CalendarSearch, SlidersHorizontal, ChevronUp, ChevronDown, Copy } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import DishQtyModeFields from "./DishQtyModeFields";
@@ -13,13 +13,15 @@ import { isExplicitQtyMode, qtyModeLabel, syncDishEventQuantities } from "@/lib/
 import { Skeleton } from "@/components/ui/skeleton";
 import DishPrintButton from "./DishPrintButton";
 import DishEventsDialog from "./DishEventsDialog";
+import CopyDishDialog from "./CopyDishDialog";
 
-export default function DishesList({ dishes, isLoading, onEdit, onMove, moving = false, categories = [], ingredients = [], specialIngredients = [] }) {
+export default function DishesList({ dishes, isLoading, onEdit, onMove, moving = false, categories = [], ingredients = [], specialIngredients = [], allCategories = [], allSubCategories = [] }) {
   const [eventsDish, setEventsDish] = useState(null);
+  const [copyDish, setCopyDish] = useState(null);
 
   if (isLoading) {
     return (
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {[1, 2, 3].map(i => (
           <Card key={i}><CardContent className="p-6"><Skeleton className="h-40" /></CardContent></Card>
         ))}
@@ -39,7 +41,7 @@ export default function DishesList({ dishes, isLoading, onEdit, onMove, moving =
   }
 
   return (
-    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {dishes.map((dish, index) => {
         const dishCategories = categories.filter(cat => 
           dish.categories?.includes(cat.id)
@@ -56,10 +58,10 @@ export default function DishesList({ dishes, isLoading, onEdit, onMove, moving =
 
         return (
           <Card key={dish.id} className="border-stone-200 hover:shadow-md transition-shadow">
-            <CardContent className="p-5">
+            <CardContent className="p-4">
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-lg text-stone-900">{dish.name}</h3>
+                  <h3 className="font-semibold text-base text-stone-900">{dish.name}</h3>
                   <div className="flex flex-wrap gap-1 mt-2">
                     {dishCategories.map(cat => (
                       <Badge key={cat.id} variant="outline" className="text-xs">
@@ -144,7 +146,7 @@ export default function DishesList({ dishes, isLoading, onEdit, onMove, moving =
                   onClick={() => onEdit(dish)}
                 >
                   <Edit className="w-3 h-3 mr-2" />
-                  עריכת מנה
+                  כרטיס מנה
                 </Button>
                 <DishPrintButton 
                   dish={dish} 
@@ -161,10 +163,26 @@ export default function DishesList({ dishes, isLoading, onEdit, onMove, moving =
                 <CalendarSearch className="w-3 h-3 mr-2" />
                 מופיע באירועים
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-2"
+                onClick={() => setCopyDish(dish)}
+              >
+                <Copy className="w-3 h-3 mr-2" />
+                העתק מנה
+              </Button>
             </CardContent>
           </Card>
         );
       })}
+      <CopyDishDialog
+        dish={copyDish}
+        allCategories={allCategories}
+        allSubCategories={allSubCategories}
+        open={!!copyDish}
+        onOpenChange={(open) => !open && setCopyDish(null)}
+      />
       <DishEventsDialog
         dish={eventsDish}
         open={!!eventsDish}

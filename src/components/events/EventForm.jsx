@@ -29,7 +29,8 @@ import { fmtCurrency } from "../utils/formatNumbers";
 import { calculateTotalGuests, calculateAdultPortions, parseRangeMax } from "@/lib/dinerCount";
 import { useAuth } from "@/lib/AuthContext";
 import { isGuestCountLocked, canEditApprovedEvent, GUEST_COUNT_LOCKED_MSG, GUEST_COUNT_FIELDS, EVENT_TYPE_LOCKED_MSG, clearEventMenu } from "@/lib/eventApproval";
-import { applyWasteToValue, wasteLabel } from "@/lib/foodWaste";
+import { applyWasteToValue, wasteLabel, fridayLabel } from "@/lib/foodWaste";
+import { MENU_STATUSES } from "@/lib/menuStatus";
 import { isPastEvent } from "@/lib/ingredientPriceRefresh";
 import { isFixedPerEventCategory, getFixedEventDishes, computeFixedItemsCost } from "@/lib/fixedEventItems";
 import EventFixedItems from "./EventFixedItems";
@@ -64,6 +65,7 @@ export default function EventForm({ event, onClose, producerMode = false, initia
     // מפיק already went through (ProducerPage's approveMutation flips this
     // to in_progress once approved).
     status: 'producer_draft',
+    menu_status: 'open',
     producer_approved: false,
     notes: '',
     food_cost_sum: 0,
@@ -187,7 +189,7 @@ export default function EventForm({ event, onClose, producerMode = false, initia
     const explicitQty = explicitDishQty(modeDish, formData);
     if (explicitQty != null) return explicitQty * (modeDish.unit_cost || 0);
     if (eventDish.planned_cost && eventDish.planned_cost > 0) {
-      return applyWasteToValue(eventDish.planned_cost, guestCount);
+      return applyWasteToValue(eventDish.planned_cost, formData);
     }
     // If planned_cost is 0, calculate from suggested quantity. Standard dish
     // quantities are planned for the guests actually eating the standard
@@ -208,8 +210,8 @@ export default function EventForm({ event, onClose, producerMode = false, initia
       const rawQuantity = dishGuestCount * (servingPercentage / 100) * portionFactor;
       plannedQty = Math.ceil(rawQuantity);
     }
-    return applyWasteToValue(plannedQty * (dish.unit_cost || 0), guestCount);
-  }, [dishes, formData.guest_count, formData.vegan_count, formData.glatt_count, formData.event_type, categories]);
+    return applyWasteToValue(plannedQty * (dish.unit_cost || 0), formData);
+  }, [dishes, formData.guest_count, formData.vegan_count, formData.glatt_count, formData.event_type, formData.event_date, categories]);
 
   const recalculateEventCosts = useCallback(async (overrideRevenue = null, specificEventId = null) => {
     const targetEventId = specificEventId || event?.id;
@@ -550,6 +552,22 @@ export default function EventForm({ event, onClose, producerMode = false, initia
                     }
                   </div>
 
+                  <div>
+                    <Label>סטטוס תפריט</Label>
+                    <Select
+                      value={formData.menu_status || 'open'}
+                      onValueChange={(value) => setFormData({ ...formData, menu_status: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(MENU_STATUSES).map(([value, label]) =>
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className={producerMode ? "col-span-2" : "col-span-2 grid grid-cols-2 gap-6 divide-x divide-x-reverse divide-stone-200"}>
                     {/* כמויות */}
                     <div className={producerMode ? "grid grid-cols-2 gap-4" : "pr-6 grid grid-cols-2 gap-4"}>
@@ -573,6 +591,11 @@ export default function EventForm({ event, onClose, producerMode = false, initia
                           </p>
                         ) : (
                           <p className="text-xs text-stone-400 mt-1">ללא הפחתת כמות (מתחת ל-150)</p>
+                        )}
+                        {fridayLabel(formData) && (
+                          <p className="text-xs text-emerald-700 mt-1">
+                            תוספת כמות ליום שישי: {fridayLabel(formData)}
+                          </p>
                         )}
                       </div>
 

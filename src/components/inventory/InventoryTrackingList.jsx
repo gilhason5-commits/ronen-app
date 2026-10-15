@@ -31,7 +31,7 @@ export default function InventoryTrackingList({ ingredients, events, eventsDishe
         const ingredient = dish.ingredients.find(i => i.ingredient_id === ingredientId);
         if (!ingredient) return;
         
-        const plannedQty = applyWasteToQty(ed.planned_qty || 0, event.guest_count);
+        const plannedQty = applyWasteToQty(ed.planned_qty || 0, event);
         const baseQty = ingredient.qty || 0;
         const neededForEvent = baseQty * plannedQty;
         
@@ -65,7 +65,7 @@ export default function InventoryTrackingList({ ingredients, events, eventsDishe
         const ingredient = dish.ingredients.find(i => i.ingredient_id === ingredientId);
         if (!ingredient) return;
         
-        const plannedQty = applyWasteToQty(ed.planned_qty || 0, event.guest_count);
+        const plannedQty = applyWasteToQty(ed.planned_qty || 0, event);
         const baseQty = ingredient.qty || 0;
         const neededForEvent = baseQty * plannedQty;
         

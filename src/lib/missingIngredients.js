@@ -35,3 +35,27 @@ export function ingredientUsage(ingredientId, dishes = [], specialIngredients = 
     ...specialIngredients.filter(si => uses(si.components)).map(si => si.name),
   ];
 }
+
+// Recipe rows whose ingredient was deleted — blank rows still being filled in
+// (no id yet) are kept.
+export function dropMissingRefs(refs = [], knownIds) {
+  return refs.filter(r => !r?.ingredient_id || knownIds.has(r.ingredient_id));
+}
+
+// Strip an ingredient (regular or special) from every dish and sub-dish
+// recipe, so deleting it doesn't leave empty rows behind.
+export async function removeIngredientFromRecipes(base44, ingredientId) {
+  const [dishes, specialIngredients] = await Promise.all([
+    base44.entities.Dish.list(),
+    base44.entities.SpecialIngredient.list(),
+  ]);
+  const without = (refs) => (refs || []).filter(r => r.ingredient_id !== ingredientId);
+  await Promise.all([
+    ...dishes
+      .filter(d => (d.ingredients || []).some(r => r.ingredient_id === ingredientId))
+      .map(d => base44.entities.Dish.update(d.id, { ingredients: without(d.ingredients) })),
+    ...specialIngredients
+      .filter(si => (si.components || []).some(r => r.ingredient_id === ingredientId))
+      .map(si => base44.entities.SpecialIngredient.update(si.id, { components: without(si.components) })),
+  ]);
+}

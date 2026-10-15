@@ -193,9 +193,9 @@ export default function Layout({ children, currentPageName }) {
 
   const adminOnlyPages = ["Reports", "PurchaseOrders", "Inventory"];
 
-  // Fixed expenses are Ronen's alone — hidden from the menu and blocked by
-  // URL for every other account, admins included.
-  const ronenOnlyPages = ["FixedExpenses"];
+  // Fixed expenses and reports are Ronen's alone — hidden from the menu and
+  // blocked by URL for every other account, admins included.
+  const ronenOnlyPages = ["FixedExpenses", "Reports"];
   const isRonen = (user?.email || "").toLowerCase() === "ronen@raytlv.co.il";
   if (!isRonen && ronenOnlyPages.includes(currentPageName)) {
     return <Navigate to={createPageUrl("Dashboard")} replace />;
@@ -240,24 +240,24 @@ export default function Layout({ children, currentPageName }) {
 
   const filteredItems = navigationItems.filter(item => {
     if (userRole === 'purchase') {
-      return item.url.includes("KitchenView");
+      return item.url === createPageUrl("KitchenView");
     }
     if (userRole === 'producer') {
-      return item.url.includes("ProducerPage");
+      return item.url === createPageUrl("ProducerPage");
     }
     if (userRole === 'graphics') {
-      return item.url.includes("MenuViewer");
+      return item.url === createPageUrl("MenuViewer");
     }
     if (userRole === 'event_manager') {
-      return item.url.includes("EventAttendance") || item.url.includes("DishQuantities");
+      return EVENT_MANAGER_PAGES.some(p => item.url === createPageUrl(p));
     }
-    if (ronenOnlyPages.some(p => item.url.includes(p)) && !isRonen) {
+    if (ronenOnlyPages.some(p => item.url === createPageUrl(p)) && !isRonen) {
       return false;
     }
-    if (adminOnlyPages.some(p => item.url.includes(p)) && userRole !== 'admin') {
+    if (adminOnlyPages.some(p => item.url === createPageUrl(p)) && userRole !== 'admin') {
       return false;
     }
-    if (item.url.includes("Reports") && user?.hide_financials) {
+    if (item.url === createPageUrl("Reports") && user?.hide_financials) {
       return false;
     }
     return true;
@@ -274,6 +274,42 @@ export default function Layout({ children, currentPageName }) {
   filteredItems.forEach(item => {
     sections[item.section].push(item);
   });
+
+  // Event manager works on an iPad with only two screens — a sidebar just
+  // eats width there, so she gets a sticky top bar with two big tabs instead.
+  if (userRole === 'event_manager') {
+    return (
+      <div className="min-h-screen flex flex-col bg-[#FAFAF9]" dir="rtl">
+        <header className="sticky top-0 z-20 bg-white border-b border-stone-200 px-3 md:px-6 py-2 flex items-center gap-2">
+          <div className="w-9 h-9 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl flex items-center justify-center shadow-sm shrink-0">
+            <UtensilsCrossed className="w-4 h-4 text-white" />
+          </div>
+          <nav className="flex gap-1.5 flex-1 overflow-x-auto">
+            {filteredItems.map((item) => (
+              <button
+                key={item.title}
+                onClick={() => navigate(item.url, { replace: true })}
+                className={`flex items-center gap-2 px-4 h-11 rounded-lg text-base whitespace-nowrap transition-colors ${
+                  location.pathname === item.url ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-stone-700 hover:bg-stone-100'
+                }`}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.title}
+              </button>
+            ))}
+          </nav>
+          <button
+            onClick={() => logout()}
+            className="flex items-center gap-2 px-3 h-11 text-base text-stone-600 hover:bg-stone-100 rounded-lg transition-colors shrink-0"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="hidden sm:inline">התנתק</span>
+          </button>
+        </header>
+        <main className="flex-1">{children}</main>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>

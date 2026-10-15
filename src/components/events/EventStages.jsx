@@ -168,7 +168,7 @@ export default function EventStages({
           const dish = dishes.find(d => d.id === ed.dish_id);
           if (!dish) return null;
           const baseQty = calculateSuggestedQuantity(dish, category);
-          const qty = (isExplicitQtyMode(dish) ? baseQty : applyWasteToQty(baseQty, event?.guest_count));
+          const qty = (isExplicitQtyMode(dish) ? baseQty : applyWasteToQty(baseQty, event));
           const cost = qty * (dish.unit_cost || 0);
           const subCat = subCategoriesData.find(sc => sc.id === dish.sub_category_id);
           return { ...dish, planned_qty: qty, base_qty: baseQty, cost, subCatOrder: subCat?.display_order ?? 999, subCatName: subCat?.name || '' };
@@ -368,7 +368,7 @@ export default function EventStages({
                   {(() => {
                     const enriched = [...selectedDishes].map(dish => {
                       const baseQty = calculateSuggestedQuantity(dish, category);
-                      const suggestedQty = (isExplicitQtyMode(dish) ? baseQty : applyWasteToQty(baseQty, event?.guest_count));
+                      const suggestedQty = (isExplicitQtyMode(dish) ? baseQty : applyWasteToQty(baseQty, event));
                       const cost = suggestedQty * (dish.unit_cost || 0);
                       const subCat = subCategoriesData.find(sc => sc.id === dish.sub_category_id);
                       return { dish, baseQty, suggestedQty, cost, subCatOrder: subCat?.display_order ?? 999, subCatName: subCat?.name || '' };
@@ -463,7 +463,7 @@ export default function EventStages({
                                         onClick={(e) => handleEditDish(e, dish)}
                                       >
                                         <Pencil className="w-3 h-3 ml-1" />
-                                        עריכת מנה
+                                        כרטיס מנה
                                       </Button>
                                     )}
                                   </div>

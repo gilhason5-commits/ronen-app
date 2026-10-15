@@ -131,8 +131,8 @@ export default function EventPrintDialog({
         .filter(ed => ed.category_id === cat.id && ed.planned_qty > 0)
         .map(ed => ({
           ...dishes.find(d => d.id === ed.dish_id),
-          planned_qty: applyWasteToQty(ed.planned_qty, event?.guest_count),
-          planned_cost: applyWasteToValue(ed.planned_cost, event?.guest_count)
+          planned_qty: applyWasteToQty(ed.planned_qty, event),
+          planned_cost: applyWasteToValue(ed.planned_cost, event)
         }))
         .filter(Boolean);
       
@@ -150,7 +150,7 @@ export default function EventPrintDialog({
       const dish = dishes.find(d => d.id === eventDish.dish_id);
       if (!dish || !dish.ingredients) return;
 
-      const plannedQty = applyWasteToQty(eventDish.planned_qty || 0, event?.guest_count);
+      const plannedQty = applyWasteToQty(eventDish.planned_qty || 0, event);
 
       dish.ingredients.forEach(ing => {
         const key = ing.ingredient_id;
@@ -335,7 +335,7 @@ export default function EventPrintDialog({
               if (!dish || !dish.ingredients) return;
 
               // Effective (post-פחת) portion count for this dish.
-              const effQty = applyWasteToQty(eventDish.planned_qty || 0, event?.guest_count);
+              const effQty = applyWasteToQty(eventDish.planned_qty || 0, event);
 
               const dishIngredientsInCategory = dish.ingredients
                 .map(ing => {

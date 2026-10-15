@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { MENU_STATUSES, isMenuClosed } from "@/lib/menuStatus";
 
 const statusColors = {
   producer_draft: "bg-amber-100 text-amber-800",
@@ -33,6 +34,11 @@ const statusColors = {
   completed: "bg-blue-100 text-blue-700",
   cancelled: "bg-red-100 text-red-700"
 };
+
+// Small violet dot marking an event whose menu was closed with the couple.
+const MenuClosedDot = () => (
+  <span className="inline-block w-2 h-2 rounded-full bg-violet-600 ml-1 align-middle shrink-0" title={MENU_STATUSES.closed} />
+);
 
 const statusLabels = {
   producer_draft: "ממתין לאישור",
@@ -138,6 +144,7 @@ export default function EventCalendar({ events = [], onEventClick, onCreateEvent
                     onClick={(e) => handleEventClick(event, e)}
                     className={`text-xs px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 ${statusColors[event.status]}`}
                   >
+                    {isMenuClosed(event) && <MenuClosedDot />}
                     {event.event_name}
                   </div>
                 ))}
@@ -188,7 +195,7 @@ export default function EventCalendar({ events = [], onEventClick, onCreateEvent
                     onClick={(e) => handleEventClick(event, e)}
                     className={`text-xs p-1.5 rounded cursor-pointer hover:opacity-80 ${statusColors[event.status]}`}
                   >
-                    <div className="font-medium truncate">{event.event_name}</div>
+                    <div className="font-medium truncate">{isMenuClosed(event) && <MenuClosedDot />}{event.event_name}</div>
                     {event.event_time && (
                       <div className="text-[10px] opacity-75">{event.event_time}</div>
                     )}
@@ -245,9 +252,14 @@ export default function EventCalendar({ events = [], onEventClick, onCreateEvent
                         </span>
                       </div>
                     </div>
-                    <Badge className={statusColors[event.status]}>
-                      {statusLabels[event.status] || event.status}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge className={statusColors[event.status]}>
+                        {statusLabels[event.status] || event.status}
+                      </Badge>
+                      {isMenuClosed(event) && (
+                        <span className="text-xs text-violet-700 flex items-center"><MenuClosedDot />{MENU_STATUSES.closed}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -353,6 +365,16 @@ export default function EventCalendar({ events = [], onEventClick, onCreateEvent
         </div>
       </CardHeader>
       <CardContent className="p-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-xs text-stone-600">
+          <span className="font-medium">מקרא:</span>
+          {Object.entries(statusLabels).map(([status, label]) => (
+            <span key={status} className="flex items-center gap-1.5">
+              <span className={`inline-block w-3 h-3 rounded ${statusColors[status]}`} />
+              {label}
+            </span>
+          ))}
+          <span className="flex items-center"><MenuClosedDot />{MENU_STATUSES.closed}</span>
+        </div>
         {viewMode === 'month' && renderMonthView()}
         {viewMode === 'week' && renderWeekView()}
         {viewMode === 'day' && renderDayView()}

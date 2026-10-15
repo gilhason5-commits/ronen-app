@@ -492,6 +492,8 @@ export default function Dishes() {
         categories={categories}
         ingredients={ingredients}
         specialIngredients={specialIngredients}
+        allCategories={allCategories}
+        allSubCategories={allSubCategories}
       />
 
       {showDishDialog && (

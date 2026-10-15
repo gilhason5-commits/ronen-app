@@ -14,10 +14,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Upload, FileText, X, Info, ExternalLink } from "lucide-react";
+import { Plus, Trash2, Info, ExternalLink } from "lucide-react";
 import { createPageUrl } from "@/utils";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import {
   Select,
   SelectContent,
@@ -28,15 +27,16 @@ import {
 import IngredientDetailsDialog from "./IngredientDetailsDialog";
 import IngredientDialog from "../inventory/IngredientDialog";
 import SpecialIngredientDialog from "../ingredients/SpecialIngredientDialog";
+import { dropMissingRefs } from "@/lib/missingIngredients";
 import { isFixedPerEventCategory } from "@/lib/fixedEventItems";
 import { syncDishEventQuantities } from "@/lib/plannedDishQty";
 import DishQtyModeFields from "./DishQtyModeFields";
+import PdfFilesField from "@/components/shared/PdfFilesField";
 
 const SUB_MANA_CATEGORY_ID = '694ab43b7f41f262f932394d';
 
 export default function DishDialog({ dish, eventType = 'serving', ingredients = [], specialIngredients = [], categories = [], subCategories = [], open, onClose, suppliers = [], ingredientCategories = [] }) {
   const queryClient = useQueryClient();
-  const [uploadingPdf, setUploadingPdf] = useState(false);
   const [searchTerms, setSearchTerms] = useState({});
   const [ingredientDetailsOpen, setIngredientDetailsOpen] = useState(false);
   const [selectedIngredientForDetails, setSelectedIngredientForDetails] = useState(null);
@@ -88,6 +88,17 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
       });
     }
   }, [dish, eventType]);
+
+  // Rows whose ingredient was deleted from the system show up empty — drop
+  // them once both ingredient lists have loaded (saving persists it).
+  useEffect(() => {
+    if (!ingredients.length || !specialIngredients.length) return;
+    const known = new Set([...ingredients, ...specialIngredients].map(i => i.id));
+    setFormData(f => {
+      const kept = dropMissingRefs(f.ingredients, known);
+      return kept.length === f.ingredients.length ? f : { ...f, ingredients: kept };
+    });
+  }, [dish, ingredients, specialIngredients]);
 
   const calculateDishCost = (dishIngredients) => {
     let totalCost = 0;
@@ -225,44 +236,6 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
     setFormData({ ...formData, ingredients: newIngredients, unit_cost: unitCost });
   };
 
-  const handlePdfUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.type !== 'application/pdf') {
-      toast.error('אנא העלה קובץ PDF');
-      return;
-    }
-
-    setUploadingPdf(true);
-    try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      const newPdf = {
-        name: file.name,
-        url: file_url,
-        uploaded_date: format(new Date(), 'yyyy-MM-dd')
-      };
-      
-      setFormData({
-        ...formData,
-        pdf_files: [...(formData.pdf_files || []), newPdf]
-      });
-      
-      toast.success('PDF הועלה');
-    } catch (error) {
-      toast.error('העלאת PDF נכשלה');
-    } finally {
-      setUploadingPdf(false);
-    }
-  };
-
-  const handleRemovePdf = (index) => {
-    if (!window.confirm('למחוק את הקובץ?')) return;
-    const newPdfFiles = [...formData.pdf_files];
-    newPdfFiles.splice(index, 1);
-    setFormData({ ...formData, pdf_files: newPdfFiles });
-  };
-
   const deleteMutation = useMutation({
     mutationFn: () => base44.entities.Dish.delete(dish.id),
     onSuccess: () => {
@@ -337,7 +310,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{dish ? 'עריכת מנה' : 'מנה חדשה'}</DialogTitle>
+          <DialogTitle>{dish ? 'כרטיס מנה' : 'מנה חדשה'}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -562,7 +535,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
                             <div className="flex items-center gap-2">
                               <div className="font-medium">{displayIngredient.name}</div>
                               {specialIngredient && (
-                                <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">רכיב מיוחד</span>
+                                <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">תת מנה</span>
                               )}
                             </div>
                             <div className="text-xs text-stone-500">
@@ -584,7 +557,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
                               className="mt-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-emerald-300 text-xs font-semibold"
                             >
                               <ExternalLink className="w-3.5 h-3.5 ml-1" />
-                              עריכת רכיב
+                              {specialIngredient ? 'כרטיס תת מנה' : 'כרטיס רכיב'}
                             </Button>
                           </div>
                         )}
@@ -670,55 +643,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
             </div>
           </div>
 
-          <div>
-            <Label>מסמכי מתכון (PDFs)</Label>
-            <p className="text-xs text-stone-500 mb-2">העלה קבצי מתכון, תמונות או הערות בישול</p>
-            <div className="space-y-2">
-              {formData.pdf_files?.map((pdf, index) => (
-                <div key={index} className="flex items-center gap-2 p-2 bg-stone-50 rounded border">
-                  <FileText className="w-4 h-4 text-red-600" />
-                  <a 
-                    href={pdf.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex-1 text-sm text-blue-600 hover:underline truncate"
-                  >
-                    {pdf.name}
-                  </a>
-                  <span className="text-xs text-stone-500">{pdf.uploaded_date}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => handleRemovePdf(index)}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-              <div>
-                <Input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={handlePdfUpload}
-                  disabled={uploadingPdf}
-                  className="hidden"
-                  id="dish-pdf-upload"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => document.getElementById('dish-pdf-upload')?.click()}
-                  disabled={uploadingPdf}
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  {uploadingPdf ? 'מעלה...' : 'העלה PDF'}
-                </Button>
-              </div>
-            </div>
-          </div>
+          <PdfFilesField value={formData.pdf_files} onChange={(pdf_files) => setFormData(f => ({ ...f, pdf_files }))} />
 
           <div>
             <Label>הוראות הכנה</Label>

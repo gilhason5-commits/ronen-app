@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/api/supabaseClient";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { ProtocolEditor, ProtocolContent, toEditorHtml } from "@/components/protocols/ProtocolRichText";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -257,7 +257,7 @@ export default function Protocols() {
     if (!q) return null;
     const ids = new Set();
     nodes.forEach((n) => {
-      if (n.title.toLowerCase().includes(q) || (n.content || "").toLowerCase().includes(q)) {
+      if (n.title.toLowerCase().includes(q) || (n.content || "").replace(/<[^>]+>/g, " ").toLowerCase().includes(q)) {
         let cur = n;
         while (cur && !ids.has(cur.id)) { ids.add(cur.id); cur = byId[cur.parent_id]; }
       }
@@ -430,7 +430,7 @@ export default function Protocols() {
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <h2 className="text-2xl font-bold text-stone-900">{selected.title}</h2>
                   {canEdit && !editingContent && (
-                    <Button variant="outline" size="sm" onClick={() => { setContentDraft(selected.content || ""); setEditingContent(true); }}>
+                    <Button variant="outline" size="sm" onClick={() => { setContentDraft(toEditorHtml(selected.content)); setEditingContent(true); }}>
                       <Pencil className="w-4 h-4 ml-1" />
                       ערוך תוכן
                     </Button>
@@ -439,13 +439,7 @@ export default function Protocols() {
 
                 {editingContent ? (
                   <div className="space-y-3">
-                    <Textarea
-                      autoFocus
-                      value={contentDraft}
-                      onChange={(e) => setContentDraft(e.target.value)}
-                      className="min-h-[300px] text-base leading-relaxed"
-                      placeholder="כתוב כאן את תוכן הפרוטוקול..."
-                    />
+                    <ProtocolEditor value={contentDraft} onChange={setContentDraft} />
                     <div className="flex gap-2 justify-end">
                       <Button variant="outline" size="sm" onClick={() => setEditingContent(false)}>ביטול</Button>
                       <Button
@@ -462,7 +456,7 @@ export default function Protocols() {
                     </div>
                   </div>
                 ) : selected.content ? (
-                  <div className="whitespace-pre-wrap text-stone-800 leading-relaxed text-base">{selected.content}</div>
+                  <ProtocolContent content={selected.content} />
                 ) : childrenOf(selected.id).length === 0 ? (
                   <p className="text-stone-400 text-sm">{canEdit ? "אין תוכן עדיין. לחץ על ״ערוך תוכן״." : "אין תוכן עדיין."}</p>
                 ) : null}

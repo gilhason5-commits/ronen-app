@@ -22,7 +22,7 @@ export function getFixedItemEventQty(dish, event) {
   if (dish?.qty_mode === "percent") {
     const portions = calculateAdultPortions(event?.guest_count, event?.vegan_count, event?.glatt_count);
     const qty = Math.ceil(portions * ((dish.serving_percentage ?? 100) / 100) * (dish.portion_factor ?? 1));
-    return applyWasteToQty(qty, event?.guest_count || 0);
+    return applyWasteToQty(qty, event);
   }
   if (dish?.qty_mode === "per_guests") {
     const base = parseFloat(dish.per_guests_base) || 100;

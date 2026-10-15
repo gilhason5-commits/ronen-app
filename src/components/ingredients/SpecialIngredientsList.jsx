@@ -11,8 +11,8 @@ export default function SpecialIngredientsList({ ingredients, onEdit }) {
       <Card className="border-stone-200">
         <CardContent className="p-12 text-center">
           <Package className="w-16 h-16 text-stone-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-stone-700 mb-2">אין רכיבים מיוחדים</h3>
-          <p className="text-stone-500">צור רכיב מיוחד ראשון כדי להתחיל</p>
+          <h3 className="text-lg font-semibold text-stone-700 mb-2">אין תתי מנות</h3>
+          <p className="text-stone-500">צור תת מנה ראשונה כדי להתחיל</p>
         </CardContent>
       </Card>
     );
@@ -77,7 +77,7 @@ export default function SpecialIngredientsList({ ingredients, onEdit }) {
                   onClick={() => onEdit(ingredient)}
                 >
                   <Edit className="w-4 h-4 ml-2" />
-                  ערוך
+                  כרטיס תת מנה
                 </Button>
               </div>
             </div>

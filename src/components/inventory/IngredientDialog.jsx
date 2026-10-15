@@ -244,7 +244,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{ingredient ? 'עריכת רכיב' : 'רכיב חדש'}</DialogTitle>
+          <DialogTitle>{ingredient ? 'כרטיס רכיב' : 'רכיב חדש'}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
