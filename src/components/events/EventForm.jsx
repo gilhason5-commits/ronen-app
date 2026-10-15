@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { withMissingIngredients } from '@/lib/missingIngredients';
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSingleFlightMutation } from "@/lib/useSingleFlightMutation";
@@ -121,6 +122,13 @@ export default function EventForm({ event, onClose, producerMode = false, initia
     queryKey: ['specialIngredients'],
     queryFn: () => base44.entities.SpecialIngredient.list(),
   });
+
+  // Prints list ingredients deleted from inventory but still in a recipe,
+  // flagged, instead of silently dropping them.
+  const printIngredients = useMemo(
+    () => withMissingIngredients(ingredients, allDishes, specialIngredients),
+    [ingredients, allDishes, specialIngredients]
+  );
 
   const { data: allSubCategories = [] } = useQuery({
     queryKey: ['subCategories'],
@@ -506,9 +514,9 @@ export default function EventForm({ event, onClose, producerMode = false, initia
                         <SelectValue placeholder="בחר שעה..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {Array.from({ length: 48 }, (_, i) => {
-                          const hours = Math.floor(i / 2);
-                          const minutes = i % 2 === 0 ? '00' : '30';
+                        {Array.from({ length: 96 }, (_, i) => {
+                          const hours = Math.floor(i / 4);
+                          const minutes = ((i % 4) * 15).toString().padStart(2, '0');
                           const time = `${hours.toString().padStart(2, '0')}:${minutes}`;
                           return (
                             <SelectItem key={time} value={time}>
@@ -842,7 +850,7 @@ export default function EventForm({ event, onClose, producerMode = false, initia
             eventDishes={eventDishes}
             dishes={dishes}
             categories={categories}
-            ingredients={ingredients}
+            ingredients={printIngredients}
             ingredientCategories={ingredientCategories}
           />
           <DepartmentPrintDialog
@@ -852,7 +860,7 @@ export default function EventForm({ event, onClose, producerMode = false, initia
             eventDishes={eventDishes}
             dishes={dishes}
             categories={categories}
-            ingredients={ingredients}
+            ingredients={printIngredients}
             ingredientCategories={ingredientCategories}
             specialIngredients={specialIngredients}
             subCategories={subCategories}

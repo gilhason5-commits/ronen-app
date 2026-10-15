@@ -84,6 +84,7 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
         ingredient_name: ingredient.name || fallback.name,
         unit: ingredient.system_unit || fallback.unit,
         qty: 0,
+        net_qty: 0,
         waste_pct: wastePct,
         price_per_unit: supInfo?.price_per_unit || ingredient.price_per_system || 0,
         supplier_id: supInfo?.supplier_id || ingredient.current_supplier_id || '',
@@ -93,6 +94,7 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
       };
     }
     eventNeeds[ingredientId].qty += qty;
+    eventNeeds[ingredientId].net_qty += rawQty;
   };
 
   const findSI = (id) => (specialIngredients || []).find(s => s.id === id);
@@ -273,12 +275,14 @@ export function buildSupplierTickets(events, needsPerEvent, suppliers) {
               ingredient_name: item.ingredient_name,
               unit: item.unit,
               qty: 0,
+              net_qty: 0,
               waste_pct: item.waste_pct || 0,
               purchase_unit: item.purchase_unit,
               price_per_unit: item.price_per_unit
             };
           }
           ticket.items[key].qty += item.qty;
+          ticket.items[key].net_qty += item.net_qty ?? item.qty;
 
           if (!ticket.perEvent[key]) {
             ticket.perEvent[key] = [];
@@ -302,6 +306,7 @@ export function buildSupplierTickets(events, needsPerEvent, suppliers) {
             ingredient_name: i.ingredient_name,
             unit: i.unit,
             qty: i.qty,
+            net_qty: i.net_qty,
             waste_pct: i.waste_pct || 0,
             purchase_unit: i.purchase_unit,
             purchase_qty: i.purchase_qty,

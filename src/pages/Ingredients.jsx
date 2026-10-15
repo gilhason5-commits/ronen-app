@@ -10,6 +10,7 @@ import { createPageUrl } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import IngredientsDataList from "../components/inventory/IngredientsDataList";
+import { ingredientUsage } from "@/lib/missingIngredients";
 import IngredientDialog from "../components/inventory/IngredientDialog";
 import IngredientCategoryDialog from "../components/inventory/IngredientCategoryDialog";
 
@@ -98,7 +99,26 @@ export default function Ingredients() {
     setShowDialog(true);
   };
 
-  const handleDelete = (ingredient) => {
+  const handleDelete = async (ingredient) => {
+    // Recipes keep the ingredient's id after it's deleted, which drops it
+    // from every print and cost calc — so refuse while anything uses it.
+    let usedBy;
+    try {
+      const [dishes, specialIngredients] = await Promise.all([
+        base44.entities.Dish.list(),
+        base44.entities.SpecialIngredient.list(),
+      ]);
+      usedBy = ingredientUsage(ingredient.id, dishes, specialIngredients);
+    } catch {
+      toast.error('לא ניתן לבדוק שימוש ברכיב, המחיקה בוטלה');
+      return;
+    }
+    if (usedBy.length > 0) {
+      const shown = usedBy.slice(0, 8).join('\n• ');
+      const more = usedBy.length > 8 ? `\n...ועוד ${usedBy.length - 8}` : '';
+      window.alert(`לא ניתן למחוק את ${ingredient.name} — הוא בשימוש ב-${usedBy.length} מנות/הכנות:\n• ${shown}${more}\n\nיש להחליף אותו במנות לפני המחיקה.`);
+      return;
+    }
     if (window.confirm(`למחוק את ${ingredient.name}? פעולה זו אינה ניתנת לביטול.`)) {
       deleteIngredientMutation.mutate(ingredient.id);
     }

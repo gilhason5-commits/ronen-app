@@ -33,7 +33,7 @@ export default function WeeklyOrderTicket({ ticket }) {
       return `
       <tr>
         <td>${item.ingredient_name}${wasteLabel}</td>
-        <td style="text-align:center;">${formatNumber(item.qty)} ${formatUnit(item.unit)}</td>
+        <td style="text-align:center;">${formatNumber(item.net_qty ?? item.qty)} ${formatUnit(item.unit)}</td>
         <td style="text-align:center; font-weight:bold;">${formatNumber(item.purchase_qty ?? item.qty)} ${formatUnit(item.unit)}</td>
       </tr>
     `;
@@ -102,7 +102,7 @@ export default function WeeklyOrderTicket({ ticket }) {
                   {item.waste_pct > 0 && <span className="text-red-600 text-xs font-bold mr-1">(פחת {item.waste_pct}%)</span>}
                 </td>
                 <td className="py-2 text-center text-stone-500">
-                  {formatNumber(item.qty)} {formatUnit(item.unit)}
+                  {formatNumber(item.net_qty ?? item.qty)} {formatUnit(item.unit)}
                 </td>
                 <td className="py-2 text-center">
                   {editing ? (
