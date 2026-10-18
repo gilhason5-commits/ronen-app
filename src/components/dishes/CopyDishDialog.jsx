@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
-const MENUS = { serving: 'אירוע הגשה', wedding: 'אירוע הפוכה' };
+const MENUS = { serving: 'אירוע הגשה', wedding: 'אירוע הפוכה', party: 'מסיבה' };
 const NO_SUB = '__none__';
 
 // Fields that belong to the row, not the recipe — never copied.
