@@ -170,7 +170,7 @@ export default function DishesList({ dishes, isLoading, onEdit, onMove, moving =
                 onClick={() => setCopyDish(dish)}
               >
                 <Copy className="w-3 h-3 mr-2" />
-                העתק מנה
+                שכפל לתפריט אחר
               </Button>
             </CardContent>
           </Card>

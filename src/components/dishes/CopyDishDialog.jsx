@@ -49,17 +49,17 @@ export default function CopyDishDialog({ dish, allCategories = [], allSubCategor
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dishes'] });
-      toast.success(`המנה הועתקה ל${MENUS[eventType]}`);
+      toast.success(`המנה שוכפלה ל${MENUS[eventType]}`);
       onOpenChange(false);
     },
-    onError: (e) => toast.error('העתקת המנה נכשלה: ' + e.message),
+    onError: (e) => toast.error('שכפול המנה נכשל: ' + e.message),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent dir="rtl" className="max-w-md">
         <DialogHeader>
-          <DialogTitle>העתקת מנה — {dish?.name}</DialogTitle>
+          <DialogTitle>שכפול מנה לתפריט — {dish?.name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div>
@@ -102,7 +102,7 @@ export default function CopyDishDialog({ dish, allCategories = [], allSubCategor
             disabled={!name.trim() || !categoryId || copy.isPending}
             onClick={() => copy.mutate()}
           >
-            {copy.isPending ? 'מעתיק...' : 'העתק מנה'}
+            {copy.isPending ? 'משכפל...' : 'שכפל מנה'}
           </Button>
         </DialogFooter>
       </DialogContent>
