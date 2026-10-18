@@ -50,6 +50,7 @@ export const base44 = {
     Event_GeneralExpense:       createEntity('Event_GeneralExpense'),
     GeneralExpense:             createEntity('GeneralExpense'),
     ProtocolNode:               createEntity('ProtocolNode'),
+    ProtocolNodeHistory:        createEntity('ProtocolNodeHistory'),
     // Query is used generically in some places — map to a no-op passthrough
     Query: { list: async () => [], filter: async () => [], create: async (d) => d },
   },

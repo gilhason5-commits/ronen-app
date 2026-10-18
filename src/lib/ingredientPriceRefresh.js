@@ -1,5 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { computeEventFoodCost } from "@/lib/eventFoodCost";
+import { specialIngredientYield } from "@/lib/specialIngredientYield";
 
 // An ingredient price change applies from today: future events take the new
 // price (dish costs, event food cost; purchasing already reads the current
@@ -23,16 +24,16 @@ function num(v) {
 }
 
 // Same formula as SpecialIngredientDialog.calculateTotals.
-function specialIngredientTotals(si, ingredientsById) {
+function specialIngredientTotals(si, ingredientsById, specialById) {
   let totalCost = 0;
-  let totalQty = 0;
   for (const comp of si.components || []) {
-    const ing = ingredientsById[comp.ingredient_id];
-    if (!ing) continue;
     const qty = num(comp.qty);
-    totalCost += qty * num(ing.price_per_system);
-    totalQty += qty;
+    const ing = ingredientsById[comp.ingredient_id];
+    const nested = !ing && specialById[comp.ingredient_id];
+    if (ing) totalCost += qty * num(ing.price_per_system);
+    else if (nested) totalCost += qty * num(nested.price_per_system_unit);
   }
+  const { total: totalQty } = specialIngredientYield(si, (id) => ingredientsById[id] || specialById[id]);
   return { totalCost, pricePerUnit: totalQty > 0 ? totalCost / totalQty : 0 };
 }
 
@@ -73,7 +74,7 @@ export async function refreshAfterIngredientPriceChange(ingredientId) {
   for (const si of specialIngredients) {
     if (!(si.components || []).some((c) => c.ingredient_id === ingredientId)) continue;
     affectedSpecialIds.add(si.id);
-    const { totalCost, pricePerUnit } = specialIngredientTotals(si, ingredientsById);
+    const { totalCost, pricePerUnit } = specialIngredientTotals(si, ingredientsById, specialById);
     specialById[si.id] = { ...si, price_per_system_unit: pricePerUnit, total_cost: totalCost };
     if (Math.abs(pricePerUnit - num(si.price_per_system_unit)) > 0.0001) {
       await base44.entities.SpecialIngredient.update(si.id, { price_per_system_unit: pricePerUnit, total_cost: totalCost });

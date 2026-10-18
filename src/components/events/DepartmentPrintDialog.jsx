@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Printer, Download } from "lucide-react";
 import DepartmentPrintPreview from "./DepartmentPrintPreview";
 import { eventWastePct, eventWasteFactor, applyWasteToQty, isFridayEvent, FRIDAY_EXTRA_PCT } from "@/lib/foodWaste";
+import { specialIngredientBatchSize } from "@/lib/specialIngredientYield";
 import { calculateAdultPortions } from "@/lib/dinerCount";
 import { explicitDishQty, isExplicitQtyMode, qtyModeLabel } from "@/lib/plannedDishQty";
 
@@ -206,11 +207,11 @@ export default function DepartmentPrintDialog({
         const qtyNeeded = (ing.qty || 0) * effectiveQty;
         if (qtyNeeded <= 0) return;
         if (!specialIngredientNeeds[si.id]) {
-          // Batch yield = sum of all component quantities (matches what the
-          // SpecialIngredientDialog displays as "כמות כוללת"). Falls back to 1
-          // only if the recipe is truly empty (defensive).
+          // Batch yield = what the SpecialIngredientDialog displays as
+          // "כמות כוללת". Falls back to 1 only if the recipe is truly empty.
           const allComps = si.components || [];
-          const batchYield = allComps.reduce((sum, c) => sum + (parseFloat(c.qty) || 0), 0) || 1;
+          const batchYield = specialIngredientBatchSize(si, (id) =>
+            ingredients.find(i => i.id === id) || specialIngredients.find(s => s.id === id));
           specialIngredientNeeds[si.id] = {
             name: si.name,
             system_unit: si.system_unit,

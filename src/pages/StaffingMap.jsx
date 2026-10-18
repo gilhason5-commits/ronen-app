@@ -84,10 +84,16 @@ const firstName = (fullName) => (fullName || "").trim().split(/\s+/)[0] || "";
 
 function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
   const req = requiredRoles.find((r) => r.role_name === roleName);
-  if (!req) {
+  const count = req?.count || 0;
+  // Someone still assigned to a slot the standard dropped (fewer guests →
+  // role or slot no longer required). Kept visible until the office marks it
+  // handled — i.e. told the worker they're not coming — instead of vanishing.
+  const removed = planRows.filter((p) =>
+    p.role_name === roleName && (p.slot || 1) > count && (p.assigned_employee_id || p.assigned_name));
+  if (!req && removed.length === 0) {
     return <div className="h-8 flex items-center justify-center text-stone-300 text-xs">—</div>;
   }
-  const slots = Array.from({ length: req.count }, (_, i) => i + 1);
+  const slots = Array.from({ length: count }, (_, i) => i + 1);
   return (
     <div className="flex flex-col h-full divide-y divide-white">
       {slots.map((slot) => {
@@ -113,6 +119,21 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
           </select>
         );
       })}
+      {removed.map((p) => (
+        <div
+          key={p.id}
+          className="h-8 flex items-center justify-between gap-1 px-1 bg-amber-300 text-amber-950 text-[11px] font-semibold"
+          title={`${roleName} הוסר מהתקן — ${p.assigned_name} עדיין חושב/ת שמגיע/ה. עדכנו אותו/ה ולחצו "טופל".`}
+        >
+          <span className="truncate line-through">{firstName(p.assigned_name)}</span>
+          <button
+            className="shrink-0 rounded bg-white/80 px-1 text-[10px] hover:bg-white"
+            onClick={() => onAssign({ role_name: roleName, slot: p.slot || 1, employee: "__none__" })}
+          >
+            טופל
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

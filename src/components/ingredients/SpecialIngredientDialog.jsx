@@ -22,6 +22,7 @@ import { Plus, Trash2, Search, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import IngredientDialog from "@/components/inventory/IngredientDialog";
 import PdfFilesField from "@/components/shared/PdfFilesField";
+import { specialIngredientYield } from "@/lib/specialIngredientYield";
 import { dropMissingRefs, removeIngredientFromRecipes } from "@/lib/missingIngredients";
 
 export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
@@ -109,24 +110,25 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
     });
   }, [ingredient, open, ingredients, allSpecialIngredients]);
 
+  // Component cost counts nested sub-dishes too; the quantity converts יחידה
+  // components through their "כמות ליחידה" (see specialIngredientYield).
+  const sourceOf = (id) => ingredients.find(i => i.id === id) || allSpecialIngredients.find(si => si.id === id);
   const calculateTotals = (components) => {
     let totalCost = 0;
-    let totalQuantity = 0;
-
     components.forEach(comp => {
       const ing = ingredients.find(i => i.id === comp.ingredient_id);
-      if (ing) {
-        const qty = parseFloat(comp.qty) || 0;
-        const pricePerUnit = ing.price_per_system || 0;
-        const cost = qty * pricePerUnit;
-        totalCost += cost;
-        totalQuantity += qty;
-      }
+      const si = !ing && allSpecialIngredients.find(x => x.id === comp.ingredient_id);
+      const qty = parseFloat(comp.qty) || 0;
+      if (ing) totalCost += qty * (ing.price_per_system || 0);
+      else if (si) totalCost += qty * (si.price_per_system_unit || 0);
     });
+    const { total: totalQuantity, missing: missingUnitSize } = specialIngredientYield(
+      { components, system_unit: formData.system_unit }, sourceOf
+    );
 
     const pricePerSystemUnit = totalQuantity > 0 ? totalCost / totalQuantity : 0;
 
-    return { totalCost, totalQuantity, pricePerSystemUnit };
+    return { totalCost, totalQuantity, pricePerSystemUnit, missingUnitSize };
   };
 
   const saveMutation = useMutation({
@@ -242,7 +244,7 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
     setFormData({ ...formData, components: newComponents });
   };
 
-  const { totalCost, totalQuantity, pricePerSystemUnit } = calculateTotals(formData.components);
+  const { totalCost, totalQuantity, pricePerSystemUnit, missingUnitSize } = calculateTotals(formData.components);
 
   return (<>
     <Dialog open={open} onOpenChange={onClose}>
@@ -468,6 +470,11 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
                     <p className="font-bold text-lg text-emerald-600">₪{pricePerSystemUnit.toFixed(2)}</p>
                   </div>
                 </div>
+                {missingUnitSize.length > 0 && (
+                  <p className="mt-3 text-sm text-amber-700">
+                    חסרה "כמות ליחידה" ב: {missingUnitSize.join(", ")} — הכמות נספרת כאילו כל יחידה היא {formData.system_unit}. לחץ "עריכת רכיב" והוסף כמה גרם / מ״ל יש ביחידה.
+                  </p>
+                )}
               </div>
             )}
           </div>

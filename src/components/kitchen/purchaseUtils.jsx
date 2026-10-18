@@ -1,5 +1,6 @@
 import { format, startOfWeek, endOfWeek, addDays, subDays } from 'date-fns';
 import { applyWasteToQty } from '@/lib/foodWaste';
+import { specialIngredientBatchSize } from '@/lib/specialIngredientYield';
 import { calculateAdultPortions } from '@/lib/dinerCount';
 import { getFixedEventDishes, getFixedItemEventQty } from '@/lib/fixedEventItems';
 import { explicitDishQty } from "@/lib/plannedDishQty";
@@ -176,11 +177,10 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
       done.add(siId);
       const si = findSI(siId);
       const totalDemand = pending[siId];
-      // Batch yield = sum of all component quantities (matches what
-      // SpecialIngredientDialog displays as "כמות כוללת"). The DB does not
-      // currently persist a total_quantity column, so always derive it.
+      // Batch yield = what SpecialIngredientDialog displays as "כמות כוללת".
+      // The DB does not persist a total_quantity column, so always derive it.
       const comps = si.components || [];
-      const batchSize = comps.reduce((sum, c) => sum + (parseFloat(c.qty) || 0), 0) || 1;
+      const batchSize = specialIngredientBatchSize(si, (id) => findSI(id) || ingredients.find(i => i.id === id));
       const batches = Math.ceil(totalDemand / batchSize);
       preps.push({ si_id: siId, name: si.name, demand: totalDemand, batch_size: batchSize, batches, unit: si.system_unit || '' });
       comps.forEach(comp => {

@@ -58,6 +58,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
     current_supplier_name: '',
     waste_pct: '',
     on_hand_qty: '',
+    unit_size_grams: '',
     ingredient_category_id: '',
     ingredient_category_name: ''
   });
@@ -95,6 +96,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
         current_supplier_name: ingredient.current_supplier_name || '',
         waste_pct: ingredient.waste_pct ?? '',
         on_hand_qty: ingredient.on_hand_qty ?? '',
+        unit_size_grams: ingredient.unit_size_grams ?? '',
         ingredient_category_id: ingredient.ingredient_category_id || '',
         ingredient_category_name: ingredient.ingredient_category_name || ''
       });
@@ -141,6 +143,9 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
         price_per_system: pricePerSystem,
         waste_pct: wastePct,
         on_hand_qty: data.on_hand_qty === '' ? 0 : parseFloat(data.on_hand_qty) || 0,
+        // Grams/ml in one unit — only meaningful for יחידה ingredients; lets a
+        // sub-dish measured in ק״ג/ליטר count them by weight.
+        unit_size_grams: data.system_unit === 'יחידה' && data.unit_size_grams !== '' ? parseFloat(data.unit_size_grams) || null : null,
         unit: data.system_unit,
         price_per_unit: pricePerSystem,
         last_price_update: new Date().toISOString().split('T')[0]
@@ -178,7 +183,8 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
         // sub-dishes that use it and of future events serving them. Past
         // events keep their cost. (A new supplier needs nothing extra — the
         // purchase page reads the current supplier for upcoming events.)
-        if (oldPricePerSystem !== pricePerSystem) {
+        const unitSizeChanged = (ingredient.unit_size_grams ?? null) !== dataToSave.unit_size_grams;
+        if (oldPricePerSystem !== pricePerSystem || unitSizeChanged) {
           return { result, refreshed: await refreshAfterIngredientPriceChange(ingredient.id) };
         }
       } else {
@@ -348,6 +354,20 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
               </Select>
             </div>
           </div>
+
+          {formData.system_unit === 'יחידה' && (
+            <div>
+              <Label>כמות ליחידה (גרם / מ״ל)</Label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={formData.unit_size_grams}
+                onChange={(e) => setFormData({...formData, unit_size_grams: e.target.value})}
+                placeholder="לדוגמא 40"
+              />
+              <p className="text-xs text-stone-500 mt-1">כמה גרם / מ״ל יש ביחידה אחת — כדי שתת מנה בק״ג או בליטר תחשב אותו נכון</p>
+            </div>
+          )}
 
           <div>
             <Label>מחיר רכישה מינימום (₪) *</Label>

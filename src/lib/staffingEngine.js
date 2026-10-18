@@ -251,14 +251,16 @@ export function computeFlags(event, staffing, planRows, splitRows) {
     }
   }
 
-  // Stale assignments — role no longer required but someone is assigned
-  const requiredNames = new Set(staffing.requiredRoles.map((r) => r.role_name));
+  // Stale assignments — the role (or this slot of it) is no longer required
+  // but someone is still assigned and may still think they're coming. Red
+  // until the office tells them and marks the cell "טופל".
+  const requiredCount = new Map(staffing.requiredRoles.map((r) => [r.role_name, r.count]));
   for (const p of planRows) {
-    if ((p.assigned_name || p.assigned_employee_id) && !requiredNames.has(p.role_name)) {
+    if ((p.assigned_name || p.assigned_employee_id) && (p.slot || 1) > (requiredCount.get(p.role_name) || 0)) {
       flags.push({
-        severity: 'yellow',
+        severity: 'red',
         role_name: p.role_name,
-        message: `${p.role_name} משובץ אך לא נדרש לפי התקן הנוכחי (${guests} סועדים)`,
+        message: `${p.role_name} הוסר מהתקן (${guests} סועדים) — ${p.assigned_name || 'העובד'} עדיין משובץ: לעדכן אותו ולסמן "טופל"`,
       });
     }
   }

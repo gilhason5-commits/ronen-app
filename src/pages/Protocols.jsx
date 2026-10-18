@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/api/supabaseClient";
 import { Input } from "@/components/ui/input";
 import { ProtocolEditor, ProtocolContent, toEditorHtml } from "@/components/protocols/ProtocolRichText";
+import { ProtocolHistoryDialog } from "@/components/protocols/ProtocolHistory";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -13,7 +14,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Library, Folder, FileText, ChevronDown, ChevronLeft, ChevronUp, Plus, Pencil, Trash2, Check, X, Search, Eye, Paperclip, Upload,
+  Library, Folder, FileText, ChevronDown, ChevronLeft, ChevronUp, Plus, Pencil, Trash2, Check, X, Search, Eye, Paperclip, Upload, History,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -229,6 +230,7 @@ export default function Protocols() {
   const [search, setSearch] = useState("");
   const [editingContent, setEditingContent] = useState(false);
   const [contentDraft, setContentDraft] = useState("");
+  const [historyFor, setHistoryFor] = useState(null); // node id, "all", or null
 
   const { data: nodes = [], isLoading } = useQuery({
     queryKey: ["protocolNodes"],
@@ -287,7 +289,10 @@ export default function Protocols() {
     return next;
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["protocolNodes"] });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["protocolNodes"] });
+    queryClient.invalidateQueries({ queryKey: ["protocolHistory"] });
+  };
   const onError = (e) => toast.error(`שגיאה: ${e.message}`);
 
   const createMutation = useMutation({
@@ -357,6 +362,11 @@ export default function Protocols() {
           <h1 className="text-2xl md:text-3xl font-bold text-stone-900">פרוטוקולים</h1>
         </div>
         {isAdmin && (
+          <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setHistoryFor("all")}>
+            <History className="w-4 h-4 ml-1" />
+            היסטוריית שינויים
+          </Button>
           <Button
             variant={editMode ? "default" : "outline"}
             className={editMode ? "bg-emerald-600 hover:bg-emerald-700" : ""}
@@ -365,6 +375,7 @@ export default function Protocols() {
             {editMode ? <Eye className="w-4 h-4 ml-1" /> : <Pencil className="w-4 h-4 ml-1" />}
             {editMode ? "מעבר למצב צפייה" : "מעבר למצב עריכה"}
           </Button>
+          </div>
         )}
       </div>
 
@@ -429,12 +440,20 @@ export default function Protocols() {
                 </div>
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <h2 className="text-2xl font-bold text-stone-900">{selected.title}</h2>
+                  <div className="flex gap-2 shrink-0">
+                  {isAdmin && (
+                    <Button variant="outline" size="sm" onClick={() => setHistoryFor(selected.id)}>
+                      <History className="w-4 h-4 ml-1" />
+                      היסטוריה
+                    </Button>
+                  )}
                   {canEdit && !editingContent && (
                     <Button variant="outline" size="sm" onClick={() => { setContentDraft(toEditorHtml(selected.content)); setEditingContent(true); }}>
                       <Pencil className="w-4 h-4 ml-1" />
                       ערוך תוכן
                     </Button>
                   )}
+                  </div>
                 </div>
 
                 {editingContent ? (
@@ -497,6 +516,20 @@ export default function Protocols() {
           </CardContent>
         </Card>
       </div>
+
+      {isAdmin && (
+        <ProtocolHistoryDialog
+          open={!!historyFor}
+          onOpenChange={(o) => !o && setHistoryFor(null)}
+          nodeId={historyFor === "all" ? null : historyFor}
+          nodeTitle={byId[historyFor]?.title}
+          byId={byId}
+          onRestoreContent={(id, content) => updateMutation.mutate(
+            { id, data: { content } },
+            { onSuccess: () => toast.success("הגרסה שוחזרה") }
+          )}
+        />
+      )}
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
