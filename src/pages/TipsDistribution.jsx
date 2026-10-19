@@ -9,12 +9,21 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Coins, Lock, Unlock, History, Loader2, Trash2 } from "lucide-react";
+import { Coins, Lock, Unlock, History, Loader2, Trash2, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { computeTipAllocation, formatShekel } from "@/lib/tipsEngine";
 import LoadingState from "@/components/utils/LoadingState";
 
 const currentMonth = () => new Date().toLocaleDateString("sv-SE").slice(0, 7);
+
+const escapeHtml = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[c]));
 
 export default function TipsDistribution() {
   const [month, setMonth] = useState(currentMonth());
@@ -123,13 +132,87 @@ export default function TipsDistribution() {
     : result.workers
   ).slice().sort((a, b) => (a.worker_name || "").localeCompare(b.worker_name || "", "he"));
 
+  const printTable = () => {
+    const printedAt = new Date().toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" });
+    const grandTotal = rows.reduce((s, w) => s + (Number(w.total) || 0), 0);
+    const bodyRows = rows.map((w) => `
+      <tr>
+        <td class="name">${escapeHtml(w.worker_name)}</td>
+        <td class="muted">${escapeHtml(w.agency_name)}</td>
+        <td>${w.shifts}</td>
+        <td>${formatShekel(w.shiftPay)}</td>
+        <td>${w.runners > 0 ? `${w.runners} · ${formatShekel(w.runnerPay)}` : "—"}</td>
+        <td>${w.closings > 0 ? `${w.closings} · ${formatShekel(w.closingPay)}` : "—"}</td>
+        <td class="total">${formatShekel(w.total)}</td>
+      </tr>`).join("");
+
+    const html = `<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="utf-8">
+  <title>חלוקת טיפים - ${escapeHtml(month)}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, 'Heebo', sans-serif; direction: rtl; padding: 12mm; color: #1c1917; font-size: 12px; }
+    .doc-header { border-bottom: 2px solid #1c1917; padding-bottom: 8px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .doc-title { font-size: 20px; font-weight: 900; }
+    .doc-sub { font-size: 12px; color: #57534e; margin-top: 4px; }
+    .doc-meta { font-size: 10px; color: #78716c; text-align: left; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #d6d3d1; }
+    th { background: #fafaf9; padding: 6px 10px; text-align: right; border-bottom: 1px solid #d6d3d1; font-weight: 600; }
+    td { padding: 5px 10px; border-bottom: 1px solid #e7e5e4; }
+    tr { page-break-inside: avoid; }
+    thead { display: table-header-group; }
+    .name { font-weight: 600; }
+    .muted { color: #78716c; }
+    .total { font-weight: 700; }
+    tfoot td { border-top: 2px solid #1c1917; font-weight: 700; background: #f5f5f4; }
+    @page { size: A4 portrait; margin: 10mm; }
+    @media print { body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="doc-header">
+    <div>
+      <div class="doc-title">חלוקת טיפים חודשית</div>
+      <div class="doc-sub">${escapeHtml(month)} · קופה: ${formatShekel(amount)}${isLocked ? " · נעול" : " · טיוטה"}</div>
+    </div>
+    <div class="doc-meta">הופק: ${printedAt}</div>
+  </div>
+  <table>
+    <thead>
+      <tr><th>עובד</th><th>חברה</th><th>משמרות</th><th>שכר משמרות</th><th>ראנרים</th><th>סגירות</th><th>סה"כ</th></tr>
+    </thead>
+    <tbody>${bodyRows}</tbody>
+    <tfoot>
+      <tr><td colspan="6">סה"כ (${rows.length} עובדים)</td><td>${formatShekel(grandTotal)}</td></tr>
+    </tfoot>
+  </table>
+  <script>
+    window.addEventListener('load', () => { setTimeout(() => window.print(), 300); });
+  </script>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=1000,height=800");
+    if (!win) return;
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-4" dir="rtl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <Coins className="w-6 h-6 text-emerald-700" /> חלוקת טיפים חודשית
         </h1>
-        <Input type="month" className="h-9 w-44" value={month} onChange={(e) => { setMonth(e.target.value); setAmountInput(""); }} />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-9" disabled={rows.length === 0} onClick={printTable}>
+            <Printer className="w-4 h-4 ml-1" /> הדפסה
+          </Button>
+          <Input type="month" className="h-9 w-44" value={month} onChange={(e) => { setMonth(e.target.value); setAmountInput(""); }} />
+        </div>
       </div>
 
       <Card className="bg-emerald-50/60 border-emerald-200">
