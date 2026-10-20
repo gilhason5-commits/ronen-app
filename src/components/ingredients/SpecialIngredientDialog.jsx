@@ -22,7 +22,7 @@ import { Plus, Trash2, Search, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import IngredientDialog from "@/components/inventory/IngredientDialog";
 import PdfFilesField from "@/components/shared/PdfFilesField";
-import { specialIngredientYield } from "@/lib/specialIngredientYield";
+import { specialIngredientYield, weighedUnitSize } from "@/lib/specialIngredientYield";
 import { dropMissingRefs, removeIngredientFromRecipes } from "@/lib/missingIngredients";
 
 export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
@@ -137,6 +137,7 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
       
       const saveData = {
         ...data,
+        components: data.components.map(({ entry_qty, ...c }) => c),
         total_cost: totalCost,
         price_per_system_unit: pricePerSystemUnit
       };
@@ -243,6 +244,24 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
 
     setFormData({ ...formData, components: newComponents });
   };
+
+  // A יחידה ingredient with "כמות ליחידה" in a ק״ג/ליטר sub-dish is typed in
+  // the sub-dish's unit; qty stays stored in units (purchasing reads units).
+  // entry_qty only keeps the typed text while editing and is not saved.
+  const gramsOf = (comp) => weighedUnitSize(ingredients.find(i => i.id === comp.ingredient_id), formData.system_unit);
+  const setWeighedQty = (index, value, grams) => {
+    const ing = ingredients.find(i => i.id === formData.components[index].ingredient_id);
+    const units = value === '' ? '' : (parseFloat(value) || 0) * 1000 / grams;
+    const newComponents = [...formData.components];
+    newComponents[index] = {
+      ...newComponents[index],
+      entry_qty: value,
+      qty: units,
+      cost: (parseFloat(units) || 0) * (ing?.price_per_system || 0)
+    };
+    setFormData({ ...formData, components: newComponents });
+  };
+  const fmtQty = (n) => Number((parseFloat(n) || 0).toFixed(4));
 
   const { totalCost, totalQuantity, pricePerSystemUnit, missingUnitSize } = calculateTotals(formData.components);
 
@@ -391,8 +410,12 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
                       <Input
                         type="number"
                         step="0.01"
-                        value={comp.qty}
-                        onChange={(e) => updateComponent(index, 'qty', e.target.value)}
+                        value={gramsOf(comp)
+                          ? (comp.entry_qty ?? fmtQty((parseFloat(comp.qty) || 0) * gramsOf(comp) / 1000))
+                          : comp.qty}
+                        onChange={(e) => gramsOf(comp)
+                          ? setWeighedQty(index, e.target.value, gramsOf(comp))
+                          : updateComponent(index, 'qty', e.target.value)}
                         placeholder="0"
                       />
                     </div>
@@ -400,7 +423,7 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
                       <div className="col-span-2">
                         <Label className="text-xs">יחידה</Label>
                         <Input
-                          value={comp.unit}
+                          value={gramsOf(comp) ? `${formData.system_unit} (${fmtQty(comp.qty)} יח׳)` : comp.unit}
                           disabled
                           className="bg-stone-100"
                         />

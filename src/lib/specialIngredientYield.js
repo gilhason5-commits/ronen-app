@@ -16,6 +16,13 @@ const num = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// Grams/ml per unit when `source` (a יחידה ingredient) is weighed into a
+// ק״ג/ליטר sub-dish; 0 when it counts as-is.
+export function weighedUnitSize(source, targetUnit) {
+  if (!isMassUnit(targetUnit) || !isPieceUnit(source?.system_unit)) return 0;
+  return num(source?.unit_size_grams);
+}
+
 // `sourceOf(id)` returns the component's Ingredient or SpecialIngredient.
 export function componentYield(comp, source, targetUnit) {
   const qty = num(comp?.qty);

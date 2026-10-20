@@ -28,6 +28,8 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
 
   const [overrideRole, setOverrideRole] = useState("");
   const [overrideStartTime, setOverrideStartTime] = useState("");
+  // Same start, typed as minutes before the event starts (negative = after).
+  const [minutesBefore, setMinutesBefore] = useState("");
   const [additionalEmployees, setAdditionalEmployees] = useState([]);
 
   const { data: allEmployees = [] } = useQuery({
@@ -49,6 +51,28 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
     return startTime;
   };
 
+  const eventStart = event?.event_date && event?.event_time
+    ? new Date(`${event.event_date}T${event.event_time}`)
+    : null;
+  const minutesBeforeOf = (hhmm) => {
+    if (!eventStart || !hhmm) return "";
+    const [h, m] = hhmm.split(':').map(Number);
+    const t = new Date(eventStart);
+    t.setHours(h, m, 0, 0);
+    return String(Math.round((eventStart - t) / 60000));
+  };
+  const changeStartTime = (hhmm) => {
+    setOverrideStartTime(hhmm);
+    setMinutesBefore(minutesBeforeOf(hhmm));
+  };
+  const changeMinutesBefore = (value) => {
+    setMinutesBefore(value);
+    const n = parseInt(value, 10);
+    if (eventStart && Number.isFinite(n)) {
+      setOverrideStartTime(format(new Date(eventStart.getTime() - n * 60000), "HH:mm"));
+    }
+  };
+
   // Calculate default employee from template role
   const getDefaultEmployee = () => {
     if (!template?.default_role) return null;
@@ -59,12 +83,12 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
     if (assignment) {
       setOverrideRole(assignment.assigned_to_id || "");
       const startTime = assignment.start_time ? new Date(assignment.start_time) : getDefaultStartTime();
-      setOverrideStartTime(startTime ? format(startTime, "HH:mm") : "");
+      changeStartTime(startTime ? format(startTime, "HH:mm") : "");
       setAdditionalEmployees(assignment.additional_employees || []);
     } else {
       setOverrideRole("");
       const defaultStart = getDefaultStartTime();
-      setOverrideStartTime(defaultStart ? format(defaultStart, "HH:mm") : "");
+      changeStartTime(defaultStart ? format(defaultStart, "HH:mm") : "");
       setAdditionalEmployees([]);
     }
   }, [template, assignment, event]);
@@ -106,8 +130,13 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
       const durationMinutes = template?.duration_minutes || 60;
 
       const [hours, minutes] = (overrideStartTime || '00:00').split(':').map(Number);
-      const startTime = new Date(`${event.event_date}T00:00:00`);
+      let startTime = new Date(`${event.event_date}T00:00:00`);
       startTime.setHours(hours, minutes, 0, 0);
+      // Minutes before the event can cross midnight — count from the event itself.
+      const before = parseInt(minutesBefore, 10);
+      if (eventStart && Number.isFinite(before)) {
+        startTime = new Date(eventStart.getTime() - before * 60000);
+      }
       const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
 
       const escalationRoleId = template?.escalation_role_id;
@@ -236,8 +265,21 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
             <Input
               type="time"
               value={overrideStartTime}
-              onChange={(e) => setOverrideStartTime(e.target.value)}
+              onChange={(e) => changeStartTime(e.target.value)}
             />
+            {eventStart && (
+              <div className="flex items-center gap-2 text-sm text-stone-600">
+                <span>או</span>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  className="w-24"
+                  value={minutesBefore}
+                  onChange={(e) => changeMinutesBefore(e.target.value)}
+                />
+                <span>דקות לפני תחילת האירוע ({event.event_time.slice(0, 5)})</span>
+              </div>
+            )}
           </div>
 
           {/* Actions */}
