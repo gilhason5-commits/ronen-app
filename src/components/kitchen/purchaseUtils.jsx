@@ -1,6 +1,7 @@
 import { format, startOfWeek, endOfWeek, addDays, subDays } from 'date-fns';
 import { applyWasteToQty } from '@/lib/foodWaste';
 import { specialIngredientBatchSize } from '@/lib/specialIngredientYield';
+import { rowQtyInSystemUnits } from '@/lib/recipeQty';
 import { calculateAdultPortions } from '@/lib/dinerCount';
 import { getFixedEventDishes, getFixedItemEventQty } from '@/lib/fixedEventItems';
 import { explicitDishQty } from "@/lib/plannedDishQty";
@@ -137,7 +138,8 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
       dishLines.forEach(({ dish, effectiveQty }) => {
         if (!effectiveQty || effectiveQty <= 0) return;
         (dish.ingredients || []).forEach(ing => {
-          const qtyNeeded = (ing.qty || 0) * effectiveQty;
+          // Bought in the ingredient card's unit (a ק״ג row of a יחידה ingredient converts).
+          const qtyNeeded = rowQtyInSystemUnits(ing, ingredients.find(i => i.id === ing.ingredient_id)) * effectiveQty;
           if (findSI(ing.ingredient_id)) {
             if (qtyNeeded > 0) slotDemand[ing.ingredient_id] = (slotDemand[ing.ingredient_id] || 0) + qtyNeeded;
             return;
@@ -184,7 +186,7 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
       const batches = Math.ceil(totalDemand / batchSize);
       preps.push({ si_id: siId, name: si.name, demand: totalDemand, batch_size: batchSize, batches, unit: si.system_unit || '' });
       comps.forEach(comp => {
-        const compQty = (comp.qty || 0) * batches;
+        const compQty = rowQtyInSystemUnits(comp, ingredients.find(i => i.id === comp.ingredient_id)) * batches;
         if (findSI(comp.ingredient_id)) {
           if (compQty > 0 && !done.has(comp.ingredient_id)) {
             pending[comp.ingredient_id] = (pending[comp.ingredient_id] || 0) + compQty;

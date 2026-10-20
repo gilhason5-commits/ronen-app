@@ -7,6 +7,7 @@ import { subMonths, format } from 'date-fns';
 import { applyWasteToQty } from "@/lib/foodWaste";
 import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 import LoadingState from "@/components/utils/LoadingState";
+import { rowQtyInSystemUnits } from "@/lib/recipeQty";
 
 const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#6366f1'];
 
@@ -78,7 +79,7 @@ export default function IngredientCategoryPieChart() {
            // Assuming `dishIng.qty` is per 1 unit of Dish (portion_factor=1).
            // `ed.planned_qty` is the number of guests/portions.
            
-           const totalQtyNeeded = (dishIng.qty || 0) * plannedQty;
+           const totalQtyNeeded = rowQtyInSystemUnits(dishIng, ingredientDef) * plannedQty;
            
            // Price is usually per purchase unit or system unit. 
            // ingredientDef.price_per_system is the price per system unit (kg, L, etc).

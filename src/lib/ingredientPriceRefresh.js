@@ -1,6 +1,7 @@
 import { base44 } from "@/api/base44Client";
 import { computeEventFoodCost } from "@/lib/eventFoodCost";
 import { specialIngredientYield } from "@/lib/specialIngredientYield";
+import { rowQtyInSystemUnits } from "@/lib/recipeQty";
 
 // An ingredient price change applies from today: future events take the new
 // price (dish costs, event food cost; purchasing already reads the current
@@ -30,7 +31,7 @@ function specialIngredientTotals(si, ingredientsById, specialById) {
     const qty = num(comp.qty);
     const ing = ingredientsById[comp.ingredient_id];
     const nested = !ing && specialById[comp.ingredient_id];
-    if (ing) totalCost += qty * num(ing.price_per_system);
+    if (ing) totalCost += rowQtyInSystemUnits(comp, ing) * num(ing.price_per_system);
     else if (nested) totalCost += qty * num(nested.price_per_system_unit);
   }
   const { total: totalQty } = specialIngredientYield(si, (id) => ingredientsById[id] || specialById[id]);
@@ -52,7 +53,7 @@ function dishUnitCost(dish, ingredientsById, specialById) {
     const purchaseUnit = num(ing.purchase_unit) || 1;
     const base = ing.price_per_system ?? (num(ing.base_price) / purchaseUnit);
     const waste = num(ing.waste_pct);
-    total += qty * (waste > 0 ? num(base) / (1 - waste / 100) : num(base));
+    total += rowQtyInSystemUnits(item, ing) * (waste > 0 ? num(base) / (1 - waste / 100) : num(base));
   }
   return total;
 }

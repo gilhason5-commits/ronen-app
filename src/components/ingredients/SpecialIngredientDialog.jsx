@@ -22,7 +22,8 @@ import { Plus, Trash2, Search, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import IngredientDialog from "@/components/inventory/IngredientDialog";
 import PdfFilesField from "@/components/shared/PdfFilesField";
-import { specialIngredientYield, weighedUnitSize } from "@/lib/specialIngredientYield";
+import { specialIngredientYield } from "@/lib/specialIngredientYield";
+import { convertRowQty, isWeighedUnit, normalizeUnit, rowQtyInSystemUnits, rowUnitOptions, unitSizeOf } from "@/lib/recipeQty";
 import { dropMissingRefs, removeIngredientFromRecipes } from "@/lib/missingIngredients";
 
 export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
@@ -119,7 +120,7 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
       const ing = ingredients.find(i => i.id === comp.ingredient_id);
       const si = !ing && allSpecialIngredients.find(x => x.id === comp.ingredient_id);
       const qty = parseFloat(comp.qty) || 0;
-      if (ing) totalCost += qty * (ing.price_per_system || 0);
+      if (ing) totalCost += rowQtyInSystemUnits(comp, ing) * (ing.price_per_system || 0);
       else if (si) totalCost += qty * (si.price_per_system_unit || 0);
     });
     const { total: totalQuantity, missing: missingUnitSize } = specialIngredientYield(
@@ -137,7 +138,6 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
       
       const saveData = {
         ...data,
-        components: data.components.map(({ entry_qty, ...c }) => c),
         total_cost: totalCost,
         price_per_system_unit: pricePerSystemUnit
       };
@@ -220,10 +220,13 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
         const ing = ingredients.find(i => i.id === value);
         if (ing) {
           newComponents[index].ingredient_name = ing.name;
-          newComponents[index].unit = ing.system_unit;
+          // A יחידה ingredient with "כמות ליחידה" is written in the sub-dish's
+          // unit (ק״ג by default).
+          newComponents[index].unit = unitSizeOf(ing)
+            ? (isWeighedUnit(formData.system_unit) ? normalizeUnit(formData.system_unit) : 'ק״ג')
+            : ing.system_unit;
           newComponents[index].is_special = false;
-          const qty = parseFloat(newComponents[index].qty) || 0;
-          newComponents[index].cost = qty * (ing.price_per_system || 0);
+          newComponents[index].cost = rowQtyInSystemUnits(newComponents[index], ing) * (ing.price_per_system || 0);
         }
       }
     }
@@ -236,8 +239,7 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
       } else {
         const ing = ingredients.find(i => i.id === newComponents[index].ingredient_id);
         if (ing) {
-          const qty = parseFloat(value) || 0;
-          newComponents[index].cost = qty * (ing.price_per_system || 0);
+          newComponents[index].cost = rowQtyInSystemUnits(newComponents[index], ing) * (ing.price_per_system || 0);
         }
       }
     }
@@ -245,23 +247,24 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
     setFormData({ ...formData, components: newComponents });
   };
 
-  // A יחידה ingredient with "כמות ליחידה" in a ק״ג/ליטר sub-dish is typed in
-  // the sub-dish's unit; qty stays stored in units (purchasing reads units).
-  // entry_qty only keeps the typed text while editing and is not saved.
-  const gramsOf = (comp) => weighedUnitSize(ingredients.find(i => i.id === comp.ingredient_id), formData.system_unit);
-  const setWeighedQty = (index, value, grams) => {
+  // Switching a row between יחידה and ק״ג/ליטר keeps the same amount.
+  const changeComponentUnit = (index, unit) => {
     const ing = ingredients.find(i => i.id === formData.components[index].ingredient_id);
-    const units = value === '' ? '' : (parseFloat(value) || 0) * 1000 / grams;
     const newComponents = [...formData.components];
-    newComponents[index] = {
-      ...newComponents[index],
-      entry_qty: value,
-      qty: units,
-      cost: (parseFloat(units) || 0) * (ing?.price_per_system || 0)
-    };
+    const comp = newComponents[index];
+    const qty = Number(convertRowQty(comp.qty, comp.unit, unit, ing).toFixed(6));
+    newComponents[index] = { ...comp, unit, qty };
+    newComponents[index].cost = rowQtyInSystemUnits(newComponents[index], ing) * (ing?.price_per_system || 0);
     setFormData({ ...formData, components: newComponents });
   };
-  const fmtQty = (n) => Number((parseFloat(n) || 0).toFixed(4));
+  // Shown live from the current card (a stored comp.cost can predate a card change).
+  const costOf = (comp) => {
+    const ing = ingredients.find(i => i.id === comp.ingredient_id);
+    if (ing) return rowQtyInSystemUnits(comp, ing) * (ing.price_per_system || 0);
+    const si = allSpecialIngredients.find(x => x.id === comp.ingredient_id);
+    return (parseFloat(comp.qty) || 0) * (si?.price_per_system_unit || 0);
+  };
+  const unitSourceOf = (comp) => !comp.is_special && ingredients.find(i => i.id === comp.ingredient_id);
 
   const { totalCost, totalQuantity, pricePerSystemUnit, missingUnitSize } = calculateTotals(formData.components);
 
@@ -410,29 +413,37 @@ export default function SpecialIngredientDialog({ open, onClose, ingredient }) {
                       <Input
                         type="number"
                         step="0.01"
-                        value={gramsOf(comp)
-                          ? (comp.entry_qty ?? fmtQty((parseFloat(comp.qty) || 0) * gramsOf(comp) / 1000))
-                          : comp.qty}
-                        onChange={(e) => gramsOf(comp)
-                          ? setWeighedQty(index, e.target.value, gramsOf(comp))
-                          : updateComponent(index, 'qty', e.target.value)}
+                        value={comp.qty}
+                        onChange={(e) => updateComponent(index, 'qty', e.target.value)}
                         placeholder="0"
                       />
                     </div>
 
                       <div className="col-span-2">
                         <Label className="text-xs">יחידה</Label>
-                        <Input
-                          value={gramsOf(comp) ? `${formData.system_unit} (${fmtQty(comp.qty)} יח׳)` : comp.unit}
-                          disabled
-                          className="bg-stone-100"
-                        />
+                        {unitSizeOf(unitSourceOf(comp)) ? (
+                          <Select
+                            value={rowUnitOptions(unitSourceOf(comp)).includes(normalizeUnit(comp.unit)) ? normalizeUnit(comp.unit) : rowUnitOptions(unitSourceOf(comp))[0]}
+                            onValueChange={(u) => changeComponentUnit(index, u)}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {rowUnitOptions(unitSourceOf(comp)).map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            value={comp.unit}
+                            disabled
+                            className="bg-stone-100"
+                          />
+                        )}
                       </div>
 
                       <div className="col-span-2">
                         <Label className="text-xs">עלות</Label>
                         <Input
-                          value={`₪${(comp.cost || 0).toFixed(2)}`}
+                          value={`₪${costOf(comp).toFixed(2)}`}
                           disabled
                           className="bg-stone-100"
                         />

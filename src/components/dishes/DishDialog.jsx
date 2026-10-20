@@ -28,6 +28,7 @@ import IngredientDetailsDialog from "./IngredientDetailsDialog";
 import IngredientDialog from "../inventory/IngredientDialog";
 import SpecialIngredientDialog from "../ingredients/SpecialIngredientDialog";
 import { dropMissingRefs } from "@/lib/missingIngredients";
+import { convertRowQty, normalizeUnit, rowQtyInSystemUnits, rowUnitOptions, unitSizeOf } from "@/lib/recipeQty";
 import { isFixedPerEventCategory } from "@/lib/fixedEventItems";
 import { syncDishEventQuantities } from "@/lib/plannedDishQty";
 import DishQtyModeFields from "./DishQtyModeFields";
@@ -124,8 +125,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
           ((ingredient.base_price ?? 0) / (purchaseUnit || 1));
         const pricePerSystem = wastePct > 0 ? basePricePerSystem / (1 - wastePct / 100) : basePricePerSystem;
         
-        const qty = typeof item.qty === 'string' ? parseFloat(item.qty) || 0 : (item.qty || 0);
-        totalCost += qty * pricePerSystem;
+        totalCost += rowQtyInSystemUnits(item, ingredient) * pricePerSystem;
       }
     });
     return totalCost;
@@ -227,13 +227,23 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
         const ingredient = ingredients.find(ing => ing.id === value);
         if (ingredient) {
           newIngredients[index].ingredient_name = ingredient.name;
-          newIngredients[index].unit = ingredient.system_unit || ingredient.unit;
+          // A יחידה ingredient with "כמות ליחידה" is written in ק״ג by default.
+          newIngredients[index].unit = unitSizeOf(ingredient) ? 'ק״ג' : (ingredient.system_unit || ingredient.unit);
         }
       }
     }
 
     const unitCost = calculateDishCost(newIngredients);
     setFormData({ ...formData, ingredients: newIngredients, unit_cost: unitCost });
+  };
+
+  // Switching a row between יחידה and ק״ג/ליטר keeps the same amount.
+  const changeRowUnit = (index, unit, ingredient) => {
+    const newIngredients = [...formData.ingredients];
+    const row = newIngredients[index];
+    const qty = Number(convertRowQty(row.qty, row.unit, unit, ingredient).toFixed(6));
+    newIngredients[index] = { ...row, unit, qty, _displayQty: qty };
+    setFormData({ ...formData, ingredients: newIngredients, unit_cost: calculateDishCost(newIngredients) });
   };
 
   const deleteMutation = useMutation({
@@ -436,7 +446,7 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
                     const wastePct = regularIng.waste_pct || 0;
                     const basePPS = regularIng.price_per_system ?? ((regularIng.base_price ?? 0) / (purchaseUnit || 1));
                     const pricePerSystem = wastePct > 0 ? basePPS / (1 - wastePct / 100) : basePPS;
-                    itemCost = (parseFloat(item.qty) || 0) * pricePerSystem;
+                    itemCost = rowQtyInSystemUnits(item, regularIng) * pricePerSystem;
                   }
                   return { item, originalIndex, itemCost };
                 })
@@ -580,16 +590,28 @@ export default function DishDialog({ dish, eventType = 'serving', ingredients = 
                     </div>
                     <div className="col-span-2">
                       <Label className="text-xs">יחידה</Label>
-                      <Input
-                        value={displayUnit(item.unit)}
-                        readOnly
-                        className="bg-stone-100"
-                      />
+                      {!specialIngredient && unitSizeOf(ingredient) ? (
+                        <Select
+                          value={rowUnitOptions(ingredient).includes(normalizeUnit(item.unit)) ? normalizeUnit(item.unit) : rowUnitOptions(ingredient)[0]}
+                          onValueChange={(u) => changeRowUnit(index, u, ingredient)}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {rowUnitOptions(ingredient).map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={displayUnit(item.unit)}
+                          readOnly
+                          className="bg-stone-100"
+                        />
+                      )}
                     </div>
                     <div className="col-span-1">
                       <Label className="text-xs">עלות</Label>
                       <p className="text-sm font-semibold">
-                        ₪{((typeof item.qty === 'string' ? parseFloat(item.qty) || 0 : (item.qty || 0)) * pricePerSystem).toFixed(2)}
+                        ₪{((specialIngredient ? parseFloat(item.qty) || 0 : rowQtyInSystemUnits(item, ingredient)) * pricePerSystem).toFixed(2)}
                       </p>
                     </div>
                     <div className="col-span-1 flex gap-1">

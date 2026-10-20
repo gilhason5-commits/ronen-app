@@ -6,6 +6,7 @@ import { Sliders, Package, TrendingUp, Calendar, AlertCircle, CheckCircle } from
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, addDays } from "date-fns";
 import { applyWasteToQty } from "@/lib/foodWaste";
+import { rowQtyInSystemUnits } from "@/lib/recipeQty";
 
 export default function InventoryTrackingList({ ingredients, events, eventsDishes, dishes, purchaseOrders, isLoading, onAdjust, onShowEventNeeds }) {
   
@@ -32,7 +33,7 @@ export default function InventoryTrackingList({ ingredients, events, eventsDishe
         if (!ingredient) return;
         
         const plannedQty = applyWasteToQty(ed.planned_qty || 0, event);
-        const baseQty = ingredient.qty || 0;
+        const baseQty = rowQtyInSystemUnits(ingredient, ingredients.find(i => i.id === ingredientId));
         const neededForEvent = baseQty * plannedQty;
         
         totalNeeded += neededForEvent;
@@ -66,7 +67,7 @@ export default function InventoryTrackingList({ ingredients, events, eventsDishe
         if (!ingredient) return;
         
         const plannedQty = applyWasteToQty(ed.planned_qty || 0, event);
-        const baseQty = ingredient.qty || 0;
+        const baseQty = rowQtyInSystemUnits(ingredient, ingredients.find(i => i.id === ingredientId));
         const neededForEvent = baseQty * plannedQty;
         
         totalForEvent += neededForEvent;

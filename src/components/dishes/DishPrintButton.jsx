@@ -38,7 +38,7 @@ export default function DishPrintButton({ dish, ingredients = [], specialIngredi
       const ingredient = ingredients.find(i => i.id === ing.ingredient_id);
       return {
         ingredient_name: ingredient?.name || ing.ingredient_name || 'רכיב',
-        unit: ingredient?.system_unit || ing.unit || '',
+        unit: ing.unit || ingredient?.system_unit || '', // the recipe as written (ק״ג/ליטר/יחידה)
         qty: ing.qty || 0,
         is_special: false
       };

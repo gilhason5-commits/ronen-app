@@ -7,6 +7,7 @@ import { Printer, Download } from "lucide-react";
 import DepartmentPrintPreview from "./DepartmentPrintPreview";
 import { eventWastePct, eventWasteFactor, applyWasteToQty, isFridayEvent, FRIDAY_EXTRA_PCT } from "@/lib/foodWaste";
 import { specialIngredientBatchSize } from "@/lib/specialIngredientYield";
+import { rowQtyInSystemUnits } from "@/lib/recipeQty";
 import { calculateAdultPortions } from "@/lib/dinerCount";
 import { explicitDishQty, isExplicitQtyMode, qtyModeLabel } from "@/lib/plannedDishQty";
 
@@ -293,7 +294,7 @@ export default function DepartmentPrintDialog({
               // Per-dish consumption: proportional to this dish's SI usage.
               // Full batches are tracked separately (in specialIngredientBatches /
               // the totals section) so leftovers can be used by other dishes.
-              const compPerSIUnit = (comp.qty || 0) / (siData.batchSize || 1);
+              const compPerSIUnit = rowQtyInSystemUnits(comp, compIngredient) / (siData.batchSize || 1);
               const rawPerUnit = (ing.qty || 0) * compPerSIUnit;
               const perUnit = compWastePct > 0 ? rawPerUnit / (1 - compWastePct / 100) : rawPerUnit;
               const dishCompTotal = perUnit * effectiveQty;
@@ -332,7 +333,9 @@ export default function DepartmentPrintDialog({
         const supportDept = getIngredientSupportDept(ingredient);
         
         if (isMainDept || (isSupportDept && supportDept === deptKey)) {
-          const rawQtyNeeded = (ing.qty || 0) * effectiveQty;
+          // Shown in the card's unit (a ק״ג row of a יחידה ingredient converts).
+          const perUnitQty = rowQtyInSystemUnits(ing, ingredient);
+          const rawQtyNeeded = perUnitQty * effectiveQty;
           const wastePct = ingredient.waste_pct || 0;
           const qtyNeeded = wastePct > 0 ? rawQtyNeeded / (1 - wastePct / 100) : rawQtyNeeded;
           
@@ -340,7 +343,7 @@ export default function DepartmentPrintDialog({
             ingredient_id: ing.ingredient_id,
             ingredient_name: ingredient.name || ing.ingredient_name,
             unit: ingredient.system_unit || ing.unit,
-            qty_per_unit: ing.qty || 0,
+            qty_per_unit: perUnitQty,
             total_qty: qtyNeeded,
             waste_pct: wastePct,
             support_dept: supportDept,
@@ -423,7 +426,7 @@ export default function DepartmentPrintDialog({
         filteredComps.forEach(comp => {
           const compIngredient = ingredients.find(i => i.id === comp.ingredient_id);
           if (!compIngredient) return;
-          const rawCompQty = (comp.qty || 0) * siData.batches;
+          const rawCompQty = rowQtyInSystemUnits(comp, compIngredient) * siData.batches;
           const compWastePct = compIngredient.waste_pct || 0;
           const compQty = compWastePct > 0 ? rawCompQty / (1 - compWastePct / 100) : rawCompQty;
           const key = `${comp.ingredient_id}_si_${siId}`;

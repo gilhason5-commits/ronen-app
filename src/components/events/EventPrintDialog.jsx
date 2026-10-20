@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Printer, X } from "lucide-react";
 import { applyWasteToQty, applyWasteToValue } from "@/lib/foodWaste";
 import { useAuth } from "@/lib/AuthContext";
+import { rowQtyInSystemUnits } from "@/lib/recipeQty";
 
 const formatNum = (num) => {
   if (num === 0) return '0';
@@ -168,7 +169,7 @@ export default function EventPrintDialog({
           };
         }
 
-        const qtyNeeded = (ing.qty || 0) * plannedQty;
+        const qtyNeeded = rowQtyInSystemUnits(ing, ingredient) * plannedQty;
         ingredientMap[key].total_qty += qtyNeeded;
 
         if (ingredient) {
@@ -344,11 +345,12 @@ export default function EventPrintDialog({
 
                   const ingCatName = ingredient.ingredient_category_name || ingredient.category || 'ללא קטגוריה';
 
-                  const qtyNeeded = (ing.qty || 0) * effQty;
+                  const perUnitQty = rowQtyInSystemUnits(ing, ingredient);
+                  const qtyNeeded = perUnitQty * effQty;
                   return {
                     ingredient_name: ingredient?.name || ing.ingredient_name,
                     unit: ingredient?.system_unit || ing.unit,
-                    qty_per_unit: ing.qty || 0,
+                    qty_per_unit: perUnitQty,
                     planned_qty: effQty,
                     total_qty: qtyNeeded,
                     category_name: ingCatName
