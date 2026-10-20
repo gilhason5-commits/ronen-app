@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Clock, Users, Printer, UserCheck } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
@@ -132,45 +133,74 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
 
   const columnKeys = Object.keys(columns);
 
-  const handlePrint = () => {
+  const taskCardHtml = (task) => {
+    const status = computeStatus(task);
+    const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.PENDING;
+    const reminderHtml = task.last_notification_start_sent_at
+      ? `<div class="meta blue">🔔 תזכורת נשלחה ב-${fmtTime(task.last_notification_start_sent_at)}</div>`
+      : '';
+    const escalationHtml = task.escalation_sent_at
+      ? `<div class="meta orange">⬆ הועבר למנהל ב-${fmtTime(task.escalation_sent_at)}</div>`
+      : '';
+    const completedHtml = status === 'DONE' && task.completed_at
+      ? `<div class="meta green">הושלם: ${format(parseISO(task.completed_at), 'dd/MM HH:mm')}</div>`
+      : '';
+    const descHtml = task.task_description
+      ? `<div class="task-desc">${escapeHtml(task.task_description)}</div>`
+      : '';
+    return `
+      <div class="task-card">
+        <div class="task-header">
+          <div class="task-title">${escapeHtml(task.task_title || '')}</div>
+          <span class="badge" style="color:${cfg.color};background:${cfg.bg};">${cfg.label}</span>
+        </div>
+        ${descHtml}
+        <div class="meta">🕒 ${fmtTime(task.start_time)} - ${fmtTime(task.end_time)}</div>
+        ${reminderHtml}
+        ${escalationHtml}
+        ${completedHtml}
+      </div>
+    `;
+  };
+
+  // Everyone with a task in this event — the current assignee or an extra
+  // employee on it — for printing one person's own tasks.
+  const people = useMemo(() => {
+    const map = {};
+    assignments.forEach(a => {
+      if (a.assigned_to_id) map[a.assigned_to_id] = map[a.assigned_to_id] || a.assigned_to_name || '';
+      (a.additional_employees || []).forEach(e => {
+        if (e?.employee_id) map[e.employee_id] = map[e.employee_id] || e.employee_name || '';
+      });
+    });
+    return Object.entries(map)
+      .map(([id, name]) => ({ id, name: employees.find(e => e.id === id)?.full_name || name || 'ללא שם' }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'he'));
+  }, [assignments, employees]);
+
+  const handlePrint = (personId) => {
+    const person = typeof personId === 'string' ? people.find(p => p.id === personId) : null;
     const eventName = event?.event_name || '';
     const eventDate = event?.event_date ? format(parseISO(event.event_date), 'dd/MM/yyyy') : '';
     const eventTime = event?.event_time || '';
     const printedAt = format(new Date(), 'dd/MM/yyyy HH:mm');
 
-    const columnsHtml = columnKeys.map(roleId => {
+    const personTasks = person ? assignments
+      .filter(a => a.assigned_to_id === person.id ||
+        (a.additional_employees || []).some(e => e?.employee_id === person.id))
+      .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || '')) : [];
+    const docTitle = person ? `משימות - ${person.name}` : 'מעקב סטטוס לפי תפקיד';
+
+    const columnsHtml = person ? `
+        <div class="column">
+          <div class="column-body">
+            ${personTasks.map(taskCardHtml).join('') || '<div class="empty">אין משימות</div>'}
+          </div>
+        </div>` : columnKeys.map(roleId => {
       const col = columns[roleId];
       if (!col) return '';
 
-      const tasksHtml = col.tasks.map(task => {
-        const status = computeStatus(task);
-        const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.PENDING;
-        const reminderHtml = task.last_notification_start_sent_at
-          ? `<div class="meta blue">🔔 תזכורת נשלחה ב-${fmtTime(task.last_notification_start_sent_at)}</div>`
-          : '';
-        const escalationHtml = task.escalation_sent_at
-          ? `<div class="meta orange">⬆ הועבר למנהל ב-${fmtTime(task.escalation_sent_at)}</div>`
-          : '';
-        const completedHtml = status === 'DONE' && task.completed_at
-          ? `<div class="meta green">הושלם: ${format(parseISO(task.completed_at), 'dd/MM HH:mm')}</div>`
-          : '';
-        const descHtml = task.task_description
-          ? `<div class="task-desc">${escapeHtml(task.task_description)}</div>`
-          : '';
-        return `
-          <div class="task-card">
-            <div class="task-header">
-              <div class="task-title">${escapeHtml(task.task_title || '')}</div>
-              <span class="badge" style="color:${cfg.color};background:${cfg.bg};">${cfg.label}</span>
-            </div>
-            ${descHtml}
-            <div class="meta">🕒 ${fmtTime(task.start_time)} - ${fmtTime(task.end_time)}</div>
-            ${reminderHtml}
-            ${escalationHtml}
-            ${completedHtml}
-          </div>
-        `;
-      }).join('');
+      const tasksHtml = col.tasks.map(taskCardHtml).join('');
 
       return `
         <div class="column">
@@ -189,7 +219,7 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
 <html dir="rtl" lang="he">
 <head>
   <meta charset="utf-8">
-  <title>מעקב סטטוס לפי תפקיד - ${escapeHtml(eventName)}</title>
+  <title>${escapeHtml(docTitle)} - ${escapeHtml(eventName)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Arial, 'Heebo', sans-serif; direction: rtl; padding: 12mm; color: #1c1917; font-size: 11px; }
@@ -213,14 +243,14 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
     .meta.orange { color: #c2410c; }
     .meta.green { color: #15803d; }
     .empty { font-size: 10px; color: #a8a29e; text-align: center; padding: 12px 0; }
-    @page { size: A4 landscape; margin: 8mm; }
+    @page { size: A4 ${person ? 'portrait' : 'landscape'}; margin: 8mm; }
     @media print { body { padding: 0; } }
   </style>
 </head>
 <body>
   <div class="doc-header">
     <div>
-      <div class="doc-title">מעקב סטטוס לפי תפקיד</div>
+      <div class="doc-title">${escapeHtml(docTitle)}</div>
       <div class="doc-sub">${escapeHtml(eventName)}${eventDate ? ` | ${eventDate}` : ''}${eventTime ? ` | ${eventTime}` : ''}</div>
     </div>
     <div class="doc-meta">הופק: ${printedAt}</div>
@@ -265,15 +295,28 @@ export default function EventTasksByRoleColumns({ eventId, event }) {
               <p className="text-sm text-stone-500 mt-1">מתעדכן אוטומטית כל 30 שניות</p>
             </div>
             {columnKeys.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrint}
-                className="flex-shrink-0 gap-2"
-              >
-                <Printer className="w-4 h-4" />
-                הדפס
-              </Button>
+              <div className="flex flex-shrink-0 gap-2">
+                <Select value="" onValueChange={handlePrint}>
+                  <SelectTrigger className="h-9 w-44 gap-2">
+                    <Printer className="w-4 h-4" />
+                    <SelectValue placeholder="הדפס לעובד" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {people.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePrint()}
+                  className="gap-2"
+                >
+                  <Printer className="w-4 h-4" />
+                  הדפס הכל
+                </Button>
+              </div>
             )}
           </div>
         </CardHeader>
