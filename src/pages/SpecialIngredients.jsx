@@ -10,6 +10,7 @@ import { createPageUrl } from '@/utils';
 import SpecialIngredientDialog from '../components/ingredients/SpecialIngredientDialog';
 import SpecialIngredientsList from '../components/ingredients/SpecialIngredientsList';
 import LoadingState from "@/components/utils/LoadingState";
+import { specialIngredientYield } from "@/lib/specialIngredientYield";
 
 export default function SpecialIngredientsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -29,9 +30,19 @@ export default function SpecialIngredientsPage() {
     },
   });
 
-  const filteredIngredients = specialIngredients.filter(ing =>
-    ing.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const { data: ingredients = [] } = useQuery({
+    queryKey: ['ingredients'],
+    queryFn: async () => {
+      const data = await base44.entities.Ingredient.list();
+      return data.sort((a, b) => a.name?.localeCompare(b.name, 'he'));
+    },
+  });
+
+  // "כמות כוללת" is not stored — derive it like the sub-dish dialog does.
+  const sourceOf = (id) => ingredients.find(i => i.id === id) || specialIngredients.find(si => si.id === id);
+  const filteredIngredients = specialIngredients
+    .filter(ing => ing.name?.toLowerCase().includes(searchTerm.toLowerCase()))
+    .map(si => ({ ...si, total_quantity: specialIngredientYield(si, sourceOf).total }));
 
   // Auto-open edit dialog if edit param exists
   useEffect(() => {

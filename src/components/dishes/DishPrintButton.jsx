@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
+import { specialIngredientYield } from "@/lib/specialIngredientYield";
 
 const formatNumber = (num) => {
   if (num === 0) return '0';
@@ -104,7 +105,7 @@ export default function DishPrintButton({ dish, ingredients = [], specialIngredi
         return `
           <div style="margin-bottom: 15px; page-break-inside: avoid;">
             <div style="background-color: #2e7d32; color: white; padding: 8px 12px; font-weight: bold; font-size: 14px; border-radius: 4px;">
-              ${si.name} - מסה אחת (${formatNumber(si.total_quantity || (si.components || []).reduce((s, c) => s + (parseFloat(c.qty) || 0), 0))} ${formatUnit(si.system_unit)})
+              ${si.name} - מסה אחת (${formatNumber(specialIngredientYield(si, (id) => ingredients.find(i => i.id === id) || specialIngredients.find(x => x.id === id)).total)} ${formatUnit(si.system_unit)})
             </div>
             <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 0;">
               <thead>
