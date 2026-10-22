@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { supabase } from "@/api/supabaseClient";
 import { Input } from "@/components/ui/input";
 import { ProtocolEditor, ProtocolContent, toEditorHtml } from "@/components/protocols/ProtocolRichText";
+import DOMPurify from "dompurify";
 import { ProtocolHistoryDialog } from "@/components/protocols/ProtocolHistory";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,7 +15,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Library, Folder, FileText, ChevronDown, ChevronLeft, ChevronUp, Plus, Pencil, Trash2, Check, X, Search, Eye, Paperclip, Upload, History,
+  Library, Folder, FileText, ChevronDown, ChevronLeft, ChevronUp, Plus, Pencil, Trash2, Check, X, Search, Eye, Paperclip, Upload, History, Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -129,6 +130,42 @@ function TreeNode({ node, depth, ctx }) {
       )}
     </div>
   );
+}
+
+const formatDate = (iso) => (iso ? new Date(iso).toLocaleDateString("he-IL") : "");
+const escapeHtml = (s) => (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// Print one protocol: path, title and body, with its creation date top-left.
+function printProtocol(node, path) {
+  const body = DOMPurify.sanitize(toEditorHtml(node.content || ""));
+  const crumbs = path.slice(0, -1).map((p) => escapeHtml(p.title)).join(" › ");
+  const w = window.open("", "_blank");
+  if (!w) return toast.error("הדפדפן חסם את חלון ההדפסה");
+  w.document.write(`
+    <html dir="rtl">
+      <head>
+        <title>${escapeHtml(node.title)}</title>
+        <style>
+          body { font-family: Arial, sans-serif; direction: rtl; padding: 24px; color: #222; line-height: 1.7; }
+          .created { position: absolute; top: 24px; left: 24px; font-size: 12px; color: #555; }
+          .crumbs { font-size: 12px; color: #777; margin-bottom: 4px; }
+          h1 { font-size: 22px; margin: 0 0 16px; padding-bottom: 8px; border-bottom: 2px solid #333; }
+          p { margin: 0; }
+          .ql-size-small { font-size: 0.75em; } .ql-size-large { font-size: 1.5em; } .ql-size-huge { font-size: 2.5em; }
+          @page { margin: 12mm; }
+        </style>
+      </head>
+      <body>
+        ${node.created_date ? `<div class="created">נוצר: ${formatDate(node.created_date)}</div>` : ""}
+        ${crumbs ? `<div class="crumbs">${crumbs}</div>` : ""}
+        <h1>${escapeHtml(node.title)}</h1>
+        <div>${body || ""}</div>
+      </body>
+    </html>
+  `);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { w.print(); w.close(); }, 250);
 }
 
 const ATTACHMENTS_BUCKET = "protocol-files";
@@ -440,7 +477,14 @@ export default function Protocols() {
                 </div>
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <h2 className="text-2xl font-bold text-stone-900">{selected.title}</h2>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
+                  {selected.created_date && (
+                    <span className="text-xs text-stone-500">נוצר: {formatDate(selected.created_date)}</span>
+                  )}
+                  <Button variant="outline" size="sm" onClick={() => printProtocol(selected, pathTo(selected.id))}>
+                    <Printer className="w-4 h-4 ml-1" />
+                    הדפסה
+                  </Button>
                   {isAdmin && (
                     <Button variant="outline" size="sm" onClick={() => setHistoryFor(selected.id)}>
                       <History className="w-4 h-4 ml-1" />
