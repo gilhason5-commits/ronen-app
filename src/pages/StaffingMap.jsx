@@ -16,7 +16,7 @@ import {
 } from "@/lib/staffingEngine";
 import { exportConstraintsPdf, exportSupplierOrdersPdf, exportFloorReportPdf } from "@/lib/staffingPdf";
 import { getStaffColor } from "@/lib/staffColors";
-import { getStationColor, monthDates, toDateStr, formatTimeDigits } from "@/lib/kitchenSchedule";
+import { getStationColor, monthDates, toDateStr, formatTimeDigits, isPotWashStation, potWashDefaultHours } from "@/lib/kitchenSchedule";
 import { calculateStaffingGuestCount } from "@/lib/dinerCount";
 import { fetchKitchenShifts, saveKitchenShift, fetchEventsInRange, fetchDayNotes, saveDayNote, deleteKitchenShiftsForDay } from "@/lib/kitchenShifts";
 
@@ -351,15 +351,15 @@ const EventTableRow = React.memo(function EventTableRow({ event, rules, agencies
 // cell holds an edit that isn't saved yet (or whose save failed) the props
 // are ignored, and a failed save keeps the typed value, turns the cell red
 // and is retried on the next blur instead of vanishing behind a toast.
-const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, dateStr, onSave, registry, isEventDay = true }) {
+const KitchenShiftCell = React.memo(function KitchenShiftCell({ member, shift, dateStr, onSave, registry, defaultIn = "", defaultOut = "" }) {
   // What the cell shows when nothing is typed: the saved shift if there is
   // one (even a saved *blank* — that is an explicit day off), else the
   // person's default hours.
-  // A day with no event has nothing to staff, so with no saved row it shows
-  // as off ("X") instead of the default hours. A saved row always wins —
-  // hours already stored are shown exactly as stored on any day.
-  const baseIn = shift ? shift.clock_in ?? "" : isEventDay ? member.default_clock_in ?? "" : "";
-  const baseOut = shift ? shift.clock_out ?? "" : isEventDay ? member.default_clock_out ?? "" : "";
+  // The defaults are worked out per day by the grid (see defaultHoursFor) —
+  // blank on a day with nothing to staff, so it shows as off ("X"). A saved
+  // row always wins — hours already stored are shown exactly as stored.
+  const baseIn = shift ? shift.clock_in ?? "" : defaultIn;
+  const baseOut = shift ? shift.clock_out ?? "" : defaultOut;
   const [clockIn, setClockIn] = useState(baseIn);
   const [clockOut, setClockOut] = useState(baseOut);
   const [failed, setFailed] = useState(false);
@@ -625,7 +625,9 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
 
   const { data: allEvents = [] } = useQuery({
     queryKey: ["kitchenScheduleEvents", dayStrs[0], dayStrs[dayStrs.length - 1]],
-    queryFn: () => fetchEventsInRange(dayStrs[0], dayStrs[dayStrs.length - 1]),
+    // From two days before the month so a Sunday on the 1st/2nd still sees
+    // the previous Friday's event (pot-washing Sunday rule).
+    queryFn: () => fetchEventsInRange(toDateStr(new Date(days[0].getFullYear(), days[0].getMonth(), -1)), dayStrs[dayStrs.length - 1]),
   });
   const notesKey = ["kitchenDayNotes", group, dayStrs[0], dayStrs[dayStrs.length - 1]];
   const { data: dayNotes = [] } = useQuery({
@@ -659,6 +661,24 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   // event shows "X" in every hours cell and an editable name instead of an
   // event name.
   const eventDaySet = useMemo(() => new Set(allEvents.filter((e) => e.status !== "cancelled").map((e) => e.event_date)), [allEvents]);
+
+  // Hours a cell shows when nothing is saved for it. Pot washers follow the
+  // guest-count standard (see potWashDefaultHours); everyone else gets their
+  // fixed default hours on event days and is off otherwise.
+  const defaultHoursFor = (member, d, ds) => {
+    if (isPotWashStation(member.station)) {
+      const friday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 2);
+      return potWashDefaultHours({
+        date: d,
+        guests: guestsByDay.get(ds) || 0,
+        hasEvent: eventDaySet.has(ds),
+        fridayHadEvent: eventDaySet.has(toDateStr(friday)),
+        dayLabel: noteByDay.get(ds)?.label,
+      });
+    }
+    if (!eventDaySet.has(ds)) return { clockIn: "", clockOut: "" };
+    return { clockIn: member.default_clock_in ?? "", clockOut: member.default_clock_out ?? "" };
+  };
   const weeks = useMemo(() => {
     const result = [];
     let current = new Array(7).fill(null);
@@ -977,6 +997,7 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                   if (!d) return <td key={`blank-${di}`} className={`border border-stone-300 bg-stone-100 ${i === 0 ? groupBorder : ""}`} />;
                   const ds = toDateStr(d);
                   const shift = weekShifts.find((s) => s.member_id === member.id && s.shift_date === ds);
+                  const defaults = defaultHoursFor(member, d, ds);
                   return (
                     <td key={ds} className={`border border-stone-300 p-0 ${color} ${i === 0 ? groupBorder : ""}`}>
                       <KitchenShiftCell
@@ -985,7 +1006,8 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
                         dateStr={ds}
                         onSave={handleSaveShift}
                         registry={cellRegistry.current}
-                        isEventDay={eventDaySet.has(ds)}
+                        defaultIn={defaults.clockIn}
+                        defaultOut={defaults.clockOut}
                       />
                     </td>
                   );

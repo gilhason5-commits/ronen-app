@@ -82,3 +82,21 @@ export function formatTimeDigits(raw) {
   const result = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
   return isZeroTime(result) ? "" : result;
 }
+
+// Pot-washing (שטיפת סירים) standard: arrival depends on the day's guest
+// count (14:00 up to 100, 13:00 up to 200, 12:00 above 200); finish by 02:00,
+// 03:00 on Thursdays. Every Sunday after a Friday event they come in at 11:00
+// (event or not), and on a day marked "הכנות" in the day-name row at 10:00.
+// Returns null for any other station, so its fixed default hours apply.
+export function isPotWashStation(station) {
+  return (station || "").includes("שטיפת סירים");
+}
+
+export function potWashDefaultHours({ date, guests, hasEvent, fridayHadEvent, dayLabel }) {
+  const clockOut = date.getDay() === 4 ? "03:00" : "02:00";
+  if ((dayLabel || "").includes("הכנות")) return { clockIn: "10:00", clockOut };
+  if (date.getDay() === 0 && fridayHadEvent) return { clockIn: "11:00", clockOut };
+  if (!hasEvent) return { clockIn: "", clockOut: "" };
+  const clockIn = guests <= 100 ? "14:00" : guests <= 200 ? "13:00" : "12:00";
+  return { clockIn, clockOut };
+}
