@@ -4,8 +4,8 @@
 // nothing is re-baked into Events_Dish — so it also covers events already in
 // the system.
 //
-// Same scope as the 1/6 first-course portion rule: not for weddings, and only
-// for dishes planned by serving % (a fixed / per-guests count was set by hand).
+// Applies to every event type, weddings included; only for dishes planned by
+// serving % (a fixed / per-guests count was set by hand).
 
 export const FIRST_COURSE_CUT_PCT = 0.10;
 export const FIRST_COURSE_CUT_MIN_DISHES = 5;
@@ -37,7 +37,7 @@ export function firstCourseCut(event, eventDishes, dishes, categories) {
   const firstCourseDishIds = new Set(
     rows.filter((ed) => isFirstCourseRow(ed, dishesById, categoriesById)).map((ed) => ed.dish_id)
   );
-  const applies = event?.event_type !== "wedding" && firstCourseDishIds.size >= FIRST_COURSE_CUT_MIN_DISHES;
+  const applies = firstCourseDishIds.size >= FIRST_COURSE_CUT_MIN_DISHES;
   const factorOf = (ed) => {
     if (!applies || !firstCourseDishIds.has(ed?.dish_id)) return 1;
     const mode = dishesById[ed.dish_id]?.qty_mode;
