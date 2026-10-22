@@ -296,7 +296,7 @@ export default function DepartmentPrintDialog({
               // the totals section) so leftovers can be used by other dishes.
               const compPerSIUnit = rowQtyInSystemUnits(comp, compIngredient) / (siData.batchSize || 1);
               const rawPerUnit = (ing.qty || 0) * compPerSIUnit;
-              const perUnit = compWastePct > 0 ? rawPerUnit / (1 - compWastePct / 100) : rawPerUnit;
+              const perUnit = rawPerUnit; // net — the kitchen preps after waste; purchasing orders the gross
               const dishCompTotal = perUnit * effectiveQty;
 
               dishIngredients.push({
@@ -337,7 +337,7 @@ export default function DepartmentPrintDialog({
           const perUnitQty = rowQtyInSystemUnits(ing, ingredient);
           const rawQtyNeeded = perUnitQty * effectiveQty;
           const wastePct = ingredient.waste_pct || 0;
-          const qtyNeeded = wastePct > 0 ? rawQtyNeeded / (1 - wastePct / 100) : rawQtyNeeded;
+          const qtyNeeded = rawQtyNeeded; // net — the kitchen preps after waste; purchasing orders the gross
           
           dishIngredients.push({
             ingredient_id: ing.ingredient_id,
@@ -428,7 +428,7 @@ export default function DepartmentPrintDialog({
           if (!compIngredient) return;
           const rawCompQty = rowQtyInSystemUnits(comp, compIngredient) * siData.batches;
           const compWastePct = compIngredient.waste_pct || 0;
-          const compQty = compWastePct > 0 ? rawCompQty / (1 - compWastePct / 100) : rawCompQty;
+          const compQty = rawCompQty; // net
           const key = `${comp.ingredient_id}_si_${siId}`;
           ingredientTotals[key] = {
             ingredient_id: comp.ingredient_id,
@@ -519,7 +519,7 @@ export default function DepartmentPrintDialog({
           const comp1Ingredient = ingredients.find(i => i.id === c1.ingredient_id);
           const comp1WastePct = comp1Ingredient?.waste_pct || 0;
           const totalQty1Raw = qtyPerBatch1 * si.batches;
-          const totalQty1 = comp1WastePct > 0 ? totalQty1Raw / (1 - comp1WastePct / 100) : totalQty1Raw;
+          const totalQty1 = totalQty1Raw; // net
           
           let rightCells = '<td colspan="3"></td>';
           if (c2) {
@@ -527,7 +527,7 @@ export default function DepartmentPrintDialog({
             const comp2Ingredient = ingredients.find(i => i.id === c2.ingredient_id);
             const comp2WastePct = comp2Ingredient?.waste_pct || 0;
             const totalQty2Raw = qtyPerBatch2 * si.batches;
-            const totalQty2 = comp2WastePct > 0 ? totalQty2Raw / (1 - comp2WastePct / 100) : totalQty2Raw;
+            const totalQty2 = totalQty2Raw; // net
             rightCells = `
               <td style="padding: 4px 8px; border-bottom: 1px solid #ddd;">
                 ${c2.ingredient_name || 'רכיב'}${comp2WastePct > 0 ? `<span style="color: #d32f2f; font-size: 9px; font-weight: bold;"> (פחת ${comp2WastePct}%)</span>` : ''}
