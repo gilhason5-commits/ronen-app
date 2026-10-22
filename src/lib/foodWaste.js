@@ -16,7 +16,8 @@
 // every Friday event already in the system, past or future, picks it up.
 //
 // Every function here takes either the event itself (needed for the Friday
-// rule) or a bare guest count (reduction only).
+// rule) or a bare guest count (reduction only), plus an optional per-dish
+// `extra` multiplier — the "5 מנות ראשונות" cut (see firstCourseCut.js).
 export const FRIDAY_EXTRA_PCT = 0.10;
 
 const guestsOf = (eventOrGuests) =>
@@ -38,23 +39,23 @@ export function eventWastePct(eventOrGuests) {
 
 // Multiplier to apply to a quantity/cost (e.g. 0.95 for a 5% reduction,
 // 0.95 × 1.1 = 1.045 for the same event on a Friday).
-export function eventWasteFactor(eventOrGuests) {
+export function eventWasteFactor(eventOrGuests, extra = 1) {
   const friday = isFridayEvent(eventOrGuests) ? 1 + FRIDAY_EXTRA_PCT : 1;
-  return Math.round((1 - eventWastePct(eventOrGuests)) * friday * 10000) / 10000;
+  return Math.round((1 - eventWastePct(eventOrGuests)) * friday * extra * 10000) / 10000;
 }
 
 // Apply the reduction to an already-computed BASE quantity.
 // Ceils so we never round down into under-catering.
-export function applyWasteToQty(baseQty, eventOrGuests) {
-  const factor = eventWasteFactor(eventOrGuests);
+export function applyWasteToQty(baseQty, eventOrGuests, extra = 1) {
+  const factor = eventWasteFactor(eventOrGuests, extra);
   if (factor === 1) return baseQty || 0;
   // Rounded first so float noise (100 × 1.1 = 110.00000000000001) does not ceil up.
   return Math.ceil(Math.round((baseQty || 0) * factor * 1e6) / 1e6);
 }
 
 // Apply the reduction to a continuous value (cost, ingredient grams) — no rounding.
-export function applyWasteToValue(value, eventOrGuests) {
-  return (value || 0) * eventWasteFactor(eventOrGuests);
+export function applyWasteToValue(value, eventOrGuests, extra = 1) {
+  return (value || 0) * eventWasteFactor(eventOrGuests, extra);
 }
 
 // Short human label for the applied reduction, e.g. "−5% (×0.95)".

@@ -30,6 +30,7 @@ import { calculateTotalGuests, calculateAdultPortions, parseRangeMax } from "@/l
 import { useAuth } from "@/lib/AuthContext";
 import { isGuestCountLocked, canEditApprovedEvent, GUEST_COUNT_LOCKED_MSG, GUEST_COUNT_FIELDS, EVENT_TYPE_LOCKED_MSG, clearEventMenu } from "@/lib/eventApproval";
 import { applyWasteToValue, wasteLabel, fridayLabel } from "@/lib/foodWaste";
+import { firstCourseCut, firstCourseCutLabel } from "@/lib/firstCourseCut";
 import { MENU_STATUSES } from "@/lib/menuStatus";
 import { isPastEvent } from "@/lib/ingredientPriceRefresh";
 import { isFixedPerEventCategory, getFixedEventDishes, computeFixedItemsCost } from "@/lib/fixedEventItems";
@@ -188,8 +189,10 @@ export default function EventForm({ event, onClose, producerMode = false, initia
     const modeDish = dishes.find(d => d.id === eventDish.dish_id);
     const explicitQty = explicitDishQty(modeDish, formData);
     if (explicitQty != null) return explicitQty * (modeDish.unit_cost || 0);
+    // "5 מנות ראשונות" cut, live like the event-level reduction.
+    const cut = firstCourseCut(formData, eventDishes, dishes, categories).factorOf(eventDish);
     if (eventDish.planned_cost && eventDish.planned_cost > 0) {
-      return applyWasteToValue(eventDish.planned_cost, formData);
+      return applyWasteToValue(eventDish.planned_cost, formData, cut);
     }
     // If planned_cost is 0, calculate from suggested quantity. Standard dish
     // quantities are planned for the guests actually eating the standard
@@ -210,8 +213,8 @@ export default function EventForm({ event, onClose, producerMode = false, initia
       const rawQuantity = dishGuestCount * (servingPercentage / 100) * portionFactor;
       plannedQty = Math.ceil(rawQuantity);
     }
-    return applyWasteToValue(plannedQty * (dish.unit_cost || 0), formData);
-  }, [dishes, formData.guest_count, formData.vegan_count, formData.glatt_count, formData.event_type, formData.event_date, categories]);
+    return applyWasteToValue(plannedQty * (dish.unit_cost || 0), formData, cut);
+  }, [dishes, eventDishes, formData.guest_count, formData.vegan_count, formData.glatt_count, formData.event_type, formData.event_date, categories]);
 
   const recalculateEventCosts = useCallback(async (overrideRevenue = null, specificEventId = null) => {
     const targetEventId = specificEventId || event?.id;
@@ -595,6 +598,11 @@ export default function EventForm({ event, onClose, producerMode = false, initia
                         {fridayLabel(formData) && (
                           <p className="text-xs text-emerald-700 mt-1">
                             תוספת כמות ליום שישי: {fridayLabel(formData)}
+                          </p>
+                        )}
+                        {firstCourseCut(formData, eventDishes, dishes, categories).applies && (
+                          <p className="text-xs text-amber-700 mt-1">
+                            {firstCourseCutLabel(firstCourseCut(formData, eventDishes, dishes, categories).count)}
                           </p>
                         )}
                       </div>

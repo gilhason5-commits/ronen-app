@@ -1,5 +1,6 @@
 import { format, startOfWeek, endOfWeek, addDays, subDays } from 'date-fns';
 import { applyWasteToQty } from '@/lib/foodWaste';
+import { firstCourseCut } from '@/lib/firstCourseCut';
 import { specialIngredientBatchSize } from '@/lib/specialIngredientYield';
 import { rowQtyInSystemUnits } from '@/lib/recipeQty';
 import { calculateAdultPortions } from '@/lib/dinerCount';
@@ -68,7 +69,9 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
       const rawQuantity = dishGuestCount * (servingPercentage / 100) * portionFactor;
       baseQty = Math.ceil(rawQuantity);
     }
-    return applyWasteToQty(baseQty, event);
+    // "5 מנות ראשונות" cut, live like the event-level reduction.
+    const cut = firstCourseCut(event, eventDishesMap[event?.id] || [], dishes, categories).factorOf(eventDish);
+    return applyWasteToQty(baseQty, event, cut);
   };
 
   // Adds a purchasable ingredient's need (raw qty, before ingredient waste)

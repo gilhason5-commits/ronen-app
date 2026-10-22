@@ -14,6 +14,7 @@ import { Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { calculateAdultPortions } from "@/lib/dinerCount";
 import { applyWasteToQty } from "@/lib/foodWaste";
+import { firstCourseCut } from "@/lib/firstCourseCut";
 import { explicitDishQty } from "@/lib/plannedDishQty";
 
 const isFirstCourseCategoryName = (name = "") =>
@@ -22,7 +23,7 @@ const isFirstCourseCategoryName = (name = "") =>
 // Same live formula as the event / kitchen screens. The stored
 // Events_Dish.planned_qty is only a snapshot from when the dish was added (0
 // if the guest count wasn't filled in yet), so it can't be shown as-is.
-function liveDishQty(dish, event, category) {
+function liveDishQty(dish, event, category, cut = 1) {
   const explicitQty = explicitDishQty(dish, event);
   if (explicitQty != null) return explicitQty;
   const guests = calculateAdultPortions(event?.guest_count, event?.vegan_count, event?.glatt_count);
@@ -35,7 +36,7 @@ function liveDishQty(dish, event, category) {
     const factor = firstCourse ? 1 / 6 : (dish.portion_factor ?? 1);
     qty = Math.ceil(guests * servingPct * factor);
   }
-  return applyWasteToQty(qty, event);
+  return applyWasteToQty(qty, event, cut);
 }
 
 // PostgREST caps any single response at ~1000 rows regardless of the limit
@@ -122,6 +123,7 @@ export default function DishQuantities() {
   const catGroups = useMemo(() => {
     if (!selectedEventId) return [];
     const out = {};
+    const cut = firstCourseCut(selectedEvent, eventDishes, dishById, catById);
     for (const ed of eventDishes) {
       if (ed.event_id !== selectedEventId) continue;
       const dish = dishById[ed.dish_id];
@@ -139,7 +141,7 @@ export default function DishQuantities() {
       if (!out[catId].subs[subId]) out[catId].subs[subId] = { name: subName, order: subOrder, items: [] };
       out[catId].subs[subId].items.push({
         name: dish.name,
-        qty: liveDishQty(dish, selectedEvent, catById[ed.category_id] || cat),
+        qty: liveDishQty(dish, selectedEvent, catById[ed.category_id] || cat, cut.factorOf(ed)),
         unit: ed.unit || dish.base_unit || "",
       });
     }

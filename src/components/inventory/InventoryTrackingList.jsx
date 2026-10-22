@@ -7,8 +7,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format, addDays } from "date-fns";
 import { applyWasteToQty } from "@/lib/foodWaste";
 import { rowQtyInSystemUnits } from "@/lib/recipeQty";
+import { firstCourseCut } from "@/lib/firstCourseCut";
 
-export default function InventoryTrackingList({ ingredients, events, eventsDishes, dishes, purchaseOrders, isLoading, onAdjust, onShowEventNeeds }) {
+export default function InventoryTrackingList({ ingredients, events, eventsDishes, dishes, categories = [], purchaseOrders, isLoading, onAdjust, onShowEventNeeds }) {
   
   const getUpcomingNeed = (ingredientId) => {
     const today = new Date();
@@ -24,6 +25,7 @@ export default function InventoryTrackingList({ ingredients, events, eventsDishe
     
     upcomingEvents.forEach(event => {
       const eventDishesForEvent = eventsDishes.filter(ed => ed.event_id === event.id);
+      const cut = firstCourseCut(event, eventDishesForEvent, dishes, categories);
       
       eventDishesForEvent.forEach(ed => {
         const dish = dishes.find(d => d.id === ed.dish_id);
@@ -32,7 +34,7 @@ export default function InventoryTrackingList({ ingredients, events, eventsDishe
         const ingredient = dish.ingredients.find(i => i.ingredient_id === ingredientId);
         if (!ingredient) return;
         
-        const plannedQty = applyWasteToQty(ed.planned_qty || 0, event);
+        const plannedQty = applyWasteToQty(ed.planned_qty || 0, event, cut.factorOf(ed));
         const baseQty = rowQtyInSystemUnits(ingredient, ingredients.find(i => i.id === ingredientId));
         const neededForEvent = baseQty * plannedQty;
         
@@ -57,6 +59,7 @@ export default function InventoryTrackingList({ ingredients, events, eventsDishe
     
     upcomingEvents.forEach(event => {
       const eventDishesForEvent = eventsDishes.filter(ed => ed.event_id === event.id);
+      const cut = firstCourseCut(event, eventDishesForEvent, dishes, categories);
       let totalForEvent = 0;
       
       eventDishesForEvent.forEach(ed => {
@@ -66,7 +69,7 @@ export default function InventoryTrackingList({ ingredients, events, eventsDishe
         const ingredient = dish.ingredients.find(i => i.ingredient_id === ingredientId);
         if (!ingredient) return;
         
-        const plannedQty = applyWasteToQty(ed.planned_qty || 0, event);
+        const plannedQty = applyWasteToQty(ed.planned_qty || 0, event, cut.factorOf(ed));
         const baseQty = rowQtyInSystemUnits(ingredient, ingredients.find(i => i.id === ingredientId));
         const neededForEvent = baseQty * plannedQty;
         

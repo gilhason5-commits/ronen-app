@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { subMonths, format } from 'date-fns';
 import { applyWasteToQty } from "@/lib/foodWaste";
+import { firstCourseCut } from "@/lib/firstCourseCut";
 import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 import LoadingState from "@/components/utils/LoadingState";
 import { rowQtyInSystemUnits } from "@/lib/recipeQty";
@@ -44,6 +45,12 @@ export default function IngredientCategoryPieChart() {
     queryFn: () => base44.entities.Ingredient.list(),
   });
 
+  // Dish categories — for the "5 מנות ראשונות" cut.
+  const { data: dishCategories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => base44.entities.Category.list(),
+  });
+
   // 5. Fetch Categories for names
   const { data: categories = [] } = useQuery({
     queryKey: ['ingredientCategories'],
@@ -60,13 +67,21 @@ export default function IngredientCategoryPieChart() {
 
     // Filter relevant EventDishes
     const relevantEventDishes = eventsDishes.filter(ed => relevantEventIds.has(ed.event_id));
+    const cutByEvent = {};
+    const cutOf = (ed) => {
+      if (!cutByEvent[ed.event_id]) {
+        cutByEvent[ed.event_id] = firstCourseCut(eventById[ed.event_id],
+          relevantEventDishes.filter(x => x.event_id === ed.event_id), dishes, dishCategories);
+      }
+      return cutByEvent[ed.event_id].factorOf(ed);
+    };
 
     relevantEventDishes.forEach(ed => {
       const dish = dishes.find(d => d.id === ed.dish_id);
       if (!dish || !dish.ingredients) return;
 
       // Number of portions/units, after the event-level food reduction (פחת).
-      const plannedQty = applyWasteToQty(ed.planned_qty || 0, eventById[ed.event_id]);
+      const plannedQty = applyWasteToQty(ed.planned_qty || 0, eventById[ed.event_id], cutOf(ed));
 
       dish.ingredients.forEach(dishIng => {
         const ingredientDef = ingredients.find(i => i.id === dishIng.ingredient_id);
@@ -113,7 +128,7 @@ export default function IngredientCategoryPieChart() {
       .sort((a, b) => b.value - a.value);
 
     return data;
-  }, [events, eventsDishes, dishes, ingredients, categories]);
+  }, [events, eventsDishes, dishes, ingredients, categories, dishCategories]);
 
   const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
     const RADIAN = Math.PI / 180;

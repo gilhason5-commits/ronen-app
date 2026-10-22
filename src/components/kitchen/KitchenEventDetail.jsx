@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
 import DepartmentPrintDialog from "@/components/events/DepartmentPrintDialog";
 import { applyWasteToQty } from "@/lib/foodWaste";
+import { firstCourseCut } from "@/lib/firstCourseCut";
 import { calculateAdultPortions } from "@/lib/dinerCount";
 import { explicitDishQty, isExplicitQtyMode, qtyModeLabel } from "@/lib/plannedDishQty";
 
@@ -59,7 +60,9 @@ export default function KitchenEventDetail({ event }) {
     });
   };
 
-  const calculateSuggestedQuantity = (dish) => {
+  const fcCut = firstCourseCut(event, eventDishes, dishes, categories);
+
+  const calculateSuggestedQuantity = (dish, eventDish) => {
     const explicitQty = explicitDishQty(dish, event);
     if (explicitQty != null) return explicitQty;
     // Standard dish quantities are planned for guests eating the standard
@@ -77,7 +80,7 @@ export default function KitchenEventDetail({ event }) {
       const rawQuantity = dishGuestCount * (servingPercentage / 100) * portionFactor;
       baseQty = Math.ceil(rawQuantity);
     }
-    return applyWasteToQty(baseQty, event);
+    return applyWasteToQty(baseQty, event, fcCut.factorOf(eventDish));
   };
 
   const sortedCategories = [...categories]
@@ -102,7 +105,7 @@ export default function KitchenEventDetail({ event }) {
           .map(ed => {
             const dish = dishes.find(d => d.id === ed.dish_id);
             if (!dish) return null;
-            const qty = calculateSuggestedQuantity(dish);
+            const qty = calculateSuggestedQuantity(dish, ed);
             return { ...dish, planned_qty: qty };
           })
           .filter(Boolean);

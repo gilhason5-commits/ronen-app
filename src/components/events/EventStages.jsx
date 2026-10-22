@@ -12,6 +12,7 @@ import DishDialog from "@/components/dishes/DishDialog";
 import { fmtCurrency } from "@/components/utils/formatNumbers";
 import DishNoteEditor from "@/components/events/DishNoteEditor";
 import { applyWasteToQty } from "@/lib/foodWaste";
+import { firstCourseCut, firstCourseCutLabel } from "@/lib/firstCourseCut";
 import { calculateAdultPortions } from "@/lib/dinerCount";
 import { explicitDishQty, isExplicitQtyMode, qtyModeLabel } from "@/lib/plannedDishQty";
 
@@ -119,6 +120,10 @@ export default function EventStages({
     return dishCategories.some(cat => isFirstCourseCategoryName(cat.name));
   };
 
+  // "5 מנות ראשונות" cut, live like the event-level reduction.
+  const fcCut = firstCourseCut(event, eventDishes, dishes, categories);
+  const cutOf = (dish) => fcCut.factorOf(getEventDish(dish.id));
+
   const calculateSuggestedQuantity = (dish, currentCategory = null) => {
     const explicitQty = explicitDishQty(dish, event);
     if (explicitQty != null) return explicitQty;
@@ -168,7 +173,7 @@ export default function EventStages({
           const dish = dishes.find(d => d.id === ed.dish_id);
           if (!dish) return null;
           const baseQty = calculateSuggestedQuantity(dish, category);
-          const qty = (isExplicitQtyMode(dish) ? baseQty : applyWasteToQty(baseQty, event));
+          const qty = (isExplicitQtyMode(dish) ? baseQty : applyWasteToQty(baseQty, event, cutOf(dish)));
           const cost = qty * (dish.unit_cost || 0);
           const subCat = subCategoriesData.find(sc => sc.id === dish.sub_category_id);
           return { ...dish, planned_qty: qty, base_qty: baseQty, cost, subCatOrder: subCat?.display_order ?? 999, subCatName: subCat?.name || '' };
@@ -197,7 +202,7 @@ export default function EventStages({
 
       html += `
         <div class="category-section">
-          <div class="category-header">${category.name} (${selectedDishesRaw.length} מנות)</div>
+          <div class="category-header">${category.name} (${selectedDishesRaw.length} מנות)${fcCut.applies && isFirstCourseCategoryName(category.name) ? ` — ${firstCourseCutLabel(fcCut.count)}` : ''}</div>
           <table>
             <thead>
               <tr>
@@ -368,7 +373,7 @@ export default function EventStages({
                   {(() => {
                     const enriched = [...selectedDishes].map(dish => {
                       const baseQty = calculateSuggestedQuantity(dish, category);
-                      const suggestedQty = (isExplicitQtyMode(dish) ? baseQty : applyWasteToQty(baseQty, event));
+                      const suggestedQty = (isExplicitQtyMode(dish) ? baseQty : applyWasteToQty(baseQty, event, cutOf(dish)));
                       const cost = suggestedQty * (dish.unit_cost || 0);
                       const subCat = subCategoriesData.find(sc => sc.id === dish.sub_category_id);
                       return { dish, baseQty, suggestedQty, cost, subCatOrder: subCat?.display_order ?? 999, subCatName: subCat?.name || '' };

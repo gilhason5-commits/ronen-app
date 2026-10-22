@@ -42,6 +42,11 @@ export default function Inventory() {
     queryFn: () => base44.entities.Dish.list(),
   });
 
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => base44.entities.Category.list(),
+  });
+
   const { data: purchaseOrders = [] } = useQuery({
     queryKey: ['purchaseOrders'],
     queryFn: () => base44.entities.PurchaseOrder.list(),
@@ -109,6 +114,7 @@ export default function Inventory() {
         events={events}
         eventsDishes={eventsDishes}
         dishes={dishes}
+        categories={categories}
         purchaseOrders={purchaseOrders}
         isLoading={isLoading}
         onAdjust={handleAdjustInventory}

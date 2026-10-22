@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Printer, Download } from "lucide-react";
 import DepartmentPrintPreview from "./DepartmentPrintPreview";
 import { eventWastePct, eventWasteFactor, applyWasteToQty, isFridayEvent, FRIDAY_EXTRA_PCT } from "@/lib/foodWaste";
+import { firstCourseCut, firstCourseCutLabel } from "@/lib/firstCourseCut";
 import { specialIngredientBatchSize } from "@/lib/specialIngredientYield";
 import { rowQtyInSystemUnits } from "@/lib/recipeQty";
 import { calculateAdultPortions } from "@/lib/dinerCount";
@@ -110,6 +111,9 @@ export default function DepartmentPrintDialog({
     });
   };
 
+  // "5 מנות ראשונות" cut — applied live like the event-level reduction.
+  const fcCut = firstCourseCut(event, eventDishes, dishes, categories);
+
   const getEffectivePlannedQty = (eventDish) => {
     // Always calculate from source (guest count × serving % × portion factor),
     // then apply the event-level food reduction (פחת).
@@ -133,7 +137,7 @@ export default function DepartmentPrintDialog({
       const rawQuantity = dishGuestCount * (servingPercentage / 100) * portionFactor;
       baseQty = Math.ceil(rawQuantity);
     }
-    return applyWasteToQty(baseQty, event);
+    return applyWasteToQty(baseQty, event, fcCut.factorOf(eventDish));
   };
 
   const getIngredientSupportDept = (ingredient) => {
@@ -373,12 +377,14 @@ export default function DepartmentPrintDialog({
       const servingPct = dish.serving_percentage ?? 100;
       const wPct = eventWastePct(guestCount);
       const friday = isFridayEvent(event);
+      const cutFactor = fcCut.factorOf(eventDish);
       const tailNotes = [
         wPct > 0 ? `הפחתת כמות לאירוע גדול ${wPct * 100}%` : '',
         friday ? `תוספת יום שישי ${FRIDAY_EXTRA_PCT * 100}%` : '',
+        cutFactor !== 1 ? firstCourseCutLabel(fcCut.count) : '',
       ].filter(Boolean).join(', ');
       const wasteTail = tailNotes
-        ? ` × ${eventWasteFactor(event)} (${tailNotes}) = ${effectiveQty}`
+        ? ` × ${eventWasteFactor(event, cutFactor)} (${tailNotes}) = ${effectiveQty}`
         : '';
       let calcBreakdown = '';
       if (isExplicitQtyMode(dish)) {
@@ -388,14 +394,14 @@ export default function DepartmentPrintDialog({
         const totalPortions = dishGuestCount * (servingPct / 100);
         const baseQty = Math.ceil(totalPortions / portionsPerPrep);
         const head = `${dishGuestCount} מבוגרים × ${servingPct}% = ${formatNumber(totalPortions)} מנות ÷ ${formatNumber(portionsPerPrep)} מנות למסה`;
-        calcBreakdown = wPct > 0 ? `${head} = ${baseQty}${wasteTail}` : `${head} = ${effectiveQty}`;
+        calcBreakdown = tailNotes ? `${head} = ${baseQty}${wasteTail}` : `${head} = ${effectiveQty}`;
       } else {
         const portionFactor = (isFirstCourseDish(dish) && event?.event_type !== 'wedding') ? 1/6 : (dish.portion_factor ?? 1);
         const raw = dishGuestCount * (servingPct / 100) * portionFactor;
         const baseQty = Math.ceil(raw);
         const factorPart = portionFactor !== 1 ? ` × ${formatNumber(portionFactor)}` : '';
         const head = `${dishGuestCount} מבוגרים × ${servingPct}%${factorPart} = ${formatNumber(raw)}`;
-        calcBreakdown = wPct > 0 ? `${head} ⇒ ${baseQty}${wasteTail}` : `${head} ⇒ ${effectiveQty}`;
+        calcBreakdown = tailNotes ? `${head} ⇒ ${baseQty}${wasteTail}` : `${head} ⇒ ${effectiveQty}`;
       }
 
       deptDishes.push({

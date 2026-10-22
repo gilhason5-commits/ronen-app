@@ -5,6 +5,7 @@ import { base44 } from "@/api/base44Client";
 import { UtensilsCrossed } from "lucide-react";
 import { fmtCurrency } from "../utils/formatNumbers";
 import { applyWasteToValue } from "@/lib/foodWaste";
+import { firstCourseCut } from "@/lib/firstCourseCut";
 import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 import LoadingState from "@/components/utils/LoadingState";
 
@@ -22,6 +23,12 @@ export default function CategoryBreakdown({ events, eventDishes: propEventDishes
     queryFn: () => base44.entities.Category.list(),
   });
 
+  const { data: dishes = [] } = useQuery({
+    queryKey: ['dishes'],
+    queryFn: () => base44.entities.Dish.list(),
+    enabled: !getEffectivePlannedCost, // only the stored-cost fallback needs them
+  });
+
   // Use prop eventDishes if provided, otherwise filter from fetched data
   let relevantDishes;
   if (propEventDishes) {
@@ -35,6 +42,16 @@ export default function CategoryBreakdown({ events, eventDishes: propEventDishes
   const eventById = {};
   (events || []).forEach(e => { eventById[e.id] = e; });
 
+  // "5 מנות ראשונות" cut per event, live like the event-level reduction.
+  const cutByEvent = {};
+  const cutOf = (ed) => {
+    if (!cutByEvent[ed.event_id]) {
+      cutByEvent[ed.event_id] = firstCourseCut(eventById[ed.event_id],
+        relevantDishes.filter(x => x.event_id === ed.event_id), dishes, categories);
+    }
+    return cutByEvent[ed.event_id].factorOf(ed);
+  };
+
   // Calculate cost by category
   const categoryTotals = {};
   relevantDishes.forEach(ed => {
@@ -43,7 +60,7 @@ export default function CategoryBreakdown({ events, eventDishes: propEventDishes
     // otherwise reduce the stored base planned_cost here.
     const cost = getEffectivePlannedCost
       ? getEffectivePlannedCost(ed)
-      : applyWasteToValue(ed.planned_cost || 0, eventById[ed.event_id]);
+      : applyWasteToValue(ed.planned_cost || 0, eventById[ed.event_id], cutOf(ed));
 
     if (!categoryTotals[categoryId]) {
       categoryTotals[categoryId] = 0;

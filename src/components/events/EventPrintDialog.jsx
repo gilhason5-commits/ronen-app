@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Printer, X } from "lucide-react";
 import { applyWasteToQty, applyWasteToValue } from "@/lib/foodWaste";
+import { firstCourseCut } from "@/lib/firstCourseCut";
 import { useAuth } from "@/lib/AuthContext";
 import { rowQtyInSystemUnits } from "@/lib/recipeQty";
 
@@ -125,6 +126,9 @@ export default function EventPrintDialog({
     }, 250);
   };
 
+  // "5 מנות ראשונות" cut, live like the event-level reduction.
+  const fcCut = firstCourseCut(event, eventDishes, dishes, categories);
+
   const getSelectedDishesGroupedByCategory = () => {
     const grouped = {};
     categories.forEach(cat => {
@@ -132,8 +136,8 @@ export default function EventPrintDialog({
         .filter(ed => ed.category_id === cat.id && ed.planned_qty > 0)
         .map(ed => ({
           ...dishes.find(d => d.id === ed.dish_id),
-          planned_qty: applyWasteToQty(ed.planned_qty, event),
-          planned_cost: applyWasteToValue(ed.planned_cost, event)
+          planned_qty: applyWasteToQty(ed.planned_qty, event, fcCut.factorOf(ed)),
+          planned_cost: applyWasteToValue(ed.planned_cost, event, fcCut.factorOf(ed))
         }))
         .filter(Boolean);
       
@@ -151,7 +155,7 @@ export default function EventPrintDialog({
       const dish = dishes.find(d => d.id === eventDish.dish_id);
       if (!dish || !dish.ingredients) return;
 
-      const plannedQty = applyWasteToQty(eventDish.planned_qty || 0, event);
+      const plannedQty = applyWasteToQty(eventDish.planned_qty || 0, event, fcCut.factorOf(eventDish));
 
       dish.ingredients.forEach(ing => {
         const key = ing.ingredient_id;
@@ -336,7 +340,7 @@ export default function EventPrintDialog({
               if (!dish || !dish.ingredients) return;
 
               // Effective (post-פחת) portion count for this dish.
-              const effQty = applyWasteToQty(eventDish.planned_qty || 0, event);
+              const effQty = applyWasteToQty(eventDish.planned_qty || 0, event, fcCut.factorOf(eventDish));
 
               const dishIngredientsInCategory = dish.ingredients
                 .map(ing => {
