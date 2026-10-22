@@ -3,7 +3,7 @@
 // page (office or producer); a closed menu shows as a dot on the calendar.
 export const MENU_STATUSES = {
   open: "תפריט פתוח",
-  closed: "תפריט סגור",
+  closed: "תפריט אושר על ידי הלקוח",
 };
 
 export const isMenuClosed = (event) => event?.menu_status === "closed";

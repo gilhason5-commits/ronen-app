@@ -86,6 +86,13 @@ function countedManagers(requiredRoles, excludeRoles) {
     .reduce((sum, r) => sum + r.count, 0);
 }
 
+// A required-role rule limited to some formats (event_formats) applies only
+// to events of those formats; no formats selected = every format.
+function matchesFormats(rule, event) {
+  if (!rule.event_formats?.length) return true;
+  return rule.event_formats.includes(event.staffing_format || 'serving');
+}
+
 /**
  * Required roles (managers side) for an event: active REQUIRED_ROLE rules
  * whose guest range matches. Returns [{role_name, count, arrival_offset_minutes, explanation}]
@@ -93,7 +100,7 @@ function countedManagers(requiredRoles, excludeRoles) {
 export function computeRequiredRoles(event, rules) {
   const guests = guestsOf(event);
   return rules
-    .filter((r) => r.is_active && r.rule_type === 'REQUIRED_ROLE' && inRange(r, guests))
+    .filter((r) => r.is_active && r.rule_type === 'REQUIRED_ROLE' && inRange(r, guests) && matchesFormats(r, event))
     .map((r) => ({
       role_name: r.role_name,
       count: r.quantity || 1,

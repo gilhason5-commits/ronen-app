@@ -20,12 +20,20 @@ const formatUnit = (unit) => {
   return unit;
 };
 
-export default function SpecialIngredientPrintButton({ specialIngredient }) {
-  const handlePrint = () => {
-    const si = specialIngredient;
+// Prints a sub-dish recipe. With `scale` ({ factor, quantity, label }) every
+// component is multiplied by `factor` so the sheet shows the amounts for the
+// quantity actually needed (e.g. one event's share in purchase planning).
+export function printSpecialIngredient(si, scale = null) {
     if (!si?.components?.length) return;
 
-    const comps = si.components || [];
+    const factor = scale?.factor ?? 1;
+    const comps = (si.components || []).map(c => ({
+      ...c,
+      qty: (parseFloat(c.qty) || 0) * factor,
+      cost: c.cost ? c.cost * factor : c.cost,
+    }));
+    const totalQty = scale ? scale.quantity : (si.total_quantity || comps.reduce((s, c) => s + (parseFloat(c.qty) || 0), 0));
+    const totalCost = (si.total_cost || 0) * factor;
     const compRows = [];
     for (let i = 0; i < comps.length; i += 2) {
       const c1 = comps[i];
@@ -76,8 +84,9 @@ export default function SpecialIngredientPrintButton({ specialIngredient }) {
           <div style="text-align: center; margin-bottom: 20px; border-bottom: 3px solid #2e7d32; padding-bottom: 15px;">
             <h1 style="margin: 0 0 8px 0; font-size: 26px; color: #2e7d32;">${si.name}</h1>
             <div style="font-size: 14px; color: #555;">
-              <span style="margin-left: 20px;">כמות למסה: ${formatNumber(si.total_quantity || (si.components || []).reduce((s, c) => s + (parseFloat(c.qty) || 0), 0))} ${formatUnit(si.system_unit)}</span>
-              <span style="margin-left: 20px;">עלות כוללת: ₪${formatNumber(si.total_cost || 0)}</span>
+              ${scale?.label ? `<div style="font-weight: bold; color: #333; margin-bottom: 4px;">${scale.label}</div>` : ''}
+              <span style="margin-left: 20px;">${scale ? 'כמות להכנה' : 'כמות למסה'}: ${formatNumber(totalQty)} ${formatUnit(si.system_unit)}</span>
+              <span style="margin-left: 20px;">עלות כוללת: ₪${formatNumber(totalCost)}</span>
               <span>מחיר ל${formatUnit(si.system_unit)}: ₪${formatNumber(si.price_per_system_unit || 0)}</span>
             </div>
             <div style="font-size: 10px; color: #999; margin-top: 8px;">${printTimestamp}</div>
@@ -111,11 +120,11 @@ export default function SpecialIngredientPrintButton({ specialIngredient }) {
             <div style="display: flex; justify-content: space-around; font-size: 14px;">
               <div style="text-align: center;">
                 <div style="color: #555; font-size: 11px;">סה״כ עלות</div>
-                <div style="font-weight: bold; font-size: 18px;">₪${formatNumber(si.total_cost || 0)}</div>
+                <div style="font-weight: bold; font-size: 18px;">₪${formatNumber(totalCost)}</div>
               </div>
               <div style="text-align: center;">
                 <div style="color: #555; font-size: 11px;">כמות כוללת</div>
-                <div style="font-weight: bold; font-size: 18px;">${formatNumber(si.total_quantity || (si.components || []).reduce((s, c) => s + (parseFloat(c.qty) || 0), 0))} ${formatUnit(si.system_unit)}</div>
+                <div style="font-weight: bold; font-size: 18px;">${formatNumber(totalQty)} ${formatUnit(si.system_unit)}</div>
               </div>
               <div style="text-align: center;">
                 <div style="color: #555; font-size: 11px;">מחיר ל${formatUnit(si.system_unit)}</div>
@@ -133,7 +142,10 @@ export default function SpecialIngredientPrintButton({ specialIngredient }) {
       printWindow.print();
       printWindow.close();
     }, 250);
-  };
+}
+
+export default function SpecialIngredientPrintButton({ specialIngredient }) {
+  const handlePrint = () => printSpecialIngredient(specialIngredient);
 
   return (
     <Button

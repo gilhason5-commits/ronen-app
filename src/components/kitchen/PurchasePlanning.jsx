@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { format } from 'date-fns';
-import { ShoppingCart, Truck, CalendarDays, CheckSquare, ChefHat } from "lucide-react";
+import { ShoppingCart, Truck, CalendarDays, CheckSquare, ChefHat, Printer } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,29 @@ import MultiEventDailyTicket from "./MultiEventDailyTicket";
 import WeeklyOrderTicket from "./WeeklyOrderTicket";
 import WeeklyDeliveryStrip from "./WeeklyDeliveryStrip";
 import EventWeekPicker from "./EventWeekPicker";
+import { printSpecialIngredient } from "@/components/ingredients/SpecialIngredientPrintButton";
+
+// Quantity cell with a button that prints the sub-dish recipe scaled to it
+// (recipes are written per batch, so factor = quantity / batch size).
+function PrepQtyCell({ prep, qty, label, bold }) {
+  return (
+    <td className={`py-1.5 text-center ${bold ? 'font-semibold text-stone-900' : 'text-stone-600'}`}>
+      {qty > 0 ? (
+        <span className="inline-flex items-center gap-1">
+          {formatNumber(qty)} {formatUnit(prep.unit)}
+          <button
+            type="button"
+            className="text-stone-400 hover:text-emerald-700 print:hidden"
+            title="הדפסת מתכון לכמות זו"
+            onClick={() => printSpecialIngredient(prep.si, { factor: qty / prep.batch_size, quantity: qty, label })}
+          >
+            <Printer className="w-3.5 h-3.5" />
+          </button>
+        </span>
+      ) : '—'}
+    </td>
+  );
+}
 
 export default function PurchasePlanning({ events }) {
   const [selectedEventIds, setSelectedEventIds] = useState([]);
@@ -212,7 +235,7 @@ export default function PurchasePlanning({ events }) {
             <ChefHat className="w-5 h-5 text-emerald-600" />
             <h2 className="text-xl font-bold text-stone-900">הכנת תת מנות</h2>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4">
             {subDishPlan.map(plan => (
               <Card key={plan.deliveryDate} className="border-emerald-200">
                 <CardContent className="p-4">
@@ -223,11 +246,18 @@ export default function PurchasePlanning({ events }) {
                     הרכיבים מוזמנים יחד עם האירוע הראשון: {plan.prepEvent.event_name}
                     {plan.prepEvent.event_date ? ` (${format(new Date(plan.prepEvent.event_date), 'dd/MM')})` : ''}
                   </p>
+                  <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-stone-200 text-stone-500">
                         <th className="text-right py-1.5 font-medium">תת מנה</th>
-                        <th className="text-center py-1.5 font-medium">כמות נדרשת</th>
+                        {plan.events.map(ev => (
+                          <th key={ev.id} className="text-center py-1.5 font-medium">
+                            {ev.event_name}
+                            {ev.event_date ? <div className="text-xs font-normal">{format(new Date(ev.event_date), 'dd/MM')}</div> : null}
+                          </th>
+                        ))}
+                        <th className="text-center py-1.5 font-medium">כמות נדרשת כוללת</th>
                         <th className="text-center py-1.5 font-medium">הכנות</th>
                       </tr>
                     </thead>
@@ -235,7 +265,15 @@ export default function PurchasePlanning({ events }) {
                       {plan.preps.map(p => (
                         <tr key={p.si_id} className="border-b border-stone-100">
                           <td className="py-1.5 text-stone-900">{p.name}</td>
-                          <td className="py-1.5 text-center text-stone-600">{formatNumber(p.demand)} {formatUnit(p.unit)}</td>
+                          {plan.events.map(ev => (
+                            <PrepQtyCell
+                              key={ev.id}
+                              prep={p}
+                              qty={p.demandByEvent[ev.id] || 0}
+                              label={`${ev.event_name}${ev.event_date ? ` (${format(new Date(ev.event_date), 'dd/MM')})` : ''}`}
+                            />
+                          ))}
+                          <PrepQtyCell prep={p} qty={p.demand} label="כמות נדרשת כוללת" bold />
                           <td className="py-1.5 text-center font-semibold">
                             {p.batches} × {formatNumber(p.batch_size)} {formatUnit(p.unit)}
                           </td>
@@ -243,6 +281,7 @@ export default function PurchasePlanning({ events }) {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </CardContent>
               </Card>
             ))}

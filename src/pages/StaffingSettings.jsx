@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BookOpen, Users, Coins, Plus, Trash2, Check, X, Pencil, UtensilsCrossed, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { FORMAT_LABELS, isWaiterEmployee } from "@/lib/staffingEngine";
+import { FORMAT_LABELS, FORMAT_OPTIONS, isWaiterEmployee } from "@/lib/staffingEngine";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { formatTimeDigits } from "@/lib/kitchenSchedule";
@@ -62,6 +62,25 @@ function NumInput({ value, onChange, className = "w-20", placeholder }) {
   );
 }
 
+// Multi-select of event formats as toggle chips (none selected = all formats).
+function FormatChips({ value = [], onChange }) {
+  const toggle = (f) => onChange(value.includes(f) ? value.filter((x) => x !== f) : [...value, f]);
+  return (
+    <div className="flex flex-wrap gap-1">
+      {FORMAT_OPTIONS.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => toggle(o.value)}
+          className={`px-2 py-0.5 rounded border text-xs ${value.includes(o.value) ? "bg-emerald-600 text-white border-emerald-600" : "bg-white border-slate-300 hover:bg-slate-50"}`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ---------- staffing rules tab ----------
 function StaffingRulesTab() {
   const { data: rules = [] } = useQuery({
@@ -103,7 +122,7 @@ function StaffingRulesTab() {
               <thead>
                 <tr className="border-b text-right text-slate-500">
                   <th className="p-2 pr-4">תפקיד</th>
-                  {type === "WAITER_FORMULA" && <th className="p-2">פורמט</th>}
+                  {(type === "WAITER_FORMULA" || type === "REQUIRED_ROLE") && <th className="p-2">פורמט</th>}
                   {type !== "WAITER_FORMULA" && <th className="p-2">מסועדים</th>}
                   {type !== "WAITER_FORMULA" && <th className="p-2">עד</th>}
                   <th className="p-2">כמות</th>
@@ -122,7 +141,29 @@ function StaffingRulesTab() {
                         {editing ? <Input className="h-8 w-32" value={form.role_name || ""} onChange={(e) => setForm({ ...form, role_name: e.target.value })} /> : r.role_name}
                       </td>
                       {type === "WAITER_FORMULA" && (
-                        <td className="p-2"><Badge variant="outline">{FORMAT_LABELS[r.event_format] || r.event_format}</Badge></td>
+                        <td className="p-2">
+                          {editing ? (
+                            <Select value={form.event_format || ""} onValueChange={(v) => setForm({ ...form, event_format: v })}>
+                              <SelectTrigger className="h-8 w-28"><SelectValue placeholder="בחר פורמט" /></SelectTrigger>
+                              <SelectContent>
+                                {FORMAT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          ) : r.event_format ? (
+                            <Badge variant="outline">{FORMAT_LABELS[r.event_format] || r.event_format}</Badge>
+                          ) : "—"}
+                        </td>
+                      )}
+                      {type === "REQUIRED_ROLE" && (
+                        <td className="p-2">
+                          {editing ? (
+                            <FormatChips value={form.event_formats || []} onChange={(v) => setForm({ ...form, event_formats: v })} />
+                          ) : r.event_formats?.length ? (
+                            <div className="flex flex-wrap gap-1">
+                              {r.event_formats.map((f) => <Badge key={f} variant="outline">{FORMAT_LABELS[f] || f}</Badge>)}
+                            </div>
+                          ) : <span className="text-slate-400">כל הפורמטים</span>}
+                        </td>
                       )}
                       {type !== "WAITER_FORMULA" && (
                         <td className="p-2">

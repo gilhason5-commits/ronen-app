@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Users, Phone, Shield, Settings, Briefcase, Edit, Check, X, Trash2, FileText, Upload } from "lucide-react";
+import { Plus, Search, Users, Phone, Shield, Settings, Briefcase, Edit, Check, X, Trash2, FileText, Upload, History } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -18,9 +20,36 @@ import {
 import DepartmentDialog from "../components/tasks/DepartmentDialog";
 import RoleDialog from "../components/tasks/RoleDialog";
 import RoleProceduresDialog from "../components/tasks/RoleProceduresDialog";
+import EmployeeHistoryDialog from "../components/tasks/EmployeeHistoryDialog";
 import { WAITERS_DEPARTMENT, isWaiterEmployee, orderAgenciesForDisplay } from "@/lib/staffingEngine";
 import { toast } from "sonner";
 import LoadingState from "@/components/utils/LoadingState";
+
+// Segmented either/or buttons used across the card (selected = filled green).
+const Seg = ({ active, onClick, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`h-10 flex-1 min-w-[4.5rem] rounded-md border px-3 text-sm transition-colors ${active ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'}`}
+  >
+    {children}
+  </button>
+);
+
+const Section = ({ title, children }) => (
+  <section className="rounded-xl border border-emerald-100 overflow-hidden">
+    <h3 className="bg-emerald-50 px-4 py-2.5 text-lg font-bold text-emerald-700">{title}</h3>
+    <div className="p-4 space-y-3 bg-white">{children}</div>
+  </section>
+);
+
+// Label on the right, control on the left — one cell of the card's grid.
+const Field = ({ label, children, className = '' }) => (
+  <div className={`flex items-center gap-3 ${className}`}>
+    <span className="w-24 shrink-0 text-sm text-stone-700">{label}</span>
+    <div className="flex-1 min-w-0">{children}</div>
+  </div>
+);
 
 export default function TaskEmployees() {
   const [activeTab, setActiveTab] = useState("employees");
@@ -35,6 +64,7 @@ export default function TaskEmployees() {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [uploadingAgreement, setUploadingAgreement] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const handleAgreementUpload = async (e) => {
@@ -176,12 +206,20 @@ export default function TaskEmployees() {
       secondary_role_id: '',
       secondary_role_name: '',
       secondary_rate: '',
-      travel_type: '',
       travel_amount: '',
       salary_basis: '',
+      overtime_pay: '',
+      recuperation_pay: '',
+      vacation_pay: '',
+      travel_pay: '',
+      via_staffing_company: false,
       employer_cost_hourly: '',
       employer_cost_global: '',
-      certifications: ''
+      employer_cost_daily: '',
+      agreement_signed: false,
+      agreement_notes: '',
+      procedures_signed: false,
+      procedures_notes: '',
     });
   };
 
@@ -231,11 +269,16 @@ export default function TaskEmployees() {
     if (dataToSave.hourly_rate === '') dataToSave.hourly_rate = null;
     if (dataToSave.global_rate === '') dataToSave.global_rate = null;
     if (!dataToSave.secondary_role_id) { dataToSave.secondary_role_id = null; dataToSave.secondary_role_name = ''; }
-    for (const f of ['secondary_rate', 'travel_amount', 'employer_cost_hourly', 'employer_cost_global']) {
+    for (const f of ['secondary_rate', 'travel_amount', 'employer_cost_hourly', 'employer_cost_global', 'employer_cost_daily']) {
       if (dataToSave[f] === '' || dataToSave[f] === undefined) dataToSave[f] = null;
     }
-    if (!dataToSave.travel_type) { dataToSave.travel_type = null; dataToSave.travel_amount = null; }
-    if (!dataToSave.salary_basis) dataToSave.salary_basis = null;
+    // A single pay type keeps only its own amount.
+    if (dataToSave.pay_type === 'hourly') dataToSave.global_rate = null;
+    if (dataToSave.pay_type === 'global' || dataToSave.pay_type === 'monthly') dataToSave.hourly_rate = null;
+    if (dataToSave.travel_pay !== 'paid') dataToSave.travel_amount = null;
+    for (const f of ['salary_basis', 'overtime_pay', 'recuperation_pay', 'vacation_pay', 'travel_pay']) {
+      if (!dataToSave[f]) dataToSave[f] = null;
+    }
     if (id === 'new') {
       createEmployeeMutation.mutate(dataToSave);
     } else {
@@ -347,48 +390,50 @@ export default function TaskEmployees() {
   const payLabel = (emp) => {
     const parts = [];
     if (emp.pay_type === 'hourly' || emp.pay_type === 'both') parts.push(`${emp.hourly_rate ?? 0} ₪/שעה`);
-    if (emp.pay_type === 'global' || emp.pay_type === 'both') parts.push(`${emp.global_rate ?? 0} ₪ ${isWaiterEmployee(emp) ? 'לאירוע' : 'גלובלי'}`);
+    if (emp.pay_type === 'global' || emp.pay_type === 'both') parts.push(`${emp.global_rate ?? 0} ₪ ${isWaiterEmployee(emp) ? 'לאירוע' : 'ליום'}`);
+    if (emp.pay_type === 'monthly') parts.push(`${emp.global_rate ?? 0} ₪ לחודש`);
     return parts.length ? parts.join(' + ') : null;
   };
 
-  // pay_type is derived from which of the two checkboxes are on — 'hourly',
-  // 'global', 'both', or '' (cleared) if neither.
-  const togglePayFlag = (flag, checked) => {
-    const hasHourly = flag === 'hourly' ? checked : (editForm.pay_type === 'hourly' || editForm.pay_type === 'both');
-    const hasGlobal = flag === 'global' ? checked : (editForm.pay_type === 'global' || editForm.pay_type === 'both');
-    const pay_type = hasHourly && hasGlobal ? 'both' : hasHourly ? 'hourly' : hasGlobal ? 'global' : '';
-    setEditForm({ ...editForm, pay_type });
+  // שכר is one of חודשי / שעתי / יומי. pay_type 'monthly' and 'global'
+  // (יומי — the per-day / per-event rate attendance seeds shifts from) keep
+  // the amount in global_rate; 'hourly' in hourly_rate. A legacy 'both'
+  // shows as שעתי and is kept until another type is picked.
+  const payKind = editForm.pay_type === 'both' ? 'hourly' : editForm.pay_type === 'global' ? 'daily' : (editForm.pay_type || '');
+  const setPayKind = (kind) => {
+    const next = payKind === kind ? '' : kind;
+    setEditForm({ ...editForm, pay_type: next === 'daily' ? 'global' : next });
   };
+  const payAmountField = payKind === 'hourly' ? 'hourly_rate' : 'global_rate';
 
-  // Small on/off pill used for the card's either/or choices (שכר, נסיעות, נטו/ברוטו).
-  const Chip = ({ active, onClick, children }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-md border px-3 py-1 text-sm transition-colors ${active ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-stone-300 text-stone-700 hover:bg-stone-50'}`}
-    >
-      {children}
-    </button>
+  // כלול / לשלם pair for a text field holding 'included' | 'paid'.
+  const includedPaid = (field) => (
+    <div className="flex gap-2 w-full">
+      <Seg active={editForm[field] === 'paid'} onClick={() => setEditForm({ ...editForm, [field]: editForm[field] === 'paid' ? '' : 'paid' })}>לשלם</Seg>
+      <Seg active={editForm[field] === 'included'} onClick={() => setEditForm({ ...editForm, [field]: editForm[field] === 'included' ? '' : 'included' })}>כלול</Seg>
+    </div>
   );
 
   const numberValue = (v) => (v === null || v === undefined ? '' : v);
   const setNumber = (field) => (e) =>
     setEditForm({ ...editForm, [field]: e.target.value === '' ? '' : parseFloat(e.target.value) || 0 });
 
-  // Employer cost (עלות מעביד) is either monthly or hourly: the amount lives
-  // in employer_cost_global (monthly) or employer_cost_hourly, and its net /
-  // gross marking in salary_basis. Picking a type clears the other amount.
+  // Employer cost (עלות מעביד) is monthly, hourly or daily: the amount lives
+  // in employer_cost_global (monthly), employer_cost_hourly or
+  // employer_cost_daily. Picking a type clears the other amounts.
   const [employerCostTypeChoice, setEmployerCostTypeChoice] = useState(null);
+  const EMPLOYER_COST_FIELD = { monthly: 'employer_cost_global', hourly: 'employer_cost_hourly', daily: 'employer_cost_daily' };
+  const hasValue = (v) => v != null && v !== '';
   const employerCostType = employerCostTypeChoice
-    ?? (editForm.employer_cost_hourly != null && editForm.employer_cost_hourly !== '' ? 'hourly'
-      : editForm.employer_cost_global != null && editForm.employer_cost_global !== '' ? 'monthly' : '');
+    ?? (hasValue(editForm.employer_cost_hourly) ? 'hourly'
+      : hasValue(editForm.employer_cost_daily) ? 'daily'
+      : hasValue(editForm.employer_cost_global) ? 'monthly' : '');
   const setEmployerCostType = (type) => {
     const next = employerCostType === type ? '' : type;
     setEmployerCostTypeChoice(next);
     setEditForm({
       ...editForm,
-      employer_cost_hourly: next === 'hourly' ? editForm.employer_cost_hourly : '',
-      employer_cost_global: next === 'monthly' ? editForm.employer_cost_global : '',
+      ...Object.fromEntries(Object.entries(EMPLOYER_COST_FIELD).map(([t, f]) => [f, t === next ? editForm[f] : ''])),
     });
   };
 
@@ -401,260 +446,248 @@ export default function TaskEmployees() {
     });
   };
 
-  // Order follows the paper "כרטיס עובד": name, mobile, role, additional role,
-  // pay, travel, net/gross, employer cost, certifications, notes. The fields
-  // the system runs on (category, agency, backup, agreement, active, WhatsApp)
-  // follow under "הגדרות מערכת".
+  // Layout follows Ronen's "כרטיס עובד" design: פרטי העובד, תנאי העסקה,
+  // עלות מעביד\חברה, הסכם עבודה, נהלי עבודה, then פעיל / WhatsApp.
   const renderEditFields = (excludeEmployeeId) => (
-    <>
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-stone-500">שם העובד</p>
-        <Input
-          value={editForm.full_name}
-          onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
-          placeholder="שם מלא"
-          className="font-semibold"
-        />
-      </div>
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-stone-500">נייד</p>
-        <Input
-          value={editForm.phone_e164}
-          onChange={(e) => setEditForm({ ...editForm, phone_e164: e.target.value })}
-          placeholder="+972501234567"
-        />
-      </div>
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-stone-500">תפקיד</p>
-      <Select value={editForm.role_id || "__none__"} onValueChange={handleRoleChange}>
-        <SelectTrigger className="w-full">
-          <SelectValue placeholder="תפקיד" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__none__">ללא תפקיד</SelectItem>
-          {roles.filter(r => r.is_active && (!editForm.department_id || r.department_id === editForm.department_id)).map(role => {
-            const taken = employees.some(e => e.is_active && e.role_id === role.id && e.id !== excludeEmployeeId);
-            return (
-              <SelectItem key={role.id} value={role.id} disabled={taken}>
-                {role.role_name} ({role.department_name || '-'}){taken ? ' ✓' : ''}
-              </SelectItem>
-            );
-          })}
-        </SelectContent>
-      </Select>
-      </div>
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-stone-500">תפקיד נוסף</p>
-        <div className="flex gap-2">
-          <Select value={editForm.secondary_role_id || "__none__"} onValueChange={handleSecondaryRoleChange}>
-            <SelectTrigger className="flex-1">
-              <SelectValue placeholder="תפקיד נוסף" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">ללא</SelectItem>
-              {roles.filter(r => r.is_active && r.id !== editForm.role_id).map(role => (
-                <SelectItem key={role.id} value={role.id}>{role.role_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {editForm.secondary_role_id && (
+    <div className="space-y-4">
+      <Section title="פרטי העובד">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+          <Field label="שם העובד">
             <Input
-              type="number"
-              className="w-28"
-              placeholder="₪ בתפקיד"
-              value={numberValue(editForm.secondary_rate)}
-              onChange={setNumber('secondary_rate')}
+              value={editForm.full_name}
+              onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+              placeholder="שם מלא"
             />
+          </Field>
+          <Field label="נייד">
+            <Input
+              value={editForm.phone_e164}
+              onChange={(e) => setEditForm({ ...editForm, phone_e164: e.target.value })}
+              placeholder="+972501234567"
+              dir="ltr"
+              className="text-right"
+            />
+          </Field>
+          <Field label="מחלקה">
+            <Select value={editForm.department_id || "__none__"} onValueChange={handleDepartmentChange}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="ללא בחירה" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">ללא בחירה</SelectItem>
+                {departments
+                  .filter(d => d.is_active)
+                  .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                  .map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="תפקיד">
+            <Select value={editForm.role_id || "__none__"} onValueChange={handleRoleChange}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="ללא תפקיד" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">ללא תפקיד</SelectItem>
+                {roles.filter(r => r.is_active && (!editForm.department_id || r.department_id === editForm.department_id)).map(role => {
+                  const taken = employees.some(e => e.is_active && e.role_id === role.id && e.id !== excludeEmployeeId);
+                  return (
+                    <SelectItem key={role.id} value={role.id} disabled={taken}>
+                      {role.role_name} ({role.department_name || '-'}){taken ? ' ✓' : ''}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="תפקיד נוסף">
+            <div className="flex gap-2">
+              <Select value={editForm.secondary_role_id || "__none__"} onValueChange={handleSecondaryRoleChange}>
+                <SelectTrigger className="flex-1"><SelectValue placeholder="ללא" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">ללא</SelectItem>
+                  {roles.filter(r => r.is_active && r.id !== editForm.role_id).map(role => (
+                    <SelectItem key={role.id} value={role.id}>{role.role_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {editForm.secondary_role_id && (
+                <Input
+                  type="number"
+                  className="w-24"
+                  placeholder="₪ בתפקיד"
+                  value={numberValue(editForm.secondary_rate)}
+                  onChange={setNumber('secondary_rate')}
+                />
+              )}
+            </div>
+          </Field>
+          <Field label="עובד חלופי">{renderBackupSelect()}</Field>
+          {editIsWaiter && (
+            <Field label="סוכנות *" className="md:col-span-2">
+              <Select value={editForm.agency_id || ""} onValueChange={handleAgencyChange}>
+                <SelectTrigger className="w-full border-amber-300 bg-amber-50"><SelectValue placeholder="בחר סוכנות כוח אדם" /></SelectTrigger>
+                <SelectContent>
+                  {activeAgencies.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
           )}
         </div>
-        {editForm.secondary_role_id && (
-          <p className="text-[11px] text-stone-400">שכר בתפקיד הנוסף (השכר למטה הוא לתפקיד הראשי)</p>
-        )}
-      </div>
-      {renderPayFields()}
-      <div className="space-y-1.5">
-        <p className="text-xs font-medium text-stone-500">נסיעות</p>
-        <div className="flex items-center gap-2">
-          <Chip active={editForm.travel_type === 'daily'} onClick={() => setEditForm({ ...editForm, travel_type: editForm.travel_type === 'daily' ? '' : 'daily' })}>לפי יום</Chip>
-          <Chip active={editForm.travel_type === 'monthly'} onClick={() => setEditForm({ ...editForm, travel_type: editForm.travel_type === 'monthly' ? '' : 'monthly' })}>חופשי חודשי</Chip>
-          {editForm.travel_type && (
+      </Section>
+
+      <Section title="תנאי העסקה">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+          <Field label="שכר">
+            <div className="flex gap-2">
+              <Seg active={payKind === 'monthly'} onClick={() => setPayKind('monthly')}>חודשי</Seg>
+              <Seg active={payKind === 'hourly'} onClick={() => setPayKind('hourly')}>שעתי</Seg>
+              <Seg active={payKind === 'daily'} onClick={() => setPayKind('daily')}>יומי</Seg>
+            </div>
+          </Field>
+          <Field label="הובטח לעובד">
             <Input
               type="number"
-              className="w-28"
-              placeholder={editForm.travel_type === 'daily' ? '₪ ליום' : '₪ לחודש'}
+              disabled={!payKind}
+              placeholder={payKind === 'hourly' ? '₪ לשעה' : payKind === 'daily' ? (editIsWaiter ? '₪ לאירוע' : '₪ ליום') : payKind === 'monthly' ? '₪ לחודש' : 'בחר סוג שכר'}
+              value={numberValue(editForm[payAmountField])}
+              onChange={setNumber(payAmountField)}
+            />
+          </Field>
+          <Field label="נטו / ברוטו">
+            <div className="flex gap-2">
+              <Seg active={editForm.salary_basis === 'gross'} onClick={() => setEditForm({ ...editForm, salary_basis: editForm.salary_basis === 'gross' ? '' : 'gross' })}>ברוטו</Seg>
+              <Seg active={editForm.salary_basis === 'net'} onClick={() => setEditForm({ ...editForm, salary_basis: editForm.salary_basis === 'net' ? '' : 'net' })}>נטו</Seg>
+            </div>
+          </Field>
+          <Field label="שעות נוספות">{includedPaid('overtime_pay')}</Field>
+          <Field label="הבראה">{includedPaid('recuperation_pay')}</Field>
+          <Field label="חופש">{includedPaid('vacation_pay')}</Field>
+          <Field label="נסיעות">{includedPaid('travel_pay')}</Field>
+          <Field label="כמה לשלם">
+            <Input
+              type="number"
+              disabled={editForm.travel_pay !== 'paid'}
+              placeholder="₪"
               value={numberValue(editForm.travel_amount)}
               onChange={setNumber('travel_amount')}
             />
-          )}
-        </div>
-      </div>
-      <div className="space-y-1.5 border border-stone-200 rounded-md p-2">
-        <p className="text-xs font-medium text-stone-500">עלות מעביד</p>
-        <p className="text-[11px] text-stone-400">העלות של האולם על העובד — בנפרד מהשכר שלו</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Chip active={employerCostType === 'monthly'} onClick={() => setEmployerCostType('monthly')}>חודשי</Chip>
-          <Chip active={employerCostType === 'hourly'} onClick={() => setEmployerCostType('hourly')}>שעתי</Chip>
-          {employerCostType && (
-            <Input
-              type="number"
-              className="w-28"
-              placeholder={employerCostType === 'hourly' ? '₪ לשעה' : '₪ לחודש'}
-              value={numberValue(employerCostType === 'hourly' ? editForm.employer_cost_hourly : editForm.employer_cost_global)}
-              onChange={setNumber(employerCostType === 'hourly' ? 'employer_cost_hourly' : 'employer_cost_global')}
+          </Field>
+          <Field label="הערות נוספות" className="md:col-span-2 items-start">
+            <Textarea
+              rows={2}
+              value={editForm.note || ''}
+              onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+              placeholder="יש להזין הערות נוספות כאן..."
             />
-          )}
+          </Field>
         </div>
-        <div className="flex gap-2">
-          <Chip active={editForm.salary_basis === 'net'} onClick={() => setEditForm({ ...editForm, salary_basis: editForm.salary_basis === 'net' ? '' : 'net' })}>נטו</Chip>
-          <Chip active={editForm.salary_basis === 'gross'} onClick={() => setEditForm({ ...editForm, salary_basis: editForm.salary_basis === 'gross' ? '' : 'gross' })}>ברוטו</Chip>
-        </div>
-      </div>
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-stone-500">הסמכות / הכשרות נוספות</p>
-        <Input
-          value={editForm.certifications || ''}
-          onChange={(e) => setEditForm({ ...editForm, certifications: e.target.value })}
-          placeholder="למשל: תעודת מזון, עזרה ראשונה"
-        />
-      </div>
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-stone-500">הערות</p>
-        <Input
-          value={editForm.note || ''}
-          onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
-          placeholder="הערות"
-        />
-      </div>
+      </Section>
 
-      <div className="space-y-2 border-t border-stone-200 pt-3">
-        <p className="text-xs font-semibold text-stone-400">הגדרות מערכת</p>
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-stone-500">קטגוריה</p>
-        <Select value={editForm.department_id || "__none__"} onValueChange={handleDepartmentChange}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="קטגוריה" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">ללא קטגוריה</SelectItem>
-            {departments
-              .filter(d => d.is_active)
-              .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-              .map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-      {editIsWaiter && (
-        <div className="space-y-1 rounded-md border border-amber-300 bg-amber-50 p-2">
-          <p className="text-xs font-medium text-amber-800">סוכנות כוח אדם *</p>
-          <Select value={editForm.agency_id || ""} onValueChange={handleAgencyChange}>
-            <SelectTrigger className="w-full bg-white">
-              <SelectValue placeholder="בחר סוכנות" />
-            </SelectTrigger>
-            <SelectContent>
-              {activeAgencies.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+      <Section title="עלות מעביד\חברה">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-stone-700">
+            <input type="checkbox" className="w-4 h-4" checked={!!editForm.via_staffing_company} onChange={(e) => setEditForm({ ...editForm, via_staffing_company: e.target.checked })} />
+            חברת כח אדם
+          </label>
+          <div className="flex gap-2 flex-1 min-w-[14rem]">
+            <Seg active={employerCostType === 'monthly'} onClick={() => setEmployerCostType('monthly')}>חודשי</Seg>
+            <Seg active={employerCostType === 'hourly'} onClick={() => setEmployerCostType('hourly')}>שעתי</Seg>
+            <Seg active={employerCostType === 'daily'} onClick={() => setEmployerCostType('daily')}>יומי</Seg>
+          </div>
+          <Input
+            type="number"
+            className="w-36"
+            disabled={!employerCostType}
+            placeholder="סכום"
+            value={employerCostType ? numberValue(editForm[EMPLOYER_COST_FIELD[employerCostType]]) : ''}
+            onChange={employerCostType ? setNumber(EMPLOYER_COST_FIELD[employerCostType]) : undefined}
+          />
         </div>
-      )}
-      <div className="space-y-1">
-        <p className="text-xs font-medium text-stone-500">עובד חלופי</p>
-        {renderBackupSelect()}
-      </div>
-      <div className="space-y-1.5 border border-stone-200 rounded-md p-2">
-        <p className="text-xs font-medium text-stone-500">הסכם עבודה</p>
-        {editForm.work_agreement ? (
-          <div className="flex items-center gap-2">
-            <a
-              href={editForm.work_agreement}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 text-sm text-blue-600 hover:underline truncate"
-            >
-              {agreementFileName(editForm.work_agreement)}
-            </a>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() => setEditForm({ ...editForm, work_agreement: '' })}
-            >
-              <X className="w-4 h-4" />
-            </Button>
+      </Section>
+
+      <Section title="הסכם עבודה">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 items-start">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-stone-700">
+              <input type="checkbox" className="w-4 h-4" checked={!!editForm.agreement_signed} onChange={(e) => setEditForm({ ...editForm, agreement_signed: e.target.checked })} />
+              חתם על הסכם עבודה
+            </label>
+            {editForm.work_agreement ? (
+              <div className="flex items-center gap-1 min-w-0">
+                <a
+                  href={editForm.work_agreement}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:underline truncate max-w-[12rem]"
+                >
+                  <FileText className="inline w-4 h-4 ml-1" />
+                  {agreementFileName(editForm.work_agreement)}
+                </a>
+                <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditForm({ ...editForm, work_agreement: '' })}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handleAgreementUpload}
+                  disabled={uploadingAgreement}
+                  className="hidden"
+                  id="work-agreement-upload"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => document.getElementById('work-agreement-upload')?.click()}
+                  disabled={uploadingAgreement}
+                >
+                  <Upload className="w-4 h-4 ml-2" />
+                  {uploadingAgreement ? 'מעלה...' : 'העלאה PDF'}
+                </Button>
+              </>
+            )}
           </div>
-        ) : (
-          <div>
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={handleAgreementUpload}
-              disabled={uploadingAgreement}
-              className="hidden"
-              id="work-agreement-upload"
+          <div className="space-y-1">
+            <p className="text-sm text-stone-700">הערות</p>
+            <Textarea
+              rows={2}
+              value={editForm.agreement_notes || ''}
+              onChange={(e) => setEditForm({ ...editForm, agreement_notes: e.target.value })}
+              placeholder="יש להזין הערות כאן..."
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => document.getElementById('work-agreement-upload')?.click()}
-              disabled={uploadingAgreement}
-            >
-              <Upload className="w-4 h-4 ml-2" />
-              {uploadingAgreement ? 'מעלה...' : 'העלה PDF'}
-            </Button>
           </div>
-        )}
-      </div>
-      <div className="flex items-center gap-4 text-sm pt-1">
+        </div>
+      </Section>
+
+      <Section title="נהלי עבודה">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 items-start">
+          <label className="flex items-center gap-2 text-sm text-stone-700 pt-2">
+            <input type="checkbox" className="w-4 h-4" checked={!!editForm.procedures_signed} onChange={(e) => setEditForm({ ...editForm, procedures_signed: e.target.checked })} />
+            חתם על נהלי עבודה
+          </label>
+          <div className="space-y-1">
+            <p className="text-sm text-stone-700">הערות</p>
+            <Textarea
+              rows={2}
+              value={editForm.procedures_notes || ''}
+              onChange={(e) => setEditForm({ ...editForm, procedures_notes: e.target.value })}
+              placeholder="יש להזין הערות כאן..."
+            />
+          </div>
+        </div>
+      </Section>
+
+      <div className="flex items-center gap-5 text-sm">
         <label className="flex items-center gap-1.5">
-          <input type="checkbox" checked={!!editForm.is_active} onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })} />
+          <input type="checkbox" className="w-4 h-4" checked={!!editForm.is_active} onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })} />
           פעיל
         </label>
         <label className="flex items-center gap-1.5">
-          <input type="checkbox" checked={!!editForm.whatsapp_enabled} onChange={(e) => setEditForm({ ...editForm, whatsapp_enabled: e.target.checked })} />
+          <input type="checkbox" className="w-4 h-4" checked={!!editForm.whatsapp_enabled} onChange={(e) => setEditForm({ ...editForm, whatsapp_enabled: e.target.checked })} />
           WhatsApp
         </label>
       </div>
-      </div>
-    </>
+    </div>
   );
-
-  const renderPayFields = () => {
-    const isHourly = editForm.pay_type === 'hourly' || editForm.pay_type === 'both';
-    const isGlobal = editForm.pay_type === 'global' || editForm.pay_type === 'both';
-    return (
-      <div className="space-y-1.5">
-        <p className="text-xs font-medium text-stone-500">שכר</p>
-        {editIsWaiter && (
-          <p className="text-[11px] text-stone-400">נמשך אוטומטית למסך הנוכחות ומחושב לפי שעות הכניסה/יציאה</p>
-        )}
-        <div className="flex gap-2">
-          <Chip active={isGlobal} onClick={() => togglePayFlag('global', !isGlobal)}>{editIsWaiter ? 'לאירוע' : 'גלובלי'}</Chip>
-          <Chip active={isHourly} onClick={() => togglePayFlag('hourly', !isHourly)}>שעתי</Chip>
-        </div>
-        {(isGlobal || isHourly) && (
-          <div className="flex gap-2">
-            {isGlobal && (
-              <Input
-                type="number"
-                placeholder={editIsWaiter ? "₪ לאירוע" : "₪ גלובלי"}
-                value={numberValue(editForm.global_rate)}
-                onChange={setNumber('global_rate')}
-              />
-            )}
-            {isHourly && (
-              <Input
-                type="number"
-                placeholder="₪ לשעה"
-                value={numberValue(editForm.hourly_rate)}
-                onChange={setNumber('hourly_rate')}
-              />
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const departmentColors = {
     "שירות": "bg-blue-100 text-blue-700",
@@ -786,38 +819,9 @@ export default function TaskEmployees() {
         <CardContent>
           <div className="max-h-[75vh] overflow-y-auto pr-1">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {editingId === 'new' && (
-                <Card className="border-emerald-400 border-2">
-                  <CardContent className="p-4 space-y-3">
-                    {renderEditFields(null)}
-                    <div className="flex gap-2 pt-1">
-                      <Button size="sm" onClick={() => handleSave('new')} disabled={createEmployeeMutation.isPending} className="bg-emerald-600 hover:bg-emerald-700">
-                        <Check className="w-4 h-4 ml-1" /> שמירה
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleCancel}>
-                        <X className="w-4 h-4 ml-1" /> ביטול
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
               {filteredEmployees.map((employee) => (
                 <Card key={employee.id} className={editingId === employee.id ? "border-emerald-400 border-2" : "hover:shadow-md transition-shadow"}>
                   <CardContent className="p-4 space-y-3">
-                    {editingId === employee.id ? (
-                      <>
-                        {renderEditFields(employee.id)}
-                        <div className="flex gap-2 pt-1">
-                          <Button size="sm" onClick={() => handleSave(employee.id)} className="bg-emerald-600 hover:bg-emerald-700">
-                            <Check className="w-4 h-4 ml-1" /> שמירה
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={handleCancel}>
-                            <X className="w-4 h-4 ml-1" /> ביטול
-                          </Button>
-                        </div>
-                      </>
-                    ) : (
                       <>
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
@@ -885,14 +889,13 @@ export default function TaskEmployees() {
                           </Button>
                         </div>
                       </>
-                    )}
                   </CardContent>
                 </Card>
               ))}
             </div>
 
-            {filteredEmployees.length === 0 && editingId !== 'new' && isLoading && <LoadingState className="py-12" />}
-            {filteredEmployees.length === 0 && editingId !== 'new' && !isLoading && (
+            {filteredEmployees.length === 0 && isLoading && <LoadingState className="py-12" />}
+            {filteredEmployees.length === 0 && !isLoading && (
               <div className="text-center py-12">
                 <Users className="w-12 h-12 text-stone-300 mx-auto mb-3" />
                 <p className="text-stone-500">לא נמצאו עובדים</p>
@@ -902,6 +905,38 @@ export default function TaskEmployees() {
         </CardContent>
       </Card>
 
+      <Dialog open={!!editingId} onOpenChange={(open) => { if (!open) handleCancel(); }}>
+        <DialogContent className="max-w-4xl w-[95vw] max-h-[92vh] overflow-y-auto" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="pl-8">{editingId === 'new' ? 'עובד חדש' : `כרטיס עובד — ${employees.find(e => e.id === editingId)?.full_name || ''}`}</DialogTitle>
+          </DialogHeader>
+          {editingId && renderEditFields(editingId === 'new' ? null : editingId)}
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button
+              onClick={() => handleSave(editingId)}
+              disabled={createEmployeeMutation.isPending || updateEmployeeMutation.isPending}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              <Check className="w-4 h-4 ml-1" /> שמירה
+            </Button>
+            <Button variant="outline" onClick={handleCancel}>
+              <X className="w-4 h-4 ml-1" /> ביטול
+            </Button>
+            {editingId && editingId !== 'new' && (
+              <Button variant="outline" onClick={() => setHistoryOpen(true)}>
+                <History className="w-4 h-4 ml-1" /> היסטוריית שינויים
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <EmployeeHistoryDialog
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        employeeId={editingId !== 'new' ? editingId : null}
+        employeeName={employees.find(e => e.id === editingId)?.full_name || ''}
+      />
 
         </TabsContent>
 

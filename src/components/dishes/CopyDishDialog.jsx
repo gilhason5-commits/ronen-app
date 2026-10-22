@@ -14,6 +14,27 @@ const NO_SUB = '__none__';
 // Fields that belong to the row, not the recipe — never copied.
 const ROW_FIELDS = ['id', 'created_date', 'updated_date', 'display_order'];
 
+function ChipPicker({ options, value, onChange }) {
+  return (
+    <div className="flex flex-wrap gap-2 mt-1.5">
+      {options.map(o => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => onChange(o.id)}
+          className={`px-3 py-1.5 rounded-lg border text-sm transition-colors ${
+            value === o.id
+              ? 'bg-emerald-600 text-white border-emerald-600'
+              : 'bg-stone-50 border-stone-200 hover:bg-stone-100'
+          }`}
+        >
+          {o.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // Duplicates a dish (recipe, quantities, PDFs) into any menu, under a chosen
 // category + sub-category. The original is left untouched.
 export default function CopyDishDialog({ dish, allCategories = [], allSubCategories = [], open, onOpenChange }) {
@@ -57,7 +78,7 @@ export default function CopyDishDialog({ dish, allCategories = [], allSubCategor
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir="rtl" className="max-w-md">
+      <DialogContent dir="rtl" className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>שכפול מנה לתפריט — {dish?.name}</DialogTitle>
         </DialogHeader>
@@ -75,25 +96,26 @@ export default function CopyDishDialog({ dish, allCategories = [], allSubCategor
               </SelectContent>
             </Select>
           </div>
+          {/* Chips, not a dropdown: a menu has 12+ categories and the
+              dropdown's fixed height cut the last ones off. */}
           <div>
             <Label>קטגוריה *</Label>
-            <Select value={categoryId} onValueChange={(v) => { setCategoryId(v); setSubCategoryId(NO_SUB); }}>
-              <SelectTrigger><SelectValue placeholder="בחר קטגוריה" /></SelectTrigger>
-              <SelectContent>
-                {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <ChipPicker
+              options={categories}
+              value={categoryId}
+              onChange={(v) => { setCategoryId(v); setSubCategoryId(NO_SUB); }}
+            />
           </div>
-          <div>
-            <Label>תת קטגוריה</Label>
-            <Select value={subCategoryId} onValueChange={setSubCategoryId} disabled={!categoryId}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_SUB}>ללא</SelectItem>
-                {subCategories.map(sc => <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
+          {categoryId && (
+            <div>
+              <Label>תת קטגוריה</Label>
+              <ChipPicker
+                options={[{ id: NO_SUB, name: 'ללא' }, ...subCategories]}
+                value={subCategoryId}
+                onChange={setSubCategoryId}
+              />
+            </div>
+          )}
         </div>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>ביטול</Button>

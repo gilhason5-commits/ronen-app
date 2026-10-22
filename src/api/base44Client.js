@@ -32,6 +32,7 @@ export const base44 = {
     TaskAssignment:             createEntity('TaskAssignment'),
     TaskCategory:               createEntity('TaskCategory'),
     TaskEmployee:               createEntity('TaskEmployee'),
+    TaskEmployeeHistory:        createEntity('TaskEmployeeHistory'),
     TaskTemplate:               createEntity('TaskTemplate'),
     WorkSummary:                createEntity('WorkSummary'),
     StaffingAgency:             createEntity('StaffingAgency'),
