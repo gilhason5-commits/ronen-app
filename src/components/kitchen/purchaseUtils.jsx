@@ -75,8 +75,9 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
   };
 
   // Adds a purchasable ingredient's need (raw qty, before ingredient waste)
-  // to an event's needs map.
-  const addIngredientNeed = (eventNeeds, ingredientId, rawQty, fallback = {}) => {
+  // to an event's needs map. `source` names the dish (and sub-dish) the qty
+  // comes from, for the "where does it come from" breakdown.
+  const addIngredientNeed = (eventNeeds, ingredientId, rawQty, fallback = {}, source = null) => {
     const ingredient = ingredients.find(i => i.id === ingredientId);
     if (!ingredient || !(rawQty > 0)) return;
     const wastePct = ingredient.waste_pct || 0;
@@ -94,11 +95,17 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
         supplier_id: supInfo?.supplier_id || ingredient.current_supplier_id || '',
         supplier_name: supInfo?.supplier_name || ingredient.current_supplier_name || '',
         supplier_type: supInfo?.supplier_type || 'daily',
-        purchase_unit: ingredient.purchase_unit || 1
+        purchase_unit: ingredient.purchase_unit || 1,
+        sources: {}
       };
     }
     eventNeeds[ingredientId].qty += qty;
     eventNeeds[ingredientId].net_qty += rawQty;
+    if (source) {
+      const src = (eventNeeds[ingredientId].sources[source.key] ||= { ...source, qty: 0, net_qty: 0 });
+      src.qty += qty;
+      src.net_qty += rawQty;
+    }
   };
 
   const findSI = (id) => (specialIngredients || []).find(s => s.id === id);
@@ -108,7 +115,8 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
   // once for all of the slot's events (Sun–Tue / Wed–Fri), so demand is
   // aggregated across those events before rounding up to whole batches.
   // slotKey -> { slot, prepEvent, slotEvents, demand: { siId: qty },
-  //              byEvent: { siId: { eventId: qty } } }
+  //              byEvent: { siId: { eventId: qty } },
+  //              byDish: { siId: { srcKey: { ...dish source, qty } } } }
   const siBySlot = {};
 
   [...events]
@@ -120,11 +128,12 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
 
       const slot = getWeeklyDeliverySlot(event.event_date);
       if (!siBySlot[slot.deliveryDate]) {
-        siBySlot[slot.deliveryDate] = { slot, prepEvent: event, slotEvents: [], demand: {}, byEvent: {} };
+        siBySlot[slot.deliveryDate] = { slot, prepEvent: event, slotEvents: [], demand: {}, byEvent: {}, byDish: {} };
       }
       siBySlot[slot.deliveryDate].slotEvents.push(event);
       const slotDemand = siBySlot[slot.deliveryDate].demand;
       const slotByEvent = siBySlot[slot.deliveryDate].byEvent;
+      const slotByDish = siBySlot[slot.deliveryDate].byDish;
 
       // Menu dishes (guest-count driven) plus the event type's fixed items,
       // which every event gets once at their fixed quantity.
@@ -143,6 +152,7 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
 
       dishLines.forEach(({ dish, effectiveQty }) => {
         if (!effectiveQty || effectiveQty <= 0) return;
+        const source = { key: `${event.id}|${dish.id}`, event_id: event.id, event_name: event.event_name, dish_name: dish.name };
         (dish.ingredients || []).forEach(ing => {
           // Bought in the ingredient card's unit (a ק״ג row of a יחידה ingredient converts).
           const qtyNeeded = rowQtyInSystemUnits(ing, ingredients.find(i => i.id === ing.ingredient_id)) * effectiveQty;
@@ -151,10 +161,12 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
               slotDemand[ing.ingredient_id] = (slotDemand[ing.ingredient_id] || 0) + qtyNeeded;
               const perEvent = (slotByEvent[ing.ingredient_id] ||= {});
               perEvent[event.id] = (perEvent[event.id] || 0) + qtyNeeded;
+              const perDish = (slotByDish[ing.ingredient_id] ||= {});
+              (perDish[source.key] ||= { ...source, qty: 0 }).qty += qtyNeeded;
             }
             return;
           }
-          addIngredientNeed(eventNeeds, ing.ingredient_id, qtyNeeded, { name: ing.ingredient_name, unit: ing.unit });
+          addIngredientNeed(eventNeeds, ing.ingredient_id, qtyNeeded, { name: ing.ingredient_name, unit: ing.unit }, source);
         });
       });
     });
@@ -177,11 +189,13 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
   };
 
   const subDishPlan = [];
-  Object.values(siBySlot).forEach(({ slot, prepEvent, slotEvents, demand, byEvent }) => {
+  Object.values(siBySlot).forEach(({ slot, prepEvent, slotEvents, demand, byEvent, byDish }) => {
     const prepNeeds = result[prepEvent.id];
     const preps = [];
     const pending = { ...demand };
     const pendingByEvent = Object.fromEntries(Object.entries(byEvent).map(([id, m]) => [id, { ...m }]));
+    const pendingByDish = Object.fromEntries(Object.entries(byDish).map(([id, m]) =>
+      [id, Object.fromEntries(Object.entries(m).map(([k, src]) => [k, { ...src }]))]));
     const done = new Set();
     for (;;) {
       const ready = Object.keys(pending).filter(id => !done.has(id));
@@ -196,6 +210,7 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
       const batchSize = specialIngredientBatchSize(si, (id) => findSI(id) || ingredients.find(i => i.id === id));
       const batches = Math.ceil(totalDemand / batchSize);
       const demandByEvent = pendingByEvent[siId] || {};
+      const demandByDish = Object.values(pendingByDish[siId] || {});
       preps.push({ si_id: siId, si, name: si.name, demand: totalDemand, demandByEvent, batch_size: batchSize, batches, unit: si.system_unit || '' });
       comps.forEach(comp => {
         const compQty = rowQtyInSystemUnits(comp, ingredients.find(i => i.id === comp.ingredient_id)) * batches;
@@ -207,10 +222,25 @@ export function calcIngredientNeedsPerEvent(events, eventDishesMap, dishes, ingr
             Object.entries(demandByEvent).forEach(([evId, q]) => {
               childByEvent[evId] = (childByEvent[evId] || 0) + compQty * (q / totalDemand);
             });
+            const childByDish = (pendingByDish[comp.ingredient_id] ||= {});
+            demandByDish.forEach(src => {
+              (childByDish[src.key] ||= { ...src, qty: 0 }).qty += compQty * (src.qty / totalDemand);
+            });
           }
           return;
         }
-        addIngredientNeed(prepNeeds, comp.ingredient_id, compQty, { name: comp.ingredient_name, unit: comp.unit });
+        const fallback = { name: comp.ingredient_name, unit: comp.unit };
+        if (demandByDish.length === 0) {
+          addIngredientNeed(prepNeeds, comp.ingredient_id, compQty, fallback);
+          return;
+        }
+        // Split the batch qty between the dishes in their demand shares
+        // (the batch rounding surplus is spread the same way).
+        demandByDish.forEach(src => {
+          addIngredientNeed(prepNeeds, comp.ingredient_id, compQty * (src.qty / totalDemand), fallback, {
+            key: `${src.key}|${siId}`, event_id: src.event_id, event_name: src.event_name, dish_name: src.dish_name, via: si.name
+          });
+        });
       });
     }
     if (preps.length > 0) subDishPlan.push({ ...slot, prepEvent, events: slotEvents, preps });
@@ -296,11 +326,17 @@ export function buildSupplierTickets(events, needsPerEvent, suppliers) {
               net_qty: 0,
               waste_pct: item.waste_pct || 0,
               purchase_unit: item.purchase_unit,
-              price_per_unit: item.price_per_unit
+              price_per_unit: item.price_per_unit,
+              sources: {}
             };
           }
           ticket.items[key].qty += item.qty;
           ticket.items[key].net_qty += item.net_qty ?? item.qty;
+          Object.values(item.sources || {}).forEach(src => {
+            const merged = (ticket.items[key].sources[src.key] ||= { ...src, qty: 0, net_qty: 0 });
+            merged.qty += src.qty;
+            merged.net_qty += src.net_qty;
+          });
 
           if (!ticket.perEvent[key]) {
             ticket.perEvent[key] = [];
@@ -329,7 +365,8 @@ export function buildSupplierTickets(events, needsPerEvent, suppliers) {
             purchase_unit: i.purchase_unit,
             purchase_qty: i.purchase_qty,
             price_per_unit: i.price_per_unit,
-            total_price: i.qty * i.price_per_unit
+            total_price: i.qty * i.price_per_unit,
+            sources: Object.values(i.sources || {})
           })),
           deliveryDate
         });
@@ -342,6 +379,7 @@ export function buildSupplierTickets(events, needsPerEvent, suppliers) {
     supplier: wt.supplier,
     items: Object.values(wt.items).map(i => ({
       ...i,
+      sources: Object.values(i.sources),
       purchase_qty: roundToPurchaseUnit(i.qty, i.purchase_unit),
       total_price: i.qty * i.price_per_unit
     })),

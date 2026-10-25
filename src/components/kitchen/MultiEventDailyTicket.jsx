@@ -7,10 +7,12 @@ import { Printer, Edit2, Calendar, Users } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { he } from 'date-fns/locale';
 import { formatNumber, formatUnit } from "./purchaseUtils";
+import IngredientSourcesPopup from "./IngredientSourcesPopup";
 
 export default function MultiEventDailyTicket({ group }) {
   const { supplier, eventSections: initialSections } = group;
   const [editing, setEditing] = useState(false);
+  const [sourcesItem, setSourcesItem] = useState(null);
   const [sections, setSections] = useState(
     initialSections.map(s => ({
       event: s.event,
@@ -151,7 +153,14 @@ export default function MultiEventDailyTicket({ group }) {
                   {section.items.map((item, itemIdx) => (
                     <tr key={item.ingredient_id} className="border-b border-stone-100">
                       <td className="py-2 text-stone-900">
-                        {item.ingredient_name}
+                        <button
+                          type="button"
+                          className="text-right underline decoration-dotted underline-offset-4 hover:text-emerald-700"
+                          title="מאיפה מגיע"
+                          onClick={() => setSourcesItem(item)}
+                        >
+                          {item.ingredient_name}
+                        </button>
                         {item.waste_pct > 0 && <span className="text-red-600 text-xs font-bold mr-1">(פחת {item.waste_pct}%)</span>}
                       </td>
                       <td className="py-2 text-center text-stone-500">
@@ -219,6 +228,7 @@ export default function MultiEventDailyTicket({ group }) {
             </Button>
           </div>
         </div>
+        <IngredientSourcesPopup item={sourcesItem} onOpenChange={(o) => !o && setSourcesItem(null)} />
       </CardContent>
     </Card>
   );

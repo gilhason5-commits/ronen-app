@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Printer, Edit2, Calculator, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { formatNumber, formatUnit } from "./purchaseUtils";
+import IngredientSourcesPopup from "./IngredientSourcesPopup";
 import CalculationPopup from "./CalculationPopup";
 
 export default function WeeklyOrderTicket({ ticket }) {
@@ -13,6 +14,7 @@ export default function WeeklyOrderTicket({ ticket }) {
   const [items, setItems] = useState(ticket.items.map(i => ({ ...i })));
   const [deliveryDate, setDeliveryDate] = useState(ticket.deliveryDate || '');
   const [showCalc, setShowCalc] = useState(false);
+  const [sourcesItem, setSourcesItem] = useState(null);
 
   const handleQtyChange = (idx, newQty) => {
     const updated = [...items];
@@ -98,7 +100,14 @@ export default function WeeklyOrderTicket({ ticket }) {
             {items.map((item, idx) => (
               <tr key={item.ingredient_id} className="border-b border-stone-100">
                 <td className="py-2 text-stone-900">
-                  {item.ingredient_name}
+                  <button
+                    type="button"
+                    className="text-right underline decoration-dotted underline-offset-4 hover:text-emerald-700"
+                    title="מאיפה מגיע"
+                    onClick={() => setSourcesItem(item)}
+                  >
+                    {item.ingredient_name}
+                  </button>
                   {item.waste_pct > 0 && <span className="text-red-600 text-xs font-bold mr-1">(פחת {item.waste_pct}%)</span>}
                 </td>
                 <td className="py-2 text-center text-stone-500">
@@ -175,6 +184,7 @@ export default function WeeklyOrderTicket({ ticket }) {
             perEvent={ticket.perEvent}
           />
         )}
+        <IngredientSourcesPopup item={sourcesItem} onOpenChange={(o) => !o && setSourcesItem(null)} />
       </CardContent>
     </Card>
   );

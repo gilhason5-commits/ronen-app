@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, Users, Coins, Plus, Trash2, Check, X, Pencil, UtensilsCrossed, ChevronUp, ChevronDown } from "lucide-react";
+import { BookOpen, Users, Coins, Plus, Trash2, Check, X, Pencil, UtensilsCrossed, ChevronUp, ChevronDown, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { FORMAT_LABELS, FORMAT_OPTIONS, isWaiterEmployee } from "@/lib/staffingEngine";
 import { Link } from "react-router-dom";
@@ -363,6 +363,61 @@ function TipRulesTab() {
   );
 }
 
+const WEEKDAY_LABELS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
+
+// Fixed weekly hours of a roster member (e.g. every Friday 07:00–11:00),
+// which the weekly table shows whether or not that day has an event.
+function WeeklyHoursEditor({ member, editing, onChange }) {
+  const weekly = member.weekly_hours || {};
+  const [day, setDay] = useState("5");
+  const [clockIn, setClockIn] = useState("");
+  const [clockOut, setClockOut] = useState("");
+  const days = Object.keys(weekly).sort();
+
+  const remove = (d) => {
+    const next = { ...weekly };
+    delete next[d];
+    onChange(Object.keys(next).length ? next : null);
+  };
+  const add = () => {
+    const inF = formatTimeDigits(clockIn);
+    const outF = formatTimeDigits(clockOut);
+    if (!inF && !outF) return;
+    onChange({ ...weekly, [day]: { in: inF, out: outF } });
+    setClockIn("");
+    setClockOut("");
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap pr-7 pb-1 text-xs text-slate-600">
+      <span>קבוע:</span>
+      {days.map((d) => (
+        <Badge key={d} variant="outline" className="gap-1 font-normal">
+          יום {WEEKDAY_LABELS[d]} {weekly[d].in}–{weekly[d].out}
+          {editing && (
+            <button type="button" className="text-red-500" onClick={() => remove(d)}><X className="w-3 h-3" /></button>
+          )}
+        </Badge>
+      ))}
+      {editing && (
+        <>
+          <Select value={day} onValueChange={setDay}>
+            <SelectTrigger className="h-7 w-16"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {WEEKDAY_LABELS.map((label, d) => (
+                <SelectItem key={d} value={String(d)}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input className="h-7 w-16" placeholder="כניסה" value={clockIn} onChange={(e) => setClockIn(e.target.value)} />
+          <Input className="h-7 w-16" placeholder="יציאה" value={clockOut} onChange={(e) => setClockOut(e.target.value)} />
+          <Button size="sm" variant="outline" className="h-7" onClick={add}><Plus className="w-3 h-3" /></Button>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ---------- kitchen roster tab ----------
 // group distinguishes two independent weekly tables on מפת כוח אדם: the
 // original "kitchen" roster (cooking/prep/pot-washing) and the newer "ops"
@@ -391,6 +446,7 @@ function KitchenRosterTab({ group = "kitchen", title = "צוות מטבח", desc
   const [newSelection, setNewSelection] = useState({});
   const [newName, setNewName] = useState({});
   const [newStationName, setNewStationName] = useState("");
+  const [weeklyOpenId, setWeeklyOpenId] = useState(null);
 
   // A roster member also needs a real TaskEmployee record (so they show up
   // under "עובדים" and can be referenced consistently elsewhere) — create
@@ -453,7 +509,8 @@ function KitchenRosterTab({ group = "kitchen", title = "צוות מטבח", desc
               <CardContent>
                 <div className="space-y-1">
                   {stationMembers.map((m, i) => (
-                    <div key={m.id} className={`flex items-center gap-1.5 rounded px-1 py-1 hover:bg-slate-50 ${!m.is_active ? "opacity-50" : ""}`}>
+                    <div key={m.id}>
+                    <div className={`flex items-center gap-1.5 rounded px-1 py-1 hover:bg-slate-50 ${!m.is_active ? "opacity-50" : ""}`}>
                       <div className="flex flex-col shrink-0">
                         <Button size="icon" variant="ghost" className="h-4 w-5" disabled={i === 0} onClick={() => move(m, -1)}><ChevronUp className="w-3 h-3" /></Button>
                         <Button size="icon" variant="ghost" className="h-4 w-5" disabled={i === stationMembers.length - 1} onClick={() => move(m, 1)}><ChevronDown className="w-3 h-3" /></Button>
@@ -478,8 +535,25 @@ function KitchenRosterTab({ group = "kitchen", title = "צוות מטבח", desc
                           if (formatted !== (m.default_clock_out || "")) crud.update.mutate({ id: m.id, data: { default_clock_out: formatted || null } });
                         }}
                       />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className={`h-6 w-6 shrink-0 ${Object.keys(m.weekly_hours || {}).length ? "text-emerald-600" : "text-slate-400"}`}
+                        title="שעות קבועות שבועיות"
+                        onClick={() => setWeeklyOpenId(weeklyOpenId === m.id ? null : m.id)}
+                      >
+                        <CalendarClock className="w-3.5 h-3.5" />
+                      </Button>
                       <Switch checked={m.is_active} onCheckedChange={(v) => crud.update.mutate({ id: m.id, data: { is_active: v } })} />
                       <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500 shrink-0" onClick={() => { if (confirm(`למחוק את ${m.full_name}?`)) crud.remove.mutate(m.id); }}><Trash2 className="w-3 h-3" /></Button>
+                    </div>
+                    {(weeklyOpenId === m.id || Object.keys(m.weekly_hours || {}).length > 0) && (
+                      <WeeklyHoursEditor
+                        member={m}
+                        editing={weeklyOpenId === m.id}
+                        onChange={(weekly_hours) => crud.update.mutate({ id: m.id, data: { weekly_hours } })}
+                      />
+                    )}
                     </div>
                   ))}
                 </div>
