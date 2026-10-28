@@ -666,9 +666,15 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   // guest-count standard (see potWashDefaultHours); everyone else gets their
   // fixed default hours on event days and is off otherwise. Fixed weekly
   // hours (e.g. every Friday 07:00–11:00) apply whether or not there's an event.
+  // Big-event hours replace the default hours on days with at least
+  // min_guests guests (e.g. IAN 18:00–00:01 from 201); weekly hours still win.
   const defaultHoursFor = (member, d, ds) => {
     const weekly = member.weekly_hours?.[d.getDay()];
     if (weekly) return { clockIn: weekly.in ?? "", clockOut: weekly.out ?? "" };
+    const big = member.large_event_hours;
+    if (big && eventDaySet.has(ds) && (guestsByDay.get(ds) || 0) >= big.min_guests) {
+      return { clockIn: big.in ?? "", clockOut: big.out ?? "" };
+    }
     if (isPotWashStation(member.station)) {
       const friday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 2);
       return potWashDefaultHours({
