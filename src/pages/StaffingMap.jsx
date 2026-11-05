@@ -142,6 +142,10 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
 // without memo, editing one event's staffing (or any query invalidation)
 // re-renders every other row too, causing visible input lag on the busiest
 // months.
+// Waiter quantities (per-agency columns, total column, gap flags) are hidden
+// from the floor table for now because nobody fills them in. Flip to restore.
+const SHOW_WAITER_COUNTS = false;
+
 const EventTableRow = React.memo(function EventTableRow({ event, rules, agencies, displayAgencies, displayRoleColumns, allEvents, employees, planRows, splitRows, onChange }) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -152,7 +156,10 @@ const EventTableRow = React.memo(function EventTableRow({ event, rules, agencies
   };
 
   const staffing = useMemo(() => computeStaffing(event, rules, agencies, allEvents), [event, rules, agencies, allEvents]);
-  const flags = useMemo(() => computeFlags(event, staffing, planRows, splitRows), [event, staffing, planRows, splitRows]);
+  const flags = useMemo(
+    () => computeFlags(event, staffing, planRows, splitRows).filter((f) => SHOW_WAITER_COUNTS || f.role_name !== "מלצרים"),
+    [event, staffing, planRows, splitRows]
+  );
 
   const setFormat = useMutation({
     mutationFn: (staffing_format) => base44.entities.Event.update(event.id, { staffing_format }),
@@ -220,7 +227,7 @@ const EventTableRow = React.memo(function EventTableRow({ event, rules, agencies
     0
   );
 
-  const colSpan = 10 + displayRoleColumns.length + displayAgencies.length;
+  const colSpan = (SHOW_WAITER_COUNTS ? 10 : 9) + displayRoleColumns.length + displayAgencies.length;
 
   return (
     <>
@@ -270,12 +277,14 @@ const EventTableRow = React.memo(function EventTableRow({ event, rules, agencies
             </td>
           );
         })}
-        <td className="border border-stone-300 px-1 py-1 text-center text-xs whitespace-nowrap">
-          <span className={plannedWaiters === staffing.waiterCount ? "text-emerald-700 font-semibold" : "text-red-700 font-semibold"}>
-            {plannedWaiters}
-          </span>
-          <span className="text-stone-400">/{staffing.waiterCount}</span>
-        </td>
+        {SHOW_WAITER_COUNTS && (
+          <td className="border border-stone-300 px-1 py-1 text-center text-xs whitespace-nowrap">
+            <span className={plannedWaiters === staffing.waiterCount ? "text-emerald-700 font-semibold" : "text-red-700 font-semibold"}>
+              {plannedWaiters}
+            </span>
+            <span className="text-stone-400">/{staffing.waiterCount}</span>
+          </td>
+        )}
         {displayRoleColumns.map((roleName) => (
           <td key={roleName} className="border border-stone-300 p-0">
             <RoleCell
@@ -1156,13 +1165,13 @@ export default function StaffingMap() {
     () => agencies.filter((a) => a.is_active).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
     [agencies]
   );
-  const displayAgencies = useMemo(() => orderAgenciesForDisplay(activeAgencies), [activeAgencies]);
+  const displayAgencies = useMemo(() => (SHOW_WAITER_COUNTS ? orderAgenciesForDisplay(activeAgencies) : []), [activeAgencies]);
 
   // Fixed columns eat a known % budget; whatever's left is split evenly
   // across role + agency columns so the table always spans exactly 100% of
   // its container, however many rules or agencies exist — no horizontal
   // scroll on a normal screen.
-  const FIXED_PCT_BUDGET = 9 + 3.5 + 3.5 + 3.5 + 3.5 + 3 + 5.5 + 4.5 + 4; // name,date,day,event-time,brief-time,count,format,waiters,flags
+  const FIXED_PCT_BUDGET = 9 + 3.5 + 3.5 + 3.5 + 3.5 + 3 + 5.5 + (SHOW_WAITER_COUNTS ? 4.5 : 0) + 4; // name,date,day,event-time,brief-time,count,format,waiters,flags
   const dynamicCount = displayRoleColumns.length + displayAgencies.length;
   const dynamicColPct = dynamicCount > 0 ? (100 - FIXED_PCT_BUDGET) / dynamicCount : 0;
 
@@ -1255,7 +1264,7 @@ export default function StaffingMap() {
                 {displayAgencies.map((agency) => (
                   <col key={agency.id} style={{ width: `${dynamicColPct}%` }} />
                 ))}
-                <col style={{ width: "4.5%" }} />
+                {SHOW_WAITER_COUNTS && <col style={{ width: "4.5%" }} />}
                 {displayRoleColumns.map((roleName) => (
                   <col key={roleName} style={{ width: `${dynamicColPct}%` }} />
                 ))}
@@ -1276,7 +1285,7 @@ export default function StaffingMap() {
                       {agency.name}
                     </th>
                   ))}
-                  <th className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px] leading-tight break-words">מלצרים</th>
+                  {SHOW_WAITER_COUNTS && <th className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px] leading-tight break-words">מלצרים</th>}
                   {displayRoleColumns.map((roleName) => (
                     <th key={roleName} className="border border-stone-300 px-0.5 py-2 text-center font-bold text-stone-800 text-[10px] leading-tight break-words">
                       {roleName}

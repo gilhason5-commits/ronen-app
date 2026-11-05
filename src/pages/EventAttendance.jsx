@@ -23,6 +23,15 @@ function nowTime() {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+// Waiters start an hour before the event (18:30 for the usual 19:30 event);
+// the rare exception is edited by hand. 18:30 when the event has no time.
+function defaultWaiterClockIn(event) {
+  const [h, m] = (event.event_time || "").split(":").map(Number);
+  if (!Number.isInteger(h) || !Number.isInteger(m)) return "18:30";
+  const total = (h * 60 + m - 60 + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
 const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
 
@@ -295,7 +304,7 @@ function AddWorkerDialog({ event, agency, employees, shifts, open, onOpenChange 
       worker_name: employee.full_name,
       agency_id: agency.id,
       agency_name: agency.name,
-      clock_in: nowTime(),
+      clock_in: defaultWaiterClockIn(event),
       is_substitute: isSubstitute,
       ...payFromEmployee(employee),
     }),
