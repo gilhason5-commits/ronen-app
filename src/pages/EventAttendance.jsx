@@ -23,13 +23,9 @@ function nowTime() {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-// Waiters start at 18:30, except at morning/noon events (before 15:00) where
-// they start an hour before the event. Exceptions are edited by hand.
-function defaultWaiterClockIn(event) {
-  const [h, m] = (event.event_time || "").split(":").map(Number);
-  if (!Number.isInteger(h) || !Number.isInteger(m) || h >= 15) return "18:30";
-  const total = (h * 60 + m - 60 + 1440) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+// Waiters start at 18:30 at every event; exceptions are edited by hand.
+function defaultWaiterClockIn() {
+  return "18:30";
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
