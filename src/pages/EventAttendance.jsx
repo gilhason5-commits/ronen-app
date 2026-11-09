@@ -82,6 +82,10 @@ const MANAGER_ROLES = [
   { label: "מארחת", roleName: "מארחת" },
 ];
 
+// Managers start at 18:30 at every event; shown until someone edits it.
+// Plan clock_in is only read on this page, so the fallback needs no backfill.
+const MANAGER_DEFAULT_CLOCK_IN = "18:30";
+
 function ManagerAttendanceSection({ event, rules, agencies, allEvents }) {
   const queryClient = useQueryClient();
   const { data: plans = [] } = useQuery({
@@ -133,7 +137,7 @@ function ManagerAttendanceSection({ event, rules, agencies, allEvents }) {
                   <td className="border border-slate-200 px-1.5 py-0.5 font-medium whitespace-nowrap">{plan.assigned_name || "—"}</td>
                   <td className="border border-slate-200 px-1.5 py-0.5 font-medium whitespace-nowrap">{role.label}</td>
                   <td className="border border-slate-200 p-0.5">
-                    <TimePicker value={plan.clock_in} onChange={(v) => updatePlan.mutate({ id: plan.id, data: { clock_in: v } })} />
+                    <TimePicker value={plan.clock_in || MANAGER_DEFAULT_CLOCK_IN} onChange={(v) => updatePlan.mutate({ id: plan.id, data: { clock_in: v } })} />
                   </td>
                   <td className="border border-slate-200 p-0.5">
                     <TimePicker value={plan.clock_out} onChange={(v) => updatePlan.mutate({ id: plan.id, data: { clock_out: v } })} />
