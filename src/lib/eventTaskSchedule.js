@@ -26,3 +26,30 @@ export function clampMorningEventTaskTimes(eventDate, eventTime, startTime, endT
     endTime: new Date(endTime.getTime() + delta),
   };
 }
+
+// A PER_EVENT template can pin its start to a clock time on the event day
+// (e.g. "16:30 family room check") instead of an offset from the event start.
+// Stored in the existing schedule_rule column as JSON {"time":"HH:MM"} — the
+// same shape recurring templates already use — so no schema change.
+export function templateFixedTime(template) {
+  if (!template?.schedule_rule) return null;
+  try {
+    const t = JSON.parse(template.schedule_rule)?.time;
+    return /^\d{2}:\d{2}$/.test(t || '') ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+// Start/end of a template's task for one event. The fixed clock time only
+// applies to evening events; a morning event falls back to the template's
+// offset (an afternoon clock time makes no sense when the event is at 11:00).
+export function computeTemplateTaskTimes(event, template) {
+  const eventStart = new Date(`${event.event_date}T${event.event_time || '00:00'}`);
+  const fixed = templateFixedTime(template);
+  const rawStart = fixed && !isMorningEvent(event.event_time)
+    ? new Date(`${event.event_date}T${fixed}:00`)
+    : new Date(eventStart.getTime() + (template?.start_offset_minutes || 0) * 60000);
+  const rawEnd = new Date(rawStart.getTime() + (template?.duration_minutes || 60) * 60000);
+  return clampMorningEventTaskTimes(event.event_date, event.event_time, rawStart, rawEnd);
+}

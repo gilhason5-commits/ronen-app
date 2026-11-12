@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ChevronLeft, ChevronRight, ChevronDown, Map as MapIcon, AlertTriangle, Clock, UtensilsCrossed, FileDown, Users, Save, Loader2, Check, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -82,6 +84,58 @@ function useRoleColumns(rules) {
 // name alone is enough to identify who's assigned on the floor sheet.
 const firstName = (fullName) => (fullName || "").trim().split(/\s+/)[0] || "";
 
+// Searchable replacement for the native <select>: the staff list is long, so
+// the floor manager types part of a name instead of scrolling for it. The
+// option list only mounts while the popover is open (Radix unmounts closed
+// content), which also keeps the monthly table lighter than a <select> per cell.
+function StaffPicker({ value, label, onSelect, employees, className, style }) {
+  const [open, setOpen] = useState(false);
+  const options = useMemo(
+    () => employees
+      .filter((e) => e.is_active)
+      .sort((a, b) => (a.full_name || "").localeCompare(b.full_name || "", "he")),
+    [employees]
+  );
+  const pick = (id) => {
+    setOpen(false);
+    if (id !== value) onSelect(id);
+  };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          style={style}
+          className={`w-full max-w-full h-8 text-[11px] border-0 px-1 text-center truncate focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 ${className}`}
+        >
+          {label}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-0" align="start" dir="rtl">
+        <Command>
+          <CommandInput placeholder="חיפוש שם..." className="text-right" />
+          <CommandList>
+            <CommandEmpty>לא נמצא</CommandEmpty>
+            <CommandGroup>
+              <CommandItem value="__none__ לא משובץ" onSelect={() => pick("__none__")}>
+                — לא משובץ —
+              </CommandItem>
+              {options.map((e) => (
+                <CommandItem key={e.id} value={`${e.full_name} ${e.id}`} onSelect={() => pick(e.id)}>
+                  <Check className={`w-3.5 h-3.5 ml-1.5 shrink-0 ${value === e.id ? "opacity-100" : "opacity-0"}`} />
+                  {e.full_name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
   const req = requiredRoles.find((r) => r.role_name === roleName);
   const count = req?.count || 0;
@@ -101,22 +155,15 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
         const filled = !!(assigned?.assigned_employee_id || assigned?.assigned_name);
         const color = filled ? getStaffColor(assigned?.assigned_name) : null;
         return (
-          <select
+          <StaffPicker
             key={slot}
             value={assigned?.assigned_employee_id || "__none__"}
-            onChange={(e) => onAssign({ role_name: roleName, slot, employee: e.target.value })}
+            label={filled ? firstName(assigned?.assigned_name) : "— לא משובץ —"}
+            onSelect={(employee) => onAssign({ role_name: roleName, slot, employee })}
             style={filled ? color.style : undefined}
-            className={`w-full max-w-full h-8 text-[11px] border-0 px-1 text-center focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 ${
-              filled
-                ? `${color.className} font-semibold`
-                : "bg-red-800 text-white font-semibold"
-            }`}
-          >
-            <option value="__none__">— לא משובץ —</option>
-            {employees.filter((e) => e.is_active).map((e) => (
-              <option key={e.id} value={e.id}>{firstName(e.full_name)}</option>
-            ))}
-          </select>
+            className={filled ? `${color.className} font-semibold` : "bg-red-800 text-white font-semibold"}
+            employees={employees}
+          />
         );
       })}
       {removed.map((p) => (

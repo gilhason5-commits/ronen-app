@@ -21,7 +21,7 @@ import {
 import { Clock, User, Users, Save, Info, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { clampMorningEventTaskTimes } from "@/lib/eventTaskSchedule";
+import { computeTemplateTaskTimes, templateFixedTime } from "@/lib/eventTaskSchedule";
 
 export default function TaskEditDialog({ open, onClose, template, assignment, eventId, event }) {
   const queryClient = useQueryClient();
@@ -37,18 +37,10 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
     queryFn: () => base44.entities.TaskEmployee.list(),
   });
 
-  // Calculate default start time from event + template offset
+  // Default start time from the event + template (fixed clock time or offset)
   const getDefaultStartTime = () => {
     if (!event?.event_date) return null;
-    const eventStart = new Date(`${event.event_date}T${event.event_time || '00:00'}`);
-    const offsetMinutes = template?.start_offset_minutes || 0;
-    const rawStart = new Date(eventStart.getTime() + offsetMinutes * 60000);
-    const duration = template?.duration_minutes || 60;
-    const rawEnd = new Date(rawStart.getTime() + duration * 60000);
-    const { startTime } = clampMorningEventTaskTimes(
-      event.event_date, event.event_time, rawStart, rawEnd
-    );
-    return startTime;
+    return computeTemplateTaskTimes(event, template).startTime;
   };
 
   const eventStart = event?.event_date && event?.event_time
@@ -229,7 +221,7 @@ export default function TaskEditDialog({ open, onClose, template, assignment, ev
                 return roleEmps.length > 1 ? ` + ${roleEmps.length - 1} נוספים` : '';
               })()}
             </p>
-            <p>שעת התחלה: {defaultStartTime ? format(defaultStartTime, "HH:mm") : 'לא מוגדר'} (היסט {template?.start_offset_minutes ?? 0} דק')</p>
+            <p>שעת התחלה: {defaultStartTime ? format(defaultStartTime, "HH:mm") : 'לא מוגדר'} ({templateFixedTime(template) ? `שעה קבועה ${templateFixedTime(template)}` : `היסט ${template?.start_offset_minutes ?? 0} דק'`})</p>
             <p>משך: {template?.duration_minutes || 60} דקות</p>
           </div>
 

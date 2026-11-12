@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { templateFixedTime } from "@/lib/eventTaskSchedule";
 
 export default function TaskTemplateDialog({ template, taskType, categories, employees, roles, open, onClose }) {
   const queryClient = useQueryClient();
@@ -258,6 +259,16 @@ export default function TaskTemplateDialog({ template, taskType, categories, emp
                   type="number"
                   value={formData.duration_minutes}
                   onChange={(e) => setFormData({...formData, duration_minutes: parseInt(e.target.value) || 0})}
+                />
+              </div>
+              <div className="col-span-2">
+                <Label>שעה קבועה (לא חובה)</Label>
+                <p className="text-xs text-stone-500 mb-1">אם מולא: באירועי ערב המשימה תתחיל בשעה הזו, בלי קשר לשעת האירוע. באירועי בוקר (לפני 14:00) — לפי ההיסט.</p>
+                <Input
+                  type="time"
+                  className="w-40"
+                  value={templateFixedTime(formData) || ''}
+                  onChange={(e) => setFormData({...formData, schedule_rule: e.target.value ? JSON.stringify({ time: e.target.value }) : ''})}
                 />
               </div>
             </div>

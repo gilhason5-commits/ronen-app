@@ -1,5 +1,5 @@
 import { base44 } from "@/api/base44Client";
-import { clampMorningEventTaskTimes } from "@/lib/eventTaskSchedule";
+import { computeTemplateTaskTimes } from "@/lib/eventTaskSchedule";
 
 // Shared event-task generation used by both the producer approval flow
 // (fires immediately at approve time) and the PerEventTasks page (kept as a
@@ -28,17 +28,8 @@ export async function generateEventTasks(event) {
   const templatesToCreate = activeTemplates.filter((t) => !existingTemplateIds.has(t.id));
   if (templatesToCreate.length === 0) return { created: 0 };
 
-  const eventStartTime = new Date(`${event.event_date}T${event.event_time || "00:00"}`);
-
   const newAssignments = templatesToCreate.map((template) => {
-    const rawStart = new Date(eventStartTime.getTime() + (template.start_offset_minutes || 0) * 60000);
-    const rawEnd = new Date(rawStart.getTime() + (template.duration_minutes || 60) * 60000);
-    const { startTime, endTime } = clampMorningEventTaskTimes(
-      event.event_date,
-      event.event_time,
-      rawStart,
-      rawEnd,
-    );
+    const { startTime, endTime } = computeTemplateTaskTimes(event, template);
 
     const roleEmployees = template.default_role
       ? (allEmployees || []).filter((e) => e.role_id === template.default_role && e.is_active)
