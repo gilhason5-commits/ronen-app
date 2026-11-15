@@ -49,8 +49,8 @@ export default function MultiEventDailyTicket({ group }) {
     sum + section.items.reduce((s, i) => s + ((i.purchase_qty ?? i.qty) * i.price_per_unit), 0)
   , 0);
 
-  const handlePrint = () => {
-    const sectionsHtml = sections.map(section => {
+  const handlePrint = (sectionsToPrint = sections) => {
+    const sectionsHtml = sectionsToPrint.map(section => {
       const rows = section.items.map(item => {
         const wasteLabel = item.waste_pct > 0 ? ` <span style="color:#d32f2f; font-size:10px; font-weight:bold;">(פחת ${item.waste_pct}%)</span>` : '';
         return `
@@ -203,8 +203,14 @@ export default function MultiEventDailyTicket({ group }) {
                   <span className="font-semibold">{section.deliveryDate ? format(new Date(section.deliveryDate), 'dd/MM/yyyy') : '-'}</span>
                 )}
               </div>
-              <div className="text-sm font-bold text-stone-800">
-                סה״כ: ₪{formatNumber(section.items.reduce((s, i) => s + ((i.purchase_qty ?? i.qty) * i.price_per_unit), 0))}
+              <div className="flex items-center gap-3">
+                <div className="text-sm font-bold text-stone-800">
+                  סה״כ: ₪{formatNumber(section.items.reduce((s, i) => s + ((i.purchase_qty ?? i.qty) * i.price_per_unit), 0))}
+                </div>
+                <Button variant="outline" size="sm" onClick={() => handlePrint([section])}>
+                  <Printer className="w-3.5 h-3.5 ml-1" />
+                  הדפסת אירוע
+                </Button>
               </div>
             </div>
           </div>
@@ -222,10 +228,12 @@ export default function MultiEventDailyTicket({ group }) {
               <Edit2 className="w-3.5 h-3.5 ml-1" />
               {editing ? 'סיום עריכה' : 'עריכה'}
             </Button>
-            <Button variant="outline" size="sm" onClick={handlePrint}>
-              <Printer className="w-3.5 h-3.5 ml-1" />
-              הדפסה
-            </Button>
+            {sections.length > 1 && (
+              <Button variant="outline" size="sm" onClick={() => handlePrint()}>
+                <Printer className="w-3.5 h-3.5 ml-1" />
+                הדפסת כל האירועים
+              </Button>
+            )}
           </div>
         </div>
         <IngredientSourcesPopup item={sourcesItem} onOpenChange={(o) => !o && setSourcesItem(null)} />
