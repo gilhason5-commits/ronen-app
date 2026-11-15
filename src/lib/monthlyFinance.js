@@ -63,3 +63,13 @@ export function generalExpensesForMonth(items, monthEvents) {
 }
 
 export const fixedExpensesTotal = (fixedExpenses) => sumAmounts(fixedExpenses.filter((e) => e.is_active !== false));
+
+export function countedEventsInYear(events, year) {
+  const prefix = `${year}-`;
+  return events.filter((e) => COUNTED_STATUSES.includes(e.status) && e.event_date?.startsWith(prefix));
+}
+
+/** Months of `year` that carry fixed expenses: all 12, or Jan..now for the current year. */
+export function fixedExpenseMonthsInYear(year, today = new Date()) {
+  return year === today.getFullYear() ? today.getMonth() + 1 : 12;
+}

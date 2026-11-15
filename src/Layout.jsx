@@ -196,7 +196,8 @@ export default function Layout({ children, currentPageName }) {
   // Fixed expenses and reports are Ronen's alone — hidden from the menu and
   // blocked by URL for every other account, admins included.
   const ronenOnlyPages = ["FixedExpenses", "Reports"];
-  const isRonen = (user?.email || "").toLowerCase() === "ronen@raytlv.co.il";
+  // Local dev (npm run dev) sees Ronen's pages too; production builds don't.
+  const isRonen = import.meta.env.DEV || (user?.email || "").toLowerCase() === "ronen@raytlv.co.il";
   if (!isRonen && ronenOnlyPages.includes(currentPageName)) {
     return <Navigate to={createPageUrl("Dashboard")} replace />;
   }

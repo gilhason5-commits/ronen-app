@@ -11,6 +11,8 @@ import CategoryBreakdown from "../components/reports/CategoryBreakdown";
 import EventsFoodCostChart from "../components/reports/EventsFoodCostChart";
 import IngredientCategoryPieChart from "../components/reports/IngredientCategoryPieChart";
 import MonthlyProfitability from "../components/reports/MonthlyProfitability";
+import AnnualProfitability from "../components/reports/AnnualProfitability";
+import { eventTotalRevenue, withoutVat } from "@/lib/monthlyFinance";
 import { fmtCurrency } from "../components/utils/formatNumbers";
 
 export default function Reports() {
@@ -24,32 +26,32 @@ export default function Reports() {
     queryFn: () => base44.entities.PurchaseOrder.list(),
   });
 
+  // Same revenue as the monthly/annual P&L: plate price × guests + additions, pre-VAT.
+  // (event_price alone is empty on most events.)
+  const eventRevenue = (e) => withoutVat(eventTotalRevenue(e));
+
   const inProgressEvents = events.filter(e => e.status === 'in_progress');
   const completedEvents = events.filter(e => e.status === 'completed');
   
-  const inProgressRevenue = inProgressEvents.reduce((sum, e) => sum + (e.event_price || 0), 0);
+  const inProgressRevenue = inProgressEvents.reduce((sum, e) => sum + eventRevenue(e), 0);
   const inProgressFoodCost = inProgressEvents.reduce((sum, e) => sum + (e.food_cost_sum || 0), 0);
   const inProgressProfit = inProgressRevenue - inProgressFoodCost;
   const inProgressFoodCostPct = inProgressRevenue > 0 ? ((inProgressFoodCost / inProgressRevenue) * 100) : 0;
 
-  const completedRevenue = completedEvents.reduce((sum, e) => sum + (e.event_price || 0), 0);
+  const completedRevenue = completedEvents.reduce((sum, e) => sum + eventRevenue(e), 0);
   const completedFoodCost = completedEvents.reduce((sum, e) => sum + (e.food_cost_sum || 0), 0);
   const completedProfit = completedRevenue - completedFoodCost;
   const completedFoodCostPct = completedRevenue > 0 ? ((completedFoodCost / completedRevenue) * 100) : 0;
   
-  const totalRevenue = inProgressRevenue + completedRevenue;
-  const totalFoodCost = inProgressFoodCost + completedFoodCost;
-  const totalProfit = totalRevenue - totalFoodCost;
-  const avgFoodCostPct = totalRevenue > 0 ? ((totalFoodCost / totalRevenue) * 100) : 0;
 
   const exportToCSV = () => {
     const csvData = completedEvents.map(event => ({
       'שם אירוע': event.event_name,
       'תאריך': format(new Date(event.event_date), 'yyyy-MM-dd'),
       'אורחים': event.guest_count,
-      'הכנסות': event.event_price?.toFixed(2),
+      'הכנסות': eventRevenue(event).toFixed(2),
       'עלות מזון': event.food_cost_sum?.toFixed(2),
-      'רווח': ((event.event_price || 0) - (event.food_cost_sum || 0)).toFixed(2),
+      'רווח': (eventRevenue(event) - (event.food_cost_sum || 0)).toFixed(2),
       'שולי רווח %': event.food_cost_pct?.toFixed(2)
     }));
 
@@ -170,33 +172,7 @@ export default function Reports() {
         </div>
       </div>
 
-      <Card className="border-stone-200 bg-stone-50">
-        <CardHeader className="p-5 border-b border-stone-200">
-          <CardTitle className="text-lg font-semibold text-stone-900">סיכום כולל</CardTitle>
-        </CardHeader>
-        <CardContent className="p-5">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <p className="text-sm text-stone-500 mb-1">סך הכנסות</p>
-              <p className="text-2xl font-bold text-stone-900">{fmtCurrency(totalRevenue)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-stone-500 mb-1">סך עלויות מזון</p>
-              <p className="text-2xl font-bold text-stone-900">{fmtCurrency(totalFoodCost)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-stone-500 mb-1">סך רווח</p>
-              <p className="text-2xl font-bold text-emerald-600">{fmtCurrency(totalProfit)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-stone-500 mb-1">אחוז פוד קוסט ממוצע</p>
-              <p className={`text-2xl font-bold ${avgFoodCostPct <= 30 ? 'text-emerald-600' : avgFoodCostPct <= 35 ? 'text-yellow-600' : 'text-red-600'}`}>
-                {avgFoodCostPct.toFixed(1)}%
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <AnnualProfitability events={events} />
 
       <MonthlyProfitability />
 

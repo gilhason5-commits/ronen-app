@@ -22,7 +22,7 @@ import {
 //   revenue − food cost − event-dependent general expenses = gross profit
 //   gross profit − fixed expenses = net profit
 // Shown for the whole month first; the per-event split comes last.
-function Line({ label, value, sign, strong, hint }) {
+export function Line({ label, value, sign, strong, hint }) {
   return (
     <div className={`flex items-center justify-between py-2 ${strong ? "border-t-2 border-stone-800 font-bold text-base" : "border-b border-stone-100 text-sm"}`}>
       <span className={strong ? "text-stone-900" : "text-stone-600"}>
@@ -94,8 +94,9 @@ export default function MonthlyProfitability() {
           <div>
             <p className="text-sm font-semibold text-stone-800 mb-1">סה״כ לחודש</p>
             <Line label="הכנסות" value={pnl.revenue} />
-            <Line sign="−" label="הוצאות אוכל/תוכן" value={pnl.foodCost} hint="לפי עלות המנות באירועים" />
-            <Line sign="−" label="הוצאות כלליות תלויות אירוע" value={pnl.general.total} />
+            <Line sign="−" label="הוצאות מזון, משקאות ומשתנים" value={pnl.foodCost} hint="לפי עלות המנות באירועים" />
+            <Line sign="−" label="הוצאות כלליות פר אירוע" value={pnl.general.perEventTotal} hint={`${fmtCurrency(pnl.general.perEventUnit)} × ${n} אירועים`} />
+            <Line sign="−" label="הוצאות כלליות פר אורח" value={pnl.general.perGuestTotal} hint={`${fmtCurrency(pnl.general.perGuestUnit)} × ${pnl.general.guestCount.toLocaleString("he-IL")} אורחים`} />
             <Line strong label="רווח גולמי" value={pnl.grossProfit} />
             <Line sign="−" label="הוצאות קבועות" value={pnl.fixed} />
             <Line strong label="רווח נקי" value={pnl.netProfit} />
@@ -110,8 +111,9 @@ export default function MonthlyProfitability() {
             ) : (
               <>
                 <Line label="הכנסה ממוצעת" value={perEvent(pnl.revenue)} />
-                <Line sign="−" label="הוצאות אוכל/תוכן" value={perEvent(pnl.foodCost)} />
-                <Line sign="−" label="הוצאות כלליות תלויות אירוע" value={perEvent(pnl.general.total)} />
+                <Line sign="−" label="הוצאות מזון, משקאות ומשתנים" value={perEvent(pnl.foodCost)} />
+                <Line sign="−" label="הוצאות כלליות פר אירוע" value={perEvent(pnl.general.perEventTotal)} />
+                <Line sign="−" label="הוצאות כלליות פר אורח" value={perEvent(pnl.general.perGuestTotal)} />
                 <Line strong label="רווח גולמי לאירוע" value={perEvent(pnl.grossProfit)} />
                 <Line sign="−" label="הוצאות קבועות לאירוע" value={perEvent(pnl.fixed)} />
                 <Line strong label="רווח נקי לאירוע" value={perEvent(pnl.netProfit)} />
