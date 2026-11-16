@@ -10,6 +10,14 @@ import { fmtCurrency } from "../utils/formatNumbers";
 import LoadingState from "@/components/utils/LoadingState";
 import ExVatTag from "./ExVatTag";
 import {
+  fetchEventShiftsInRange,
+  fetchRosterShiftsInRange,
+  fetchDayNotesInRange,
+  fetchStaffingPlanForEvents,
+  laborBreakdown,
+} from "@/lib/laborCost";
+import {
+  monthRange,
   countedEventsInMonth,
   countedEventsInYear,
   eventTotalRevenue,
@@ -20,7 +28,9 @@ import {
 } from "@/lib/monthlyFinance";
 
 // P&L for a year or a single month, all amounts pre-VAT:
-//   revenue − food − event-dependent general expenses = gross profit
+//   revenue − food − event-dependent general expenses − labour = gross profit
+// Labour = employer cost of waiters (attendance), managers (floor staffing
+// map), kitchen and ops (their tables) — see lib/laborCost.js.
 //   gross profit − fixed expenses = net profit
 // Fixed expenses are monthly amounts: × 1 for a month, × 12 (or months so far) for a year.
 // `period` comes from useReportPeriod (shared with the food-cost chart).
@@ -35,27 +45,80 @@ export default function ProfitabilitySummary({ events, period, isLoading = false
     queryKey: ["generalExpenses"],
     queryFn: () => base44.entities.GeneralExpense.list("sort_order"),
   });
+  const [rangeFrom, rangeTo] = mode === "year" ? [`${year}-01-01`, `${year}-12-31`] : monthRange(month);
+  const periodEvents = useMemo(
+    () => (mode === "year" ? countedEventsInYear(events, year) : countedEventsInMonth(events, month)),
+    [events, mode, year, month]
+  );
+  const periodEventIds = useMemo(() => periodEvents.map((e) => e.id).sort(), [periodEvents]);
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ["taskEmployees"],
+    queryFn: () => base44.entities.TaskEmployee.list(),
+  });
+  const { data: members = [] } = useQuery({
+    queryKey: ["kitchenRoster"],
+    queryFn: () => base44.entities.KitchenRosterMember.list("sort_order"),
+  });
+  const { data: shifts = [] } = useQuery({
+    queryKey: ["laborEventShifts", rangeFrom, rangeTo],
+    queryFn: () => fetchEventShiftsInRange(rangeFrom, rangeTo),
+  });
+  const { data: rosterShifts = [] } = useQuery({
+    queryKey: ["laborRosterShifts", rangeFrom, rangeTo],
+    queryFn: () => fetchRosterShiftsInRange(rangeFrom, rangeTo),
+  });
+  const { data: dayNotes = [] } = useQuery({
+    queryKey: ["laborDayNotes", rangeFrom, rangeTo],
+    queryFn: () => fetchDayNotesInRange(rangeFrom, rangeTo),
+  });
+  const { data: planRows = [] } = useQuery({
+    queryKey: ["laborStaffingPlan", periodEventIds],
+    queryFn: () => fetchStaffingPlanForEvents(periodEventIds),
+    enabled: periodEventIds.length > 0,
+  });
 
   const pnl = useMemo(() => {
-    const periodEvents = mode === "year" ? countedEventsInYear(events, year) : countedEventsInMonth(events, month);
     const revenue = withoutVat(periodEvents.reduce((sum, e) => sum + eventTotalRevenue(e), 0));
     const foodCost = periodEvents.reduce((sum, e) => sum + (parseFloat(e.food_cost_sum) || 0), 0);
     const general = generalExpensesForMonth(generalItems, periodEvents);
-    const grossProfit = revenue - foodCost - general.total;
+    const employeesById = Object.fromEntries(employees.map((e) => [e.id, e]));
+    const labor = laborBreakdown({
+      fromDate: rangeFrom, toDate: rangeTo, periodEvents, allEvents: events, employeesById,
+      shifts, planRows, members, rosterShifts, dayNotes,
+    });
+    const grossProfit = revenue - foodCost - general.total - labor.total;
     const fixedMonthly = fixedExpensesTotal(fixedExpenses);
     const fixedMonths = mode === "year" ? fixedExpenseMonthsInYear(year) : 1;
     const fixed = fixedMonthly * fixedMonths;
     const netProfit = grossProfit - fixed;
     const foodCostPct = revenue > 0 ? (foodCost / revenue) * 100 : 0;
-    return { n: periodEvents.length, revenue, foodCost, foodCostPct, general, grossProfit, fixedMonthly, fixedMonths, fixed, netProfit };
-  }, [events, mode, year, month, generalItems, fixedExpenses]);
+    return { n: periodEvents.length, revenue, foodCost, foodCostPct, general, labor, grossProfit, fixedMonthly, fixedMonths, fixed, netProfit };
+  }, [events, periodEvents, mode, year, rangeFrom, rangeTo, generalItems, fixedExpenses, employees, members, shifts, rosterShifts, dayNotes, planRows]);
 
   const guests = pnl.general.guestCount.toLocaleString("he-IL");
+  const pctOfRevenue = (v) => (pnl.revenue > 0 ? (v / pnl.revenue) * 100 : 0);
+  // One tile per labour line, at employer cost; gaps are spelled out, never guessed.
+  const laborTile = (label, source, line, extraWarn = "") => ({
+    label: `כוח אדם — ${label}`,
+    value: line.total,
+    sub: `${pctOfRevenue(line.total).toFixed(1)}% מההכנסות · ${Math.round(line.hours).toLocaleString("he-IL")} שעות · ${source}`,
+    warn: [
+      line.missing.size ? `${line.missing.size} עובדים בלי עלות מעביד` : "",
+      line.noHours ? `${line.noHours} משמרות בלי שעות ברורות` : "",
+      extraWarn,
+    ].filter(Boolean).join(" · "),
+  });
   const tiles = [
     { label: "הכנסות", value: pnl.revenue, sub: `${pnl.n} אירועים · ${guests} אורחים` },
     { label: "מזון, משקאות ומשתנים", value: pnl.foodCost, sub: `${pnl.foodCostPct.toFixed(1)}% מההכנסות` },
     { label: "הוצאות כלליות פר אירוע", value: pnl.general.perEventTotal, sub: `${fmtCurrency(pnl.general.perEventUnit)} × ${pnl.n} אירועים` },
     { label: "הוצאות כלליות פר אורח", value: pnl.general.perGuestTotal, sub: `${fmtCurrency(pnl.general.perGuestUnit)} × ${guests} אורחים` },
+    laborTile("מלצרים", "לפי נוכחות", pnl.labor.lines.waiters,
+      pnl.labor.noAttendance ? `${pnl.labor.noAttendance} אירועים בלי נוכחות` : ""),
+    laborTile("מנהלים ופלור", "לפי מפת כוח אדם", pnl.labor.lines.floor),
+    laborTile("מטבח וניקיון", "לפי טבלת מטבח", pnl.labor.lines.kitchen),
+    laborTile("תפעול", "לפי טבלת תפעול", pnl.labor.lines.ops),
     { label: "רווח גולמי", value: pnl.grossProfit, profit: true },
     { label: "הוצאות קבועות", value: pnl.fixed, sub: pnl.fixedMonths > 1 ? `${fmtCurrency(pnl.fixedMonthly)} × ${pnl.fixedMonths} חודשים` : "לחודש" },
     { label: "רווח נקי", value: pnl.netProfit, profit: true },
@@ -108,6 +171,7 @@ export default function ProfitabilitySummary({ events, period, isLoading = false
                   </p>
                 )}
                 {t.sub && <p className="text-xs text-stone-500 mt-1">{t.sub}</p>}
+                {t.warn && <p className="text-xs text-amber-600 mt-0.5">{t.warn}</p>}
                 {t.pct == null && pnl.n > 0 && (
                   <p className="text-xs text-stone-400 mt-0.5">לאירוע: {fmtCurrency(t.value / pnl.n)}</p>
                 )}

@@ -1,3 +1,5 @@
+import { calculateStaffingGuestCount } from "@/lib/dinerCount";
+
 // Station -> color mapping for the kitchen/cleaning weekly schedule, matching
 // the color-coded paper sheet Ronen's team already uses (green = hot
 // kitchen, light green = cold kitchen, pink = fish, purple = patisserie,
@@ -99,4 +101,45 @@ export function potWashDefaultHours({ date, guests, hasEvent, fridayHadEvent, da
   if (!hasEvent) return { clockIn: "", clockOut: "" };
   const clockIn = guests <= 100 ? "14:00" : guests <= 200 ? "13:00" : "12:00";
   return { clockIn, clockOut };
+}
+
+// Hours a kitchen/ops roster cell shows when nothing is saved for it — the
+// staffing map's grid and the labour-cost report both use this. Fixed weekly
+// hours (e.g. every Friday 07:00–11:00) win; then big-event hours on days
+// with at least min_guests guests; pot washers follow their guest-count
+// standard; everyone else gets their default hours on event days only.
+//   eventDaySet: Set of YYYY-MM-DD with a (non-cancelled) event
+//   guestsByDay: Map YYYY-MM-DD → staffing guest count
+//   dayLabelOf:  YYYY-MM-DD → the day-name row label for this roster group
+export function rosterDefaultHours(member, d, { eventDaySet, guestsByDay, dayLabelOf = () => undefined }) {
+  const ds = toDateStr(d);
+  const weekly = member.weekly_hours?.[d.getDay()];
+  if (weekly) return { clockIn: weekly.in ?? "", clockOut: weekly.out ?? "" };
+  const big = member.large_event_hours;
+  if (big && eventDaySet.has(ds) && (guestsByDay.get(ds) || 0) >= big.min_guests) {
+    return { clockIn: big.in ?? "", clockOut: big.out ?? "" };
+  }
+  if (isPotWashStation(member.station)) {
+    const friday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 2);
+    return potWashDefaultHours({
+      date: d,
+      guests: guestsByDay.get(ds) || 0,
+      hasEvent: eventDaySet.has(ds),
+      fridayHadEvent: eventDaySet.has(toDateStr(friday)),
+      dayLabel: dayLabelOf(ds),
+    });
+  }
+  if (!eventDaySet.has(ds)) return { clockIn: "", clockOut: "" };
+  return { clockIn: member.default_clock_in ?? "", clockOut: member.default_clock_out ?? "" };
+}
+
+// Guest count used for every staffing/headcount figure — confirmed guests
+// only (guest_count + children + vegan + glatt), NOT reserves, which are
+// unconfirmed extra seats nobody should be staffed for in advance. Mirrors
+// staffingEngine.js's guestsOf().
+export function staffingGuestsOf(event) {
+  if (event.guest_count != null) {
+    return calculateStaffingGuestCount(event.guest_count, event.children_count, event.vegan_count, event.glatt_count);
+  }
+  return Number(event.total_guests) || 0;
 }

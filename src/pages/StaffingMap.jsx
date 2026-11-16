@@ -18,8 +18,7 @@ import {
 } from "@/lib/staffingEngine";
 import { exportConstraintsPdf, exportSupplierOrdersPdf, exportFloorReportPdf } from "@/lib/staffingPdf";
 import { getStaffColor } from "@/lib/staffColors";
-import { getStationColor, monthDates, toDateStr, formatTimeDigits, isPotWashStation, potWashDefaultHours } from "@/lib/kitchenSchedule";
-import { calculateStaffingGuestCount } from "@/lib/dinerCount";
+import { getStationColor, monthDates, toDateStr, formatTimeDigits, rosterDefaultHours, staffingGuestsOf } from "@/lib/kitchenSchedule";
 import { fetchKitchenShifts, saveKitchenShift, fetchEventsInRange, fetchDayNotes, saveDayNote, deleteKitchenShiftsForDay } from "@/lib/kitchenShifts";
 
 // A single shared reference for "no rows" so a missing lookup key never
@@ -27,17 +26,6 @@ import { fetchKitchenShifts, saveKitchenShift, fetchEventsInRange, fetchDayNotes
 // "changed") empty array.
 const EMPTY_ARRAY = [];
 
-// Guest count used for every staffing/headcount figure on this page —
-// confirmed guests only (guest_count + children + vegan + glatt), NOT
-// reserves, which are unconfirmed extra seats nobody should be staffed for
-// in advance. Mirrors staffingEngine.js's guestsOf() so the numbers shown
-// here always match what actually drove the role requirements.
-function staffingGuestsOf(event) {
-  if (event.guest_count != null) {
-    return calculateStaffingGuestCount(event.guest_count, event.children_count, event.vegan_count, event.glatt_count);
-  }
-  return Number(event.total_guests) || 0;
-}
 
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
@@ -724,26 +712,8 @@ function KitchenScheduleTable({ month, group = "kitchen", title = "צוות מט
   // hours (e.g. every Friday 07:00–11:00) apply whether or not there's an event.
   // Big-event hours replace the default hours on days with at least
   // min_guests guests (e.g. IAN 18:00–00:01 from 201); weekly hours still win.
-  const defaultHoursFor = (member, d, ds) => {
-    const weekly = member.weekly_hours?.[d.getDay()];
-    if (weekly) return { clockIn: weekly.in ?? "", clockOut: weekly.out ?? "" };
-    const big = member.large_event_hours;
-    if (big && eventDaySet.has(ds) && (guestsByDay.get(ds) || 0) >= big.min_guests) {
-      return { clockIn: big.in ?? "", clockOut: big.out ?? "" };
-    }
-    if (isPotWashStation(member.station)) {
-      const friday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 2);
-      return potWashDefaultHours({
-        date: d,
-        guests: guestsByDay.get(ds) || 0,
-        hasEvent: eventDaySet.has(ds),
-        fridayHadEvent: eventDaySet.has(toDateStr(friday)),
-        dayLabel: noteByDay.get(ds)?.label,
-      });
-    }
-    if (!eventDaySet.has(ds)) return { clockIn: "", clockOut: "" };
-    return { clockIn: member.default_clock_in ?? "", clockOut: member.default_clock_out ?? "" };
-  };
+  const defaultHoursFor = (member, d) =>
+    rosterDefaultHours(member, d, { eventDaySet, guestsByDay, dayLabelOf: (ds) => noteByDay.get(ds)?.label });
   const weeks = useMemo(() => {
     const result = [];
     let current = new Array(7).fill(null);
