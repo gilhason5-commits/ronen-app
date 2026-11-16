@@ -2,12 +2,13 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Users, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Printer, Settings, Pause } from "lucide-react";
+import { Clock, Users, ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Printer, Settings, Pause, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import RecurringTaskSummaryCard from "./RecurringTaskSummaryCard";
 import RecurringInstancesDialog from "./RecurringInstancesDialog";
 import RoleEditDialog from "./RoleEditDialog";
+import AssignOrphanTasksDialog from "./AssignOrphanTasksDialog";
 import LoadingState from "@/components/utils/LoadingState";
 
 const PAUSE_KEY_PREFIX = "paused_employee:";
@@ -30,6 +31,7 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
   const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState(null);
   const [editingRole, setEditingRole] = useState(null);
+  const [assigningOrphan, setAssigningOrphan] = useState(null);
   const orderLoaded = useRef(false);
 
   const { data: pausedKeys = [] } = useQuery({
@@ -44,9 +46,19 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
     [pausedKeys],
   );
 
-  const { data: employees = [] } = useQuery({
+  const { data: employees = [], isSuccess: employeesLoaded } = useQuery({
     queryKey: ['taskEmployees'],
     queryFn: () => base44.entities.TaskEmployee.list(),
+  });
+
+  // Peti Vor task templates — identify recurring rows whose employee was
+  // deleted (assigned_to_id nulled by the FK), which no employee filter catches.
+  const { data: pvTemplateIds = new Set() } = useQuery({
+    queryKey: ['taskTemplates', 'PETI_VOR_RECURRING_IDS'],
+    queryFn: async () => {
+      const all = await base44.entities.TaskTemplate.list();
+      return new Set(all.filter(t => t.task_type === 'PETI_VOR_RECURRING').map(t => t.id));
+    },
   });
 
   const { data: roles = [] } = useQuery({
@@ -84,10 +96,33 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
 
   const columns = useMemo(() => {
     const roleMap = {};
+    const employeeIds = new Set(employees.map(e => e.id));
+    // Orphans (owner deleted) get their own column, but only while they still
+    // have pending rows to hand over — past overdue ones just age out.
+    const orphanPending = new Set(
+      assignments
+        .filter(a => !a.assigned_to_id && pvTemplateIds.has(a.task_template_id) && ['PENDING', 'pending'].includes(a.status))
+        .map(a => a.assigned_to_name || '')
+    );
     assignments.forEach(a => {
       // A task handed to a backup stays in its ORIGINAL owner's column — the
       // card just notes who it moved to. Group by the original assignee.
       const ownerId = a.original_assigned_to_id || a.assigned_to_id;
+      const isOrphan = employeesLoaded && (!ownerId || !employeeIds.has(ownerId)) && pvTemplateIds.has(a.task_template_id);
+      if (isOrphan) {
+        const orphanName = a.assigned_to_name || '';
+        if (!orphanPending.has(orphanName)) return;
+        const key = `orphan:${orphanName}`;
+        if (!roleMap[key]) {
+          roleMap[key] = { name: 'ללא עובד', employeeName: `${orphanName || 'עובד'} (נמחק)`, employeeId: null, orphanName, departmentName: 'פטי וור', templates: {} };
+        }
+        const tmplId = a.task_template_id || a.id;
+        if (!roleMap[key].templates[tmplId]) {
+          roleMap[key].templates[tmplId] = { taskTitle: a.task_title, taskDescription: a.task_description, instances: [] };
+        }
+        roleMap[key].templates[tmplId].instances.push(a);
+        return;
+      }
       if (!pvEmployeeIds.has(ownerId)) return;
       const emp = employees.find(e => e.id === ownerId);
       const roleId = emp?.role_id || 'unassigned';
@@ -115,7 +150,7 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
       roleMap[roleId].templates[tmplId].instances.push(a);
     });
     return roleMap;
-  }, [assignments, employees, roles, pvEmployeeIds]);
+  }, [assignments, employees, employeesLoaded, roles, pvEmployeeIds, pvTemplateIds]);
 
   const [columnOrder, setColumnOrder] = useState(null);
   const [taskOrder, setTaskOrder] = useState({});
@@ -274,6 +309,17 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
                       })}
                     </div>
                     <div className="border border-t-0 border-stone-200 rounded-b-lg px-3 py-2 bg-white space-y-1">
+                      {col.orphanName !== undefined && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-amber-700 hover:text-amber-800 gap-2"
+                          onClick={() => setAssigningOrphan({ orphanName: col.orphanName, templateIds: Object.keys(col.templates) })}
+                        >
+                          <UserPlus className="w-4 h-4" />
+                          שייך לעובד חדש
+                        </Button>
+                      )}
                       {col.employeeId && roleId !== 'unassigned' && (
                         <Button
                           variant="ghost"
@@ -315,6 +361,14 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
         templateId={selectedTask?.templateId}
         allInstances={selectedTask?.instances || []}
         onStatusChange={(id, status) => updateStatusMutation.mutate({ id, status })}
+      />
+
+      <AssignOrphanTasksDialog
+        open={!!assigningOrphan}
+        onClose={() => setAssigningOrphan(null)}
+        orphanName={assigningOrphan?.orphanName}
+        departmentName="פטי וור"
+        templateIds={assigningOrphan?.templateIds || []}
       />
 
       <RoleEditDialog

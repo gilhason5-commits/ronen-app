@@ -371,12 +371,23 @@ export default function TaskEmployees() {
     },
   });
 
+  // Deleting an employee clears assigned_to_id on their tasks (FK on delete
+  // set null): the recurring series keeps generating with no owner and drops
+  // out of the task columns, so nobody can reassign it. Block that delete.
   const deleteEmployeeMutation = useMutation({
-    mutationFn: (id) => base44.entities.TaskEmployee.delete(id),
+    mutationFn: async (id) => {
+      const rows = await base44.entities.TaskAssignment.filter({ assigned_to_id: id });
+      const openRecurring = rows.filter((t) => !t.event_id && ['PENDING', 'pending'].includes(t.status));
+      if (openRecurring.length > 0) {
+        throw new Error(`לעובד יש ${openRecurring.length} משימות שוטפות פתוחות. קודם העבר אותן לעובד אחר דרך "עריכה" בעמוד המשימות השוטפות (או סמן את העובד כלא פעיל), ורק אז מחק.`);
+      }
+      return base44.entities.TaskEmployee.delete(id);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['taskEmployees'] });
       toast.success('עובד נמחק');
     },
+    onError: (err) => toast.error(err?.message || 'מחיקה נכשלה', { duration: 10000 }),
   });
 
   const deleteRoleMutation = useMutation({
