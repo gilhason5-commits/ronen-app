@@ -1,30 +1,35 @@
 import React, { useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { subMonths, isAfter, parseISO, format } from 'date-fns';
+import { parseISO, format } from 'date-fns';
 import LoadingState from "@/components/utils/LoadingState";
+import ExVatTag from "./ExVatTag";
+import { countedEventsInMonth, eventTotalRevenue, withoutVat } from "@/lib/monthlyFinance";
 
-export default function EventsFoodCostChart({ events, isLoading = false }) {
+const bar = (name, date, periodEvents) => {
+  const revenue = withoutVat(periodEvents.reduce((sum, e) => sum + eventTotalRevenue(e), 0));
+  const cost = periodEvents.reduce((sum, e) => sum + (parseFloat(e.food_cost_sum) || 0), 0);
+  return { name, date, foodCostPct: revenue > 0 ? (cost / revenue) * 100 : 0, revenue, cost };
+};
+
+// Food cost % — per month for the yearly filter, per event for the monthly
+// one. Same events and pre-VAT revenue as the P&L tiles (`period` is shared).
+export default function EventsFoodCostChart({ events, period, isLoading = false }) {
+  const { mode, year, month, label } = period;
+
   const data = useMemo(() => {
-    const oneMonthAgo = subMonths(new Date(), 1);
-    
-    return events
-      .filter(e => {
-        if (!e.event_date) return false;
-        const date = parseISO(e.event_date);
-        // Include completed and in_progress events from the last month that have revenue
-        return isAfter(date, oneMonthAgo) && (e.event_price > 0);
-      })
-      .map(e => ({
-        name: e.event_name,
-        date: format(parseISO(e.event_date), 'dd/MM'),
-        originalDate: e.event_date,
-        foodCostPct: e.food_cost_pct || 0,
-        revenue: e.event_price || 0,
-        cost: e.food_cost_sum || 0
-      }))
-      .sort((a, b) => new Date(a.originalDate) - new Date(b.originalDate));
-  }, [events]);
+    if (mode === "year") {
+      return Array.from({ length: 12 }, (_, i) => {
+        const d = new Date(year, i, 1);
+        const monthEvents = countedEventsInMonth(events, d);
+        return bar(d.toLocaleDateString("he-IL", { month: "long" }), `${monthEvents.length} אירועים`, monthEvents);
+      }).filter(d => d.revenue > 0);
+    }
+    return countedEventsInMonth(events, month)
+      .sort((a, b) => a.event_date.localeCompare(b.event_date))
+      .map(e => bar(e.event_name, format(parseISO(e.event_date), 'dd/MM'), [e]))
+      .filter(d => d.revenue > 0);
+  }, [events, mode, year, month]);
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -37,10 +42,10 @@ export default function EventsFoodCostChart({ events, isLoading = false }) {
             אחוז פוד קוסט: <span className={`font-bold ${data.foodCostPct > 35 ? 'text-red-600' : 'text-emerald-600'}`}>{data.foodCostPct.toFixed(1)}%</span>
           </p>
           <p className="text-stone-500 text-xs mt-1">
-            הכנסות: ₪{data.revenue.toLocaleString(undefined, {maximumFractionDigits: 2})}
+            הכנסות: ₪{data.revenue.toLocaleString(undefined, {maximumFractionDigits: 2})} <ExVatTag />
           </p>
           <p className="text-stone-500 text-xs">
-            עלות מזון: ₪{data.cost.toLocaleString(undefined, {maximumFractionDigits: 2})}
+            עלות מזון: ₪{data.cost.toLocaleString(undefined, {maximumFractionDigits: 2})} <ExVatTag />
           </p>
         </div>
       );
@@ -51,7 +56,9 @@ export default function EventsFoodCostChart({ events, isLoading = false }) {
   return (
     <Card className="border-stone-200">
       <CardHeader className="p-5 border-b border-stone-200">
-        <CardTitle className="text-lg font-semibold text-stone-900">אחוז פוד קוסט - חודש אחרון</CardTitle>
+        <CardTitle className="text-lg font-semibold text-stone-900">
+          אחוז פוד קוסט {mode === "year" ? "לפי חודש" : "לפי אירוע"} · {label}
+        </CardTitle>
       </CardHeader>
       <CardContent className="p-5 h-[400px]">
         {data.length > 0 ? (
@@ -62,7 +69,7 @@ export default function EventsFoodCostChart({ events, isLoading = false }) {
             >
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e5e5" />
               <XAxis 
-                dataKey="date" 
+                dataKey={mode === "year" ? "name" : "date"} 
                 tick={{ fontSize: 11, fill: '#78716c' }} 
                 interval={0} 
                 angle={-45} 
@@ -90,7 +97,7 @@ export default function EventsFoodCostChart({ events, isLoading = false }) {
           <LoadingState className="h-full" />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-stone-400">
-            <p>אין נתונים לחודש האחרון</p>
+            <p>אין אירועים מאושרים בתקופה זו</p>
           </div>
         )}
       </CardContent>

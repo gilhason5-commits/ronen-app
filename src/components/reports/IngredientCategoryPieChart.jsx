@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { subMonths, format } from 'date-fns';
+import ExVatTag from "./ExVatTag";
 import { applyWasteToQty } from "@/lib/foodWaste";
 import { firstCourseCut } from "@/lib/firstCourseCut";
 import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
@@ -12,21 +12,9 @@ import { rowQtyInSystemUnits } from "@/lib/recipeQty";
 
 const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#6366f1'];
 
-export default function IngredientCategoryPieChart() {
-  const oneMonthAgo = useMemo(() => format(subMonths(new Date(), 1), 'yyyy-MM-dd'), []);
-
-  // 1. Fetch Events from last month (regardless of status, but typically not
-  // cancelled if we want "existing"). entityFactory.filter() only supports
-  // equality (or an array via .in()), not Mongo-style operators — filter
-  // client-side instead of passing an unsupported $gte object.
-  const { data: allEvents = [], isLoading: eventsLoading } = useQuery({
-    queryKey: ['events', 'all'],
-    queryFn: () => base44.entities.Event.list(),
-  });
-  const events = useMemo(
-    () => allEvents.filter((e) => e.event_date >= oneMonthAgo),
-    [allEvents, oneMonthAgo]
-  );
+// Ingredient cost split for the reports page's period (year / month):
+// `events` are that period's approved + completed events.
+export default function IngredientCategoryPieChart({ events, periodLabel, isLoading: eventsLoading = false }) {
 
   // 2. Fetch Events_Dish to get planned dishes
   const { data: eventsDishes = [] } = useQuery({
@@ -149,7 +137,7 @@ export default function IngredientCategoryPieChart() {
       return (
         <div className="bg-white p-2 border border-stone-200 shadow-sm rounded text-sm">
           <p className="font-semibold">{data.name}</p>
-          <p className="text-stone-600">₪{data.value.toLocaleString()}</p>
+          <p className="text-stone-600">₪{data.value.toLocaleString()} <ExVatTag /></p>
         </div>
       );
     }
@@ -159,7 +147,7 @@ export default function IngredientCategoryPieChart() {
   return (
     <Card className="border-stone-200 h-full">
       <CardHeader className="p-5 border-b border-stone-200">
-        <CardTitle className="text-lg font-semibold text-stone-900">תחזית עלויות רכיבים (לפי אירועים) - חודש אחרון</CardTitle>
+        <CardTitle className="text-lg font-semibold text-stone-900">עלות רכיבים לפי קטגוריה · {periodLabel}</CardTitle>
       </CardHeader>
       <CardContent className="p-5 h-[350px]">
         {chartData.length > 0 ? (

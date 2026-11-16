@@ -8,10 +8,11 @@ import { applyWasteToValue } from "@/lib/foodWaste";
 import { firstCourseCut } from "@/lib/firstCourseCut";
 import { eventDishSummaryQuery } from "@/lib/eventDishQueries";
 import LoadingState from "@/components/utils/LoadingState";
+import ExVatTag from "./ExVatTag";
 
 // extraRows: [{ id, name, total }] — costs outside Events_Dish (e.g. fixed
 // per-event items) shown as their own rows and included in the total.
-export default function CategoryBreakdown({ events, eventDishes: propEventDishes, getEffectivePlannedCost, isLoading = false, extraRows = [] }) {
+export default function CategoryBreakdown({ events, eventDishes: propEventDishes, getEffectivePlannedCost, isLoading = false, extraRows = [], periodLabel }) {
   // If eventDishes are passed directly, use them. Otherwise fetch from API
   const { data: fetchedEventsDishes = [], isLoading: dishesLoading } = useQuery({
     ...eventDishSummaryQuery,
@@ -68,16 +69,20 @@ export default function CategoryBreakdown({ events, eventDishes: propEventDishes
     categoryTotals[categoryId] += cost;
   });
 
-  // Create category data with names
-  const categoryData = Object.entries(categoryTotals).map(([categoryId, total]) => {
+  // Each event type (serving / wedding / party) has its own copy of every
+  // category, so merge by name: "אפטר פארטי" ×2, "עיקריות" / "מנות עיקריות".
+  const groupKey = (name) => name.trim().replace(/^מנות\s+/, '');
+  const groups = {};
+  Object.entries(categoryTotals).forEach(([categoryId, total]) => {
     const category = categories.find(c => c.id === categoryId);
-    return {
-      id: categoryId,
-      name: category?.name || 'לא מוגדר',
-      total: total,
-      displayOrder: category?.display_order || 999
-    };
+    const name = (category?.name || 'לא מוגדר').trim();
+    const key = groupKey(name);
+    const g = groups[key] || (groups[key] = { id: key, name, total: 0, displayOrder: category?.display_order ?? 999 });
+    g.total += total;
+    if (name.length > g.name.length) g.name = name;
+    g.displayOrder = Math.min(g.displayOrder, category?.display_order ?? 999);
   });
+  const categoryData = Object.values(groups);
 
   // Sort by display order
   categoryData.sort((a, b) => a.displayOrder - b.displayOrder);
@@ -91,7 +96,7 @@ export default function CategoryBreakdown({ events, eventDishes: propEventDishes
         <CardHeader className="border-b border-stone-200 p-5">
           <div className="flex items-center gap-2">
             <UtensilsCrossed className="w-5 h-5 text-stone-500" />
-            <CardTitle className="text-lg">עלות לפי קטגוריה</CardTitle>
+            <CardTitle className="text-lg">עלות לפי קטגוריה{periodLabel ? ` · ${periodLabel}` : ""}</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="p-5">
@@ -113,7 +118,7 @@ export default function CategoryBreakdown({ events, eventDishes: propEventDishes
       <CardHeader className="border-b border-stone-200 p-5">
         <div className="flex items-center gap-2">
           <UtensilsCrossed className="w-5 h-5 text-stone-500" />
-          <CardTitle className="text-lg">עלות לפי קטגוריה</CardTitle>
+          <CardTitle className="text-lg">עלות לפי קטגוריה{periodLabel ? ` · ${periodLabel}` : ""}</CardTitle>
         </div>
       </CardHeader>
       <CardContent className="p-5">
@@ -126,7 +131,7 @@ export default function CategoryBreakdown({ events, eventDishes: propEventDishes
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-medium text-stone-700">{cat.name}</span>
                   <div className="text-right">
-                    <span className="font-bold text-stone-900">{fmtCurrency(cat.total)}</span>
+                    <span className="font-bold text-stone-900">{fmtCurrency(cat.total)}</span> <ExVatTag />
                     <span className="text-xs text-stone-500 mr-2">({percentage.toFixed(1)}%)</span>
                   </div>
                 </div>
@@ -142,7 +147,7 @@ export default function CategoryBreakdown({ events, eventDishes: propEventDishes
           
           <div className="pt-4 border-t border-stone-200 flex justify-between items-center">
             <span className="font-semibold text-stone-900">סה"כ</span>
-            <span className="font-bold text-lg text-stone-900">{fmtCurrency(totalCost)}</span>
+            <span className="font-bold text-lg text-stone-900">{fmtCurrency(totalCost)} <ExVatTag /></span>
           </div>
         </div>
       </CardContent>

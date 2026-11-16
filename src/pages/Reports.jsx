@@ -5,15 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { format } from "date-fns";
 
-import MonthlyRollup from "../components/reports/MonthlyRollup";
 import CategoryBreakdown from "../components/reports/CategoryBreakdown";
 import EventsFoodCostChart from "../components/reports/EventsFoodCostChart";
 import IngredientCategoryPieChart from "../components/reports/IngredientCategoryPieChart";
-import MonthlyProfitability from "../components/reports/MonthlyProfitability";
-import AnnualProfitability from "../components/reports/AnnualProfitability";
-import { eventTotalRevenue, withoutVat } from "@/lib/monthlyFinance";
+import ProfitabilitySummary from "../components/reports/ProfitabilitySummary";
+import useReportPeriod from "../components/reports/useReportPeriod";
+import { eventTotalRevenue, withoutVat, countedEventsInMonth, countedEventsInYear } from "@/lib/monthlyFinance";
 
 export default function Reports() {
+  const period = useReportPeriod();
   const { data: events = [], isLoading: eventsLoading } = useQuery({
     queryKey: ['events'],
     queryFn: () => base44.entities.Event.list('-event_date'),
@@ -30,14 +30,20 @@ export default function Reports() {
 
   const completedEvents = events.filter(e => e.status === 'completed');
 
+  // Approved + completed events in the selected year / month — what every
+  // section below the P&L tiles summarises.
+  const periodEvents = period.mode === "year"
+    ? countedEventsInYear(events, period.year)
+    : countedEventsInMonth(events, period.month);
+
   const exportToCSV = () => {
     const csvData = completedEvents.map(event => ({
       'שם אירוע': event.event_name,
       'תאריך': format(new Date(event.event_date), 'yyyy-MM-dd'),
       'אורחים': event.guest_count,
-      'הכנסות': eventRevenue(event).toFixed(2),
-      'עלות מזון': event.food_cost_sum?.toFixed(2),
-      'רווח': (eventRevenue(event) - (event.food_cost_sum || 0)).toFixed(2),
+      'הכנסות (לפני מע״מ)': eventRevenue(event).toFixed(2),
+      'עלות מזון (לפני מע״מ)': event.food_cost_sum?.toFixed(2),
+      'רווח (לפני מע״מ)': (eventRevenue(event) - (event.food_cost_sum || 0)).toFixed(2),
       'שולי רווח %': event.food_cost_pct?.toFixed(2)
     }));
 
@@ -68,21 +74,15 @@ export default function Reports() {
         </Button>
       </div>
 
-      <AnnualProfitability events={events} />
-
-      <MonthlyProfitability />
+      <ProfitabilitySummary events={events} period={period} isLoading={eventsLoading} />
 
       {/* New Charts Section */}
-      <EventsFoodCostChart events={events} isLoading={eventsLoading} />
+      <EventsFoodCostChart events={events} period={period} isLoading={eventsLoading} />
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <IngredientCategoryPieChart />
-        <CategoryBreakdown events={completedEvents} isLoading={eventsLoading} />
+        <IngredientCategoryPieChart events={periodEvents} periodLabel={period.label} isLoading={eventsLoading} />
+        <CategoryBreakdown events={periodEvents} periodLabel={period.label} isLoading={eventsLoading} />
       </div>
-
-
-
-      <MonthlyRollup events={events} isLoading={eventsLoading} />
     </div>
   );
 }
