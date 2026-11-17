@@ -109,6 +109,8 @@ export default function ProfitabilitySummary({ events, period, isLoading = false
       extraWarn,
     ].filter(Boolean).join(" · "),
   });
+  const laborIncomplete = pnl.labor.noAttendance > 0 ||
+    Object.values(pnl.labor.lines).some((l) => l.missing.size > 0 || l.noHours > 0);
   const tiles = [
     { label: "הכנסות", value: pnl.revenue, sub: `${pnl.n} אירועים · ${guests} אורחים` },
     { label: "מזון, משקאות ומשתנים", value: pnl.foodCost, sub: `${pnl.foodCostPct.toFixed(1)}% מההכנסות` },
@@ -122,7 +124,13 @@ export default function ProfitabilitySummary({ events, period, isLoading = false
     { label: "רווח גולמי", value: pnl.grossProfit, profit: true },
     { label: "הוצאות קבועות", value: pnl.fixed, sub: pnl.fixedMonths > 1 ? `${fmtCurrency(pnl.fixedMonthly)} × ${pnl.fixedMonths} חודשים` : "לחודש" },
     { label: "רווח נקי", value: pnl.netProfit, profit: true },
-    { label: "אחוז פוד קוסט", pct: pnl.foodCostPct },
+    { label: "אחוז פוד קוסט", pct: pnl.foodCostPct, sub: `${fmtCurrency(pnl.foodCost)} מתוך ההכנסות` },
+    {
+      label: "אחוז לייבור קוסט",
+      pct: pctOfRevenue(pnl.labor.total),
+      sub: `${fmtCurrency(pnl.labor.total)} כוח אדם מתוך ההכנסות`,
+      warn: laborIncomplete ? "חלקי — חסרים נתוני עלות מעביד / שעות / נוכחות" : "",
+    },
   ];
 
   return (

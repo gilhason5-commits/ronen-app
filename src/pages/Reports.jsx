@@ -9,6 +9,7 @@ import CategoryBreakdown from "../components/reports/CategoryBreakdown";
 import EventsFoodCostChart from "../components/reports/EventsFoodCostChart";
 import IngredientCategoryPieChart from "../components/reports/IngredientCategoryPieChart";
 import ProfitabilitySummary from "../components/reports/ProfitabilitySummary";
+import SupplierExpenses from "../components/reports/SupplierExpenses";
 import useReportPeriod from "../components/reports/useReportPeriod";
 import { eventTotalRevenue, withoutVat, countedEventsInMonth, countedEventsInYear } from "@/lib/monthlyFinance";
 
@@ -83,6 +84,8 @@ export default function Reports() {
         <IngredientCategoryPieChart events={periodEvents} periodLabel={period.label} isLoading={eventsLoading} />
         <CategoryBreakdown events={periodEvents} periodLabel={period.label} isLoading={eventsLoading} />
       </div>
+
+      <SupplierExpenses events={periodEvents} periodLabel={period.label} isLoading={eventsLoading} />
     </div>
   );
 }
