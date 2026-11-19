@@ -72,11 +72,41 @@ function useRoleColumns(rules) {
 // name alone is enough to identify who's assigned on the floor sheet.
 const firstName = (fullName) => (fullName || "").trim().split(/\s+/)[0] || "";
 
+// First name alone is ambiguous when several active employees share it (e.g.
+// a few "נועם"s) — then add the surname initial, or the whole rest of the name
+// if two of them share that initial too.
+const shortNameCache = new WeakMap();
+function shortName(fullName, employees) {
+  const name = (fullName || "").trim();
+  const first = firstName(name);
+  if (!employees) return first;
+  let byFirst = shortNameCache.get(employees);
+  if (!byFirst) {
+    byFirst = new Map();
+    for (const e of employees) {
+      if (!e.is_active) continue;
+      const n = (e.full_name || "").trim();
+      const f = firstName(n);
+      if (!f) continue;
+      if (!byFirst.has(f)) byFirst.set(f, new Set());
+      byFirst.get(f).add(n);
+    }
+    shortNameCache.set(employees, byFirst);
+  }
+  const namesake = [...(byFirst.get(first) || [])].filter((n) => n !== name);
+  if (namesake.length === 0) return first;
+  const rest = (n) => n.slice(firstName(n).length).trim().replace(/[()]/g, "");
+  const initial = (n) => rest(n).charAt(0);
+  if (!rest(name)) return first;
+  const clash = namesake.some((n) => initial(n) === initial(name));
+  return clash ? `${first} ${rest(name)}` : `${first} ${initial(name)}׳`;
+}
+
 // Searchable replacement for the native <select>: the staff list is long, so
 // the floor manager types part of a name instead of scrolling for it. The
 // option list only mounts while the popover is open (Radix unmounts closed
 // content), which also keeps the monthly table lighter than a <select> per cell.
-function StaffPicker({ value, label, onSelect, employees, className, style }) {
+function StaffPicker({ value, label, title, onSelect, employees, className, style }) {
   const [open, setOpen] = useState(false);
   const options = useMemo(
     () => employees
@@ -95,6 +125,7 @@ function StaffPicker({ value, label, onSelect, employees, className, style }) {
           type="button"
           role="combobox"
           aria-expanded={open}
+          title={title}
           style={style}
           className={`w-full max-w-full h-8 text-[11px] border-0 px-1 text-center truncate focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 ${className}`}
         >
@@ -146,7 +177,8 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
           <StaffPicker
             key={slot}
             value={assigned?.assigned_employee_id || "__none__"}
-            label={filled ? firstName(assigned?.assigned_name) : "— לא משובץ —"}
+            label={filled ? shortName(assigned?.assigned_name, employees) : "— לא משובץ —"}
+            title={filled ? assigned?.assigned_name : undefined}
             onSelect={(employee) => onAssign({ role_name: roleName, slot, employee })}
             style={filled ? color.style : undefined}
             className={filled ? `${color.className} font-semibold` : "bg-red-800 text-white font-semibold"}
@@ -160,7 +192,7 @@ function RoleCell({ roleName, requiredRoles, planRows, employees, onAssign }) {
           className="h-8 flex items-center justify-between gap-1 px-1 bg-amber-300 text-amber-950 text-[11px] font-semibold"
           title={`${roleName} הוסר מהתקן — ${p.assigned_name} עדיין חושב/ת שמגיע/ה. עדכנו אותו/ה ולחצו "טופל".`}
         >
-          <span className="truncate line-through">{firstName(p.assigned_name)}</span>
+          <span className="truncate line-through">{shortName(p.assigned_name, employees)}</span>
           <button
             className="shrink-0 rounded bg-white/80 px-1 text-[10px] hover:bg-white"
             onClick={() => onAssign({ role_name: roleName, slot: p.slot || 1, employee: "__none__" })}
@@ -1145,7 +1177,9 @@ export default function StaffingMap() {
   const employees = useMemo(() => {
     const seen = new Set();
     const deduped = [];
-    for (const e of rawEmployees) {
+    // Active records first, so an inactive duplicate never hides the live one.
+    const ordered = [...rawEmployees].sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0));
+    for (const e of ordered) {
       const name = (e.full_name || "").trim();
       if (!name || seen.has(name)) continue;
       seen.add(name);
