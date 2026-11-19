@@ -55,9 +55,9 @@ export default function MultiEventDailyTicket({ group }) {
         const wasteLabel = item.waste_pct > 0 ? ` <span style="color:#d32f2f; font-size:10px; font-weight:bold;">(פחת ${item.waste_pct}%)</span>` : '';
         return `
           <tr>
-            <td>${item.ingredient_name}${wasteLabel}</td>
-            <td style="text-align:center;">${formatNumber(item.net_qty ?? item.qty)} ${formatUnit(item.unit)}</td>
-            <td style="text-align:center; font-weight:bold;">${formatNumber(item.purchase_qty ?? item.qty)} ${formatUnit(item.unit)}</td>
+            <td style="padding:6px 8px; padding-left:24px; white-space:nowrap; width:1%;">${item.ingredient_name}${wasteLabel}</td>
+            <td style="padding:6px 8px; font-weight:bold; white-space:nowrap;">${formatNumber(item.purchase_qty ?? item.qty)} ${formatUnit(item.unit)}</td>
+            <td></td>
           </tr>
         `;
       }).join('');
@@ -75,9 +75,9 @@ export default function MultiEventDailyTicket({ group }) {
           </div>
           <table style="width:100%; border-collapse:collapse;">
             <thead><tr>
-              <th style="padding:6px 8px; text-align:right; border-bottom:1px solid #ddd; background:#f5f5f5; font-size:11px;">רכיב</th>
-              <th style="padding:6px 8px; text-align:center; border-bottom:1px solid #ddd; background:#f5f5f5; font-size:11px;">כמות נדרשת</th>
-              <th style="padding:6px 8px; text-align:center; border-bottom:1px solid #ddd; background:#f5f5f5; font-size:11px;">כמות לקנייה</th>
+              <th style="padding:6px 8px; padding-left:24px; width:1%; white-space:nowrap; text-align:right; border-bottom:1px solid #ddd; background:#f5f5f5; font-size:11px;">רכיב</th>
+              <th style="padding:6px 8px; text-align:right; border-bottom:1px solid #ddd; background:#f5f5f5; font-size:11px;">כמות לקנייה</th>
+              <th style="border-bottom:1px solid #ddd; background:#f5f5f5;"></th>
             </tr></thead>
             <tbody>${rows}</tbody>
           </table>
@@ -142,17 +142,17 @@ export default function MultiEventDailyTicket({ group }) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-stone-200 text-stone-500">
-                    <th className="text-right py-2 font-medium">רכיב</th>
-                    <th className="text-center py-2 font-medium w-24">כמות נדרשת</th>
-                    <th className="text-center py-2 font-medium w-24">כמות לקנייה</th>
+                    <th className="text-right py-2 font-medium sm:w-px sm:whitespace-nowrap pl-6">רכיב</th>
+                    <th className="text-right py-2 font-medium w-28">כמות לקנייה</th>
                     <th className="text-center py-2 font-medium w-20">מחיר/יח׳</th>
                     <th className="text-center py-2 font-medium w-20">סה״כ</th>
+                    <th />
                   </tr>
                 </thead>
                 <tbody>
                   {section.items.map((item, itemIdx) => (
                     <tr key={item.ingredient_id} className="border-b border-stone-100">
-                      <td className="py-2 text-stone-900">
+                      <td className="py-2 text-stone-900 sm:w-px sm:whitespace-nowrap pl-6">
                         <button
                           type="button"
                           className="text-right underline decoration-dotted underline-offset-4 hover:text-emerald-700"
@@ -163,17 +163,14 @@ export default function MultiEventDailyTicket({ group }) {
                         </button>
                         {item.waste_pct > 0 && <span className="text-red-600 text-xs font-bold mr-1">(פחת {item.waste_pct}%)</span>}
                       </td>
-                      <td className="py-2 text-center text-stone-500">
-                        {formatNumber(item.net_qty ?? item.qty)} {formatUnit(item.unit)}
-                      </td>
-                      <td className="py-2 text-center">
+                      <td className="py-2 text-right">
                         {editing ? (
                           <Input
                             type="number"
                             step="0.01"
                             value={item.purchase_qty ?? item.qty}
                             onChange={(e) => handleQtyChange(sectionIdx, itemIdx, e.target.value)}
-                            className="w-24 h-7 text-center text-sm mx-auto"
+                            className="w-24 h-7 text-center text-sm"
                           />
                         ) : (
                           <span className="font-semibold">{formatNumber(item.purchase_qty ?? item.qty)} {formatUnit(item.unit)}</span>
@@ -181,6 +178,7 @@ export default function MultiEventDailyTicket({ group }) {
                       </td>
                       <td className="py-2 text-center text-stone-600">₪{formatNumber(item.price_per_unit)}</td>
                       <td className="py-2 text-center font-semibold">₪{formatNumber((item.purchase_qty ?? item.qty) * item.price_per_unit)}</td>
+                      <td />
                     </tr>
                   ))}
                 </tbody>

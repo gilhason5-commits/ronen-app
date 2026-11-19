@@ -34,9 +34,9 @@ export default function WeeklyOrderTicket({ ticket }) {
       const wasteLabel = item.waste_pct > 0 ? ` <span style="color:#d32f2f; font-size:10px; font-weight:bold;">(פחת ${item.waste_pct}%)</span>` : '';
       return `
       <tr>
-        <td>${item.ingredient_name}${wasteLabel}</td>
-        <td style="text-align:center;">${formatNumber(item.net_qty ?? item.qty)} ${formatUnit(item.unit)}</td>
-        <td style="text-align:center; font-weight:bold;">${formatNumber(item.purchase_qty ?? item.qty)} ${formatUnit(item.unit)}</td>
+        <td style="white-space:nowrap; padding-left:24px;">${item.ingredient_name}${wasteLabel}</td>
+        <td style="font-weight:bold; white-space:nowrap;">${formatNumber(item.purchase_qty ?? item.qty)} ${formatUnit(item.unit)}</td>
+        <td></td>
       </tr>
     `;
     }).join('');
@@ -60,7 +60,7 @@ export default function WeeklyOrderTicket({ ticket }) {
         <div class="meta"><strong>תאריך הפקה:</strong> ${format(new Date(), 'dd/MM/yyyy HH:mm')}</div>
         <table>
           <thead><tr>
-            <th>רכיב</th><th style="text-align:center;">כמות נדרשת</th><th style="text-align:center;">כמות לקנייה</th>
+            <th style="width:1%; white-space:nowrap; padding-left:24px;">רכיב</th><th>כמות לקנייה</th><th></th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -91,15 +91,15 @@ export default function WeeklyOrderTicket({ ticket }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-stone-200 text-stone-500">
-              <th className="text-right py-2 font-medium">רכיב</th>
-              <th className="text-center py-2 font-medium w-24">כמות נדרשת</th>
-              <th className="text-center py-2 font-medium w-24">כמות לקנייה</th>
+              <th className="text-right py-2 font-medium sm:w-px sm:whitespace-nowrap pl-6">רכיב</th>
+              <th className="text-right py-2 font-medium w-28">כמות לקנייה</th>
+              <th />
             </tr>
           </thead>
           <tbody>
             {items.map((item, idx) => (
               <tr key={item.ingredient_id} className="border-b border-stone-100">
-                <td className="py-2 text-stone-900">
+                <td className="py-2 text-stone-900 sm:w-px sm:whitespace-nowrap pl-6">
                   <button
                     type="button"
                     className="text-right underline decoration-dotted underline-offset-4 hover:text-emerald-700"
@@ -110,22 +110,20 @@ export default function WeeklyOrderTicket({ ticket }) {
                   </button>
                   {item.waste_pct > 0 && <span className="text-red-600 text-xs font-bold mr-1">(פחת {item.waste_pct}%)</span>}
                 </td>
-                <td className="py-2 text-center text-stone-500">
-                  {formatNumber(item.net_qty ?? item.qty)} {formatUnit(item.unit)}
-                </td>
-                <td className="py-2 text-center">
+                <td className="py-2 text-right">
                   {editing ? (
                     <Input
                       type="number"
                       step="0.01"
                       value={item.purchase_qty ?? item.qty}
                       onChange={(e) => handleQtyChange(idx, e.target.value)}
-                      className="w-24 h-7 text-center text-sm mx-auto"
+                      className="w-24 h-7 text-center text-sm"
                     />
                   ) : (
                     <span className="font-semibold">{formatNumber(item.purchase_qty ?? item.qty)} {formatUnit(item.unit)}</span>
                   )}
                 </td>
+                <td />
               </tr>
             ))}
           </tbody>
