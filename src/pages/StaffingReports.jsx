@@ -27,6 +27,33 @@ function shiftHours(clockIn, clockOut) {
 
 const fmtHours = (h) => `${h.toLocaleString("he-IL", { maximumFractionDigits: 2 })} ש'`;
 
+// "יום ה׳ 02/10" for a YYYY-MM-DD string (parsed as a local date).
+const fmtDay = (d) => {
+  const [y, m, day] = d.split("-").map(Number);
+  const weekday = new Date(y, m - 1, day).toLocaleDateString("he-IL", { weekday: "short" });
+  return `${weekday} ${String(day).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
+};
+
+// Render a hidden element to an A4 PDF, continuing onto extra pages when it's
+// taller than one page (the monthly day-by-day report usually is).
+async function saveElementAsPdf(el, filename) {
+  const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff" });
+  const imgData = canvas.toDataURL("image/png");
+  const pdf = new jsPDF("p", "mm", "a4");
+  const margin = 10;
+  const imgWidth = pdf.internal.pageSize.getWidth() - margin * 2;
+  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  const pageContent = pdf.internal.pageSize.getHeight() - margin * 2;
+  let offset = 0;
+  pdf.addImage(imgData, "PNG", margin, margin, imgWidth, imgHeight);
+  while (imgHeight - offset > pageContent) {
+    offset += pageContent;
+    pdf.addPage();
+    pdf.addImage(imgData, "PNG", margin, margin - offset, imgWidth, imgHeight);
+  }
+  pdf.save(filename);
+}
+
 // ---------- day summary + per-agency PDF ----------
 function DaySummaryTab() {
   const [date, setDate] = useState(todayStr());
@@ -58,14 +85,7 @@ function DaySummaryTab() {
     setPrintData({ agencyName, shifts: agencyShifts });
     await new Promise((r) => setTimeout(r, 80)); // let the hidden div render
     try {
-      const el = printRef.current;
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff" });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const imgWidth = pdf.internal.pageSize.getWidth() - 20;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight);
-      pdf.save(`דוח ${agencyName} ${date}.pdf`);
+      await saveElementAsPdf(printRef.current, `דוח ${agencyName} ${date}.pdf`);
       toast.success(`דוח ${agencyName} נשמר`);
     } catch (e) {
       toast.error(e.message);
@@ -195,11 +215,13 @@ function AgencyReportsTab() {
     const agencies = new Map();
     for (const s of shifts) {
       const key = s.agency_name || "ללא חברה";
-      if (!agencies.has(key)) agencies.set(key, { days: new Map(), workers: new Map(), total: 0 });
+      if (!agencies.has(key)) agencies.set(key, { days: new Map(), dayShifts: new Map(), workers: new Map(), total: 0 });
       const a = agencies.get(key);
       const hours = shiftHours(s.clock_in, s.clock_out);
       a.total += hours;
       a.days.set(s.event_date, (a.days.get(s.event_date) || 0) + hours);
+      if (!a.dayShifts.has(s.event_date)) a.dayShifts.set(s.event_date, []);
+      a.dayShifts.get(s.event_date).push({ ...s, hours });
       const w = a.workers.get(s.worker_name) || { shifts: 0, hours: 0 };
       w.shifts += 1; w.hours += hours;
       a.workers.set(s.worker_name, w);
@@ -212,14 +234,7 @@ function AgencyReportsTab() {
     setPrintData({ agencyName, data });
     await new Promise((r) => setTimeout(r, 80)); // let the hidden div render
     try {
-      const el = printRef.current;
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff" });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const imgWidth = pdf.internal.pageSize.getWidth() - 20;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight);
-      pdf.save(`דוח ${agencyName} ${month}.pdf`);
+      await saveElementAsPdf(printRef.current, `דוח ${agencyName} ${month}.pdf`);
       toast.success(`דוח ${agencyName} נשמר`);
     } catch (e) {
       toast.error(e.message);
@@ -263,12 +278,31 @@ function AgencyReportsTab() {
                 </table>
               </div>
               <div>
-                <h4 className="text-sm font-semibold mb-1">לפי יום</h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {[...data.days.entries()].sort().map(([d, h]) => (
-                    <Badge key={d} variant="outline">{d.slice(8)}.{d.slice(5, 7)} · {fmtHours(h)}</Badge>
+                <h4 className="text-sm font-semibold mb-1">פירוט יומי — מי עבד וכמה</h4>
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b text-right text-slate-500"><th className="p-1.5">שם</th><th className="p-1.5">כניסה–יציאה</th><th className="p-1.5">שעות</th></tr></thead>
+                  {[...data.dayShifts.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([d, dayShifts]) => (
+                    <tbody key={d}>
+                      <tr className="bg-slate-100 font-semibold">
+                        <td className="p-1.5" colSpan={2}>{fmtDay(d)} · {dayShifts.length} עובדים</td>
+                        <td className="p-1.5">{fmtHours(data.days.get(d) || 0)}</td>
+                      </tr>
+                      {dayShifts.map((s) => (
+                        <tr key={s.id} className="border-b last:border-0">
+                          <td className="p-1.5">{s.worker_name}{s.is_substitute ? " (מחליף)" : ""}</td>
+                          <td className="p-1.5 font-mono text-xs">{s.clock_in || "—"}–{s.clock_out || "—"}</td>
+                          <td className="p-1.5">{fmtHours(s.hours)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
                   ))}
-                </div>
+                  <tbody>
+                    <tr className="border-t-2 border-slate-300 font-bold">
+                      <td className="p-1.5" colSpan={2}>סה"כ חודשי</td>
+                      <td className="p-1.5">{fmtHours(data.total)}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>
@@ -306,22 +340,36 @@ function AgencyReportsTab() {
             </tbody>
           </table>
 
-          <div style={{ fontSize: 15, fontWeight: 700, marginTop: 20, marginBottom: 6 }}>לפי יום</div>
+          <div style={{ fontSize: 15, fontWeight: 700, marginTop: 20, marginBottom: 6 }}>פירוט יומי — מי עבד וכמה</div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr>
-                {["תאריך", "שעות"].map((h) => (
+                {["שם", "כניסה", "יציאה", "שעות"].map((h) => (
                   <th key={h} style={{ background: "#0b4d3d", color: "#fff", padding: "6px 10px", textAlign: "right" }}>{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {[...printData.data.days.entries()].sort().map(([d, h]) => (
-                <tr key={d}>
-                  <td style={{ padding: "6px 10px", borderBottom: "1px solid #e5e5e5" }}>{d}</td>
-                  <td style={{ padding: "6px 10px", borderBottom: "1px solid #e5e5e5" }}>{fmtHours(h)}</td>
+            {[...printData.data.dayShifts.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([d, dayShifts]) => (
+              <tbody key={d}>
+                <tr>
+                  <td colSpan={3} style={{ padding: "6px 10px", background: "#f1f5f9", fontWeight: 700 }}>{fmtDay(d)} · {dayShifts.length} עובדים</td>
+                  <td style={{ padding: "6px 10px", background: "#f1f5f9", fontWeight: 700 }}>{fmtHours(printData.data.days.get(d) || 0)}</td>
                 </tr>
-              ))}
+                {dayShifts.map((s) => (
+                  <tr key={s.id}>
+                    <td style={{ padding: "5px 10px", borderBottom: "1px solid #e5e5e5" }}>{s.worker_name}{s.is_substitute ? " (מחליף)" : ""}</td>
+                    <td style={{ padding: "5px 10px", borderBottom: "1px solid #e5e5e5" }}>{s.clock_in || "—"}</td>
+                    <td style={{ padding: "5px 10px", borderBottom: "1px solid #e5e5e5" }}>{s.clock_out || "—"}</td>
+                    <td style={{ padding: "5px 10px", borderBottom: "1px solid #e5e5e5" }}>{fmtHours(s.hours)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            ))}
+            <tbody>
+              <tr>
+                <td colSpan={3} style={{ padding: "8px 10px", fontWeight: 700, borderTop: "2px solid #0b4d3d" }}>סה"כ חודשי</td>
+                <td style={{ padding: "8px 10px", fontWeight: 700, borderTop: "2px solid #0b4d3d" }}>{fmtHours(printData.data.total)}</td>
+              </tr>
             </tbody>
           </table>
         </div>
