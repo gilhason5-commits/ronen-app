@@ -21,7 +21,14 @@ export default function AssignOrphanTasksDialog({ open, onClose, orphanName, dep
     queryKey: ["taskEmployees"],
     queryFn: () => base44.entities.TaskEmployee.list(),
   });
-  const candidates = allEmployees.filter((e) => e.is_active && (!departmentName || e.department_name === departmentName));
+  // Any active employee can take the tasks; the department's own people are
+  // listed first. (Limiting the list to the department left only a handful of
+  // names, so the person meant to take over often wasn't there at all.)
+  const label = (e) => (e.full_name || "").trim() || e.role_name || "ללא שם";
+  const inDept = (e) => !!departmentName && e.department_name === departmentName;
+  const candidates = allEmployees
+    .filter((e) => e.is_active)
+    .sort((a, b) => (inDept(b) - inDept(a)) || label(a).localeCompare(label(b), "he"));
 
   const assignMutation = useMutation({
     mutationFn: async () => {
@@ -31,7 +38,7 @@ export default function AssignOrphanTasksDialog({ open, onClose, orphanName, dep
         .from("TaskAssignment")
         .update({
           assigned_to_id: emp.id,
-          assigned_to_name: emp.full_name || "",
+          assigned_to_name: label(emp),
           assigned_to_phone: emp.phone_e164 || "",
           manager_id: emp.manager_id || null,
           manager_name: emp.manager_name || "",
@@ -43,7 +50,7 @@ export default function AssignOrphanTasksDialog({ open, onClose, orphanName, dep
       q = orphanName ? q.eq("assigned_to_name", orphanName) : q;
       const { data, error } = await q.select("id");
       if (error) throw error;
-      return { count: data?.length || 0, name: emp.full_name };
+      return { count: data?.length || 0, name: label(emp) };
     },
     onSuccess: ({ count, name }) => {
       queryClient.invalidateQueries({ queryKey: ["taskAssignments"] });
@@ -66,13 +73,15 @@ export default function AssignOrphanTasksDialog({ open, onClose, orphanName, dep
             <SelectContent>
               {candidates.map((emp) => (
                 <SelectItem key={emp.id} value={emp.id}>
-                  {emp.full_name}{emp.role_name ? ` — ${emp.role_name}` : ""}
+                  {label(emp)}
+                  {emp.role_name && label(emp) !== emp.role_name ? ` — ${emp.role_name}` : ""}
+                  {!inDept(emp) && emp.department_name ? ` (${emp.department_name})` : ""}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <p className="text-xs text-stone-500">
-            העובד לא ברשימה? הוסף אותו בעמוד העובדים{departmentName ? ` למחלקת ${departmentName}` : ""}, ואז חזור לכאן.
+            העובד לא ברשימה? הוסף אותו בעמוד העובדים, ואז חזור לכאן.
           </p>
         </div>
         <DialogFooter>

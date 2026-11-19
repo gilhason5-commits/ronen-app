@@ -61,6 +61,15 @@ export default function RecurringTaskColumns() {
     },
   });
 
+  // Peti Vor tasks live on their own page, whoever they're assigned to.
+  const { data: pvTemplateIds = new Set() } = useQuery({
+    queryKey: ['taskTemplates', 'PETI_VOR_RECURRING_IDS'],
+    queryFn: async () => {
+      const all = await base44.entities.TaskTemplate.list();
+      return new Set(all.filter(t => t.task_type === 'PETI_VOR_RECURRING').map(t => t.id));
+    },
+  });
+
   const { data: roles = [] } = useQuery({
     queryKey: ['employeeRoles'],
     queryFn: () => base44.entities.EmployeeRole.list(),
@@ -83,6 +92,7 @@ export default function RecurringTaskColumns() {
     const roleMap = {};
 
     assignments.forEach(a => {
+      if (pvTemplateIds.has(a.task_template_id)) return;
       const emp = employees.find(e => e.id === a.assigned_to_id);
       const roleId = emp?.role_id || 'unassigned';
       const role = roles.find(r => r.id === roleId);
@@ -110,7 +120,7 @@ export default function RecurringTaskColumns() {
     });
 
     return roleMap;
-  }, [assignments, employees, roles]);
+  }, [assignments, employees, roles, pvTemplateIds]);
 
   // Persistent ordering state - loaded from user profile
   const [columnOrder, setColumnOrder] = useState(null);

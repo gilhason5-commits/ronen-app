@@ -123,7 +123,9 @@ export default function PetiVorRecurringTaskColumns({ departmentId }) {
         roleMap[key].templates[tmplId].instances.push(a);
         return;
       }
-      if (!pvEmployeeIds.has(ownerId)) return;
+      // Peti Vor tasks stay on this page even when handed to an employee from
+      // another department.
+      if (!pvEmployeeIds.has(ownerId) && !pvTemplateIds.has(a.task_template_id)) return;
       const emp = employees.find(e => e.id === ownerId);
       const roleId = emp?.role_id || 'unassigned';
       const role = roles.find(r => r.id === roleId);
