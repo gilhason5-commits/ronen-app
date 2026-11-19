@@ -43,8 +43,11 @@ export function computeTipAllocation(poolAmount, tipRules, shifts) {
       deductions.push({ role_name: r.role_name, type: 'PERCENT', label: `${r.value}%`, amount: v });
       deducted += v;
     } else if (r.rule_type === 'FIXED' && Number(r.value) > 0) {
-      deductions.push({ role_name: r.role_name, type: 'FIXED', label: 'פיקס', amount: Number(r.value) });
-      deducted += Number(r.value);
+      // Fixed amount per person × how many people hold the role (default 1).
+      const qty = Number(r.quantity) > 0 ? Number(r.quantity) : 1;
+      const v = Number(r.value) * qty;
+      deductions.push({ role_name: r.role_name, type: 'FIXED', label: qty === 1 ? 'פיקס' : `פיקס ${qty} × ${Number(r.value).toLocaleString()} ₪`, amount: v });
+      deducted += v;
     }
   }
 

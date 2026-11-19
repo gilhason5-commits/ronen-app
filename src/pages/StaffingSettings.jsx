@@ -287,7 +287,7 @@ function TipRulesTab() {
       <CardHeader className="pb-2">
         <CardTitle className="text-lg flex items-center justify-between">
           חוקי חלוקת הטיפים
-          <Button size="sm" variant="outline" onClick={() => crud.create.mutate({ role_name: "תפקיד חדש", rule_type: "FIXED", value: 0, sort_order: 99 })}>
+          <Button size="sm" variant="outline" onClick={() => crud.create.mutate({ role_name: "תפקיד חדש", rule_type: "FIXED", value: 0, quantity: 1, sort_order: 99 })}>
             <Plus className="w-4 h-4 ml-1" /> הוסף חוק
           </Button>
         </CardTitle>
@@ -299,6 +299,7 @@ function TipRulesTab() {
             <tr className="border-b text-right text-slate-500">
               <th className="p-2 pr-4">תפקיד</th>
               <th className="p-2">סוג</th>
+              <th className="p-2">כמות</th>
               <th className="p-2">ערך</th>
               <th className="p-2">הסבר</th>
               <th className="p-2">פעיל</th>
@@ -324,9 +325,20 @@ function TipRulesTab() {
                     ) : <Badge variant="outline">{TIP_RULE_TYPE_LABELS[r.rule_type]}</Badge>}
                   </td>
                   <td className="p-2">
+                    {(editing ? form.rule_type : r.rule_type) !== "FIXED"
+                      ? <span className="text-slate-300">—</span>
+                      : editing
+                      ? <NumInput className="w-16" value={form.quantity ?? 1} onChange={(v) => setForm({ ...form, quantity: v })} />
+                      : (Number(r.quantity) > 0 ? Number(r.quantity) : 1)}
+                  </td>
+                  <td className="p-2 whitespace-nowrap">
                     {editing
                       ? <NumInput value={form.value} onChange={(v) => setForm({ ...form, value: v })} />
-                      : (r.rule_type === "PERCENT" ? `${r.value}%` : `${Number(r.value).toLocaleString()} ₪`)}
+                      : r.rule_type === "PERCENT"
+                      ? `${r.value}%`
+                      : r.rule_type === "FIXED" && Number(r.quantity) > 1
+                      ? `${Number(r.value).toLocaleString()} ₪ × ${Number(r.quantity)} = ${(Number(r.value) * Number(r.quantity)).toLocaleString()} ₪`
+                      : `${Number(r.value).toLocaleString()} ₪`}
                   </td>
                   <td className="p-2 text-slate-600 max-w-md">
                     {editing ? <Input className="h-8" value={form.explanation || ""} onChange={(e) => setForm({ ...form, explanation: e.target.value })} /> : r.explanation}
@@ -340,6 +352,7 @@ function TipRulesTab() {
                         <>
                           <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600" onClick={() => {
                             const { id, created_date, updated_date, ...data } = form;
+                            if ("quantity" in data && !(Number(data.quantity) > 0)) data.quantity = 1;
                             crud.update.mutate({ id: r.id, data });
                             setEditingId(null);
                           }}><Check className="w-4 h-4" /></Button>
