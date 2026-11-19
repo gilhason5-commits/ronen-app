@@ -109,7 +109,7 @@ export default function SupplierProductsDialog({ supplier, open, onClose }) {
               <TableHeader>
                 <TableRow>
                   <TableHead>שם הרכיב</TableHead>
-                  <TableHead className="text-center">כמות ליחידת רכישה</TableHead>
+                  <TableHead className="text-center">כמות יחידה מינימלית לרכישה</TableHead>
                   <TableHead className="text-center">יחידת מערכת</TableHead>
                   <TableHead className="text-right">מחיר רכישה</TableHead>
                   <TableHead className="text-right">מחיר ליחידה</TableHead>

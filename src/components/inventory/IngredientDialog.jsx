@@ -236,7 +236,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
     const errors = [];
     if (!formData.name?.trim()) errors.push('שם');
     if (!formData.system_unit) errors.push('יחידת מדידה');
-    if (!formData.purchase_unit || parseFloat(formData.purchase_unit) <= 0) errors.push('כמות יחידת רכישה');
+    if (!formData.purchase_unit || parseFloat(formData.purchase_unit) <= 0) errors.push('כמות יחידה מינימלית לרכישה');
     if (!formData.base_price && formData.base_price !== 0) errors.push('מחיר רכישה מינימום');
     if (errors.length > 0) {
       setValidationError('שדות חובה חסרים: ' + errors.join(', '));
@@ -326,7 +326,7 @@ export default function IngredientDialog({ ingredient, suppliers = [], ingredien
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>כמות יחידת רכישה *</Label>
+              <Label>כמות יחידה מינימלית לרכישה *</Label>
               <Input
                 type="text"
                 inputMode="decimal"
