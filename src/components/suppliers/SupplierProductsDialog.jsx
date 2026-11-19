@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
@@ -17,7 +17,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Package, Printer, ExternalLink } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Package, Printer, ExternalLink, Search } from "lucide-react";
 import { format } from "date-fns";
 import { createPageUrl } from "@/utils";
 
@@ -30,6 +31,14 @@ export default function SupplierProductsDialog({ supplier, open, onClose }) {
       : Promise.resolve([]),
     enabled: !!supplier?.id && open
   });
+  const [search, setSearch] = useState('');
+
+  const visibleIngredients = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return ingredients
+      .filter((i) => !q || (i.name || '').toLowerCase().includes(q))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
+  }, [ingredients, search]);
 
   const openIngredient = (ingredient) => {
     onClose?.();
@@ -69,6 +78,18 @@ export default function SupplierProductsDialog({ supplier, open, onClose }) {
           </div>
         </DialogHeader>
 
+        {ingredients.length > 0 && (
+          <div className="relative print:hidden">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="חיפוש רכיב..."
+              className="pr-9"
+            />
+          </div>
+        )}
+
         <div id="supplier-products-print">
           <div className="mb-4 print:block">
             <h2 className="text-xl font-bold">רכיבים של {supplier?.name}</h2>
@@ -80,6 +101,8 @@ export default function SupplierProductsDialog({ supplier, open, onClose }) {
             <Package className="w-12 h-12 mx-auto mb-3 text-stone-300" />
             <p>אין רכיבים רשומים לספק זה</p>
           </div>
+        ) : visibleIngredients.length === 0 ? (
+          <div className="p-8 text-center text-stone-500">לא נמצאו רכיבים התואמים לחיפוש</div>
         ) : (
           <div className="border rounded-lg overflow-hidden">
             <Table>
@@ -95,7 +118,7 @@ export default function SupplierProductsDialog({ supplier, open, onClose }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ingredients.map((ingredient) => (
+                {visibleIngredients.map((ingredient) => (
                   <TableRow key={ingredient.id}>
                     <TableCell className="font-medium">{ingredient.name}</TableCell>
                     <TableCell className="text-center">
@@ -136,7 +159,9 @@ export default function SupplierProductsDialog({ supplier, open, onClose }) {
         <div className="mt-4 p-4 bg-stone-50 rounded-lg">
           <div className="flex justify-between items-center text-sm">
             <span className="text-stone-600">סה"כ רכיבים:</span>
-            <span className="font-semibold">{ingredients.length}</span>
+            <span className="font-semibold">
+              {search.trim() ? `${visibleIngredients.length} מתוך ${ingredients.length}` : ingredients.length}
+            </span>
           </div>
         </div>
         </div>
